@@ -22,7 +22,9 @@ import {
   WarrantyPolicy,
   AppTheme,
   ThemeDefinition,
-  AuthUser
+  AuthUser,
+  OperatorInstallmentRate,
+  FeeAbsorptionMode
 } from './types';
 
 export const initialClients: Client[] = [
@@ -462,6 +464,21 @@ export const initialCardOperators: CardOperator[] = [
     creditInstallments7to12Rate: 4.99, // 4.99% Crédito 7x a 12x
     anticipationRate: 1.20, // Taxa de antecipação automática
     acceptedBrands: ['Visa', 'Mastercard', 'Elo', 'Hipercard', 'American Express', 'Alelo'],
+    defaultAbsorptionMode: 'repassar',
+    installmentRates: [
+      { installment: 1, rate: 3.19, absorptionMode: 'assumir' },
+      { installment: 2, rate: 3.79, absorptionMode: 'repassar' },
+      { installment: 3, rate: 4.19, absorptionMode: 'repassar' },
+      { installment: 4, rate: 4.59, absorptionMode: 'repassar' },
+      { installment: 5, rate: 4.99, absorptionMode: 'repassar' },
+      { installment: 6, rate: 5.39, absorptionMode: 'repassar' },
+      { installment: 7, rate: 5.89, absorptionMode: 'repassar' },
+      { installment: 8, rate: 6.29, absorptionMode: 'repassar' },
+      { installment: 9, rate: 6.69, absorptionMode: 'repassar' },
+      { installment: 10, rate: 7.09, absorptionMode: 'repassar' },
+      { installment: 11, rate: 7.49, absorptionMode: 'repassar' },
+      { installment: 12, rate: 7.99, absorptionMode: 'repassar' }
+    ],
     integration: {
       enabled: true,
       environment: 'production',
@@ -492,6 +509,21 @@ export const initialCardOperators: CardOperator[] = [
     creditInstallments7to12Rate: 5.10,
     anticipationRate: 1.99,
     acceptedBrands: ['Visa', 'Mastercard', 'Elo', 'Hipercard', 'Amex'],
+    defaultAbsorptionMode: 'assumir',
+    installmentRates: [
+      { installment: 1, rate: 2.75, absorptionMode: 'assumir' },
+      { installment: 2, rate: 3.49, absorptionMode: 'assumir' },
+      { installment: 3, rate: 3.89, absorptionMode: 'assumir' },
+      { installment: 4, rate: 4.29, absorptionMode: 'assumir' },
+      { installment: 5, rate: 4.69, absorptionMode: 'assumir' },
+      { installment: 6, rate: 5.09, absorptionMode: 'assumir' },
+      { installment: 7, rate: 5.49, absorptionMode: 'repassar' },
+      { installment: 8, rate: 5.89, absorptionMode: 'repassar' },
+      { installment: 9, rate: 6.29, absorptionMode: 'repassar' },
+      { installment: 10, rate: 6.69, absorptionMode: 'repassar' },
+      { installment: 11, rate: 7.09, absorptionMode: 'repassar' },
+      { installment: 12, rate: 7.49, absorptionMode: 'repassar' }
+    ],
     integration: {
       enabled: false,
       environment: 'production',
@@ -518,6 +550,21 @@ export const initialCardOperators: CardOperator[] = [
     creditInstallments7to12Rate: 4.85,
     anticipationRate: 1.40,
     acceptedBrands: ['Visa', 'Mastercard', 'Elo', 'Hipercard'],
+    defaultAbsorptionMode: 'repassar',
+    installmentRates: [
+      { installment: 1, rate: 2.90, absorptionMode: 'assumir' },
+      { installment: 2, rate: 3.40, absorptionMode: 'repassar' },
+      { installment: 3, rate: 3.80, absorptionMode: 'repassar' },
+      { installment: 4, rate: 4.20, absorptionMode: 'repassar' },
+      { installment: 5, rate: 4.60, absorptionMode: 'repassar' },
+      { installment: 6, rate: 5.00, absorptionMode: 'repassar' },
+      { installment: 7, rate: 5.50, absorptionMode: 'repassar' },
+      { installment: 8, rate: 5.90, absorptionMode: 'repassar' },
+      { installment: 9, rate: 6.30, absorptionMode: 'repassar' },
+      { installment: 10, rate: 6.70, absorptionMode: 'repassar' },
+      { installment: 11, rate: 7.10, absorptionMode: 'repassar' },
+      { installment: 12, rate: 7.60, absorptionMode: 'repassar' }
+    ],
     integration: {
       enabled: false,
       environment: 'production',

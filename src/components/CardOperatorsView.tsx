@@ -26,7 +26,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
-import { CardOperator, PagBankTransaction } from '../types';
+import { CardOperator, PagBankTransaction, OperatorInstallmentRate, FeeAbsorptionMode } from '../types';
 
 export const CardOperatorsView: React.FC = () => {
   const { 
@@ -68,6 +68,55 @@ export const CardOperatorsView: React.FC = () => {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [autoReconcile, setAutoReconcile] = useState(true);
   const [notes, setNotes] = useState('');
+
+  // Tabela Individual de Parcelas 1x a 12x (Taxas e Repasse / Absorção)
+  const [installmentRates, setInstallmentRates] = useState<OperatorInstallmentRate[]>([]);
+  const [defaultAbsorptionMode, setDefaultAbsorptionMode] = useState<FeeAbsorptionMode>('repassar');
+  const [expandedOperatorRatesId, setExpandedOperatorRatesId] = useState<string | null>(null);
+  const [calcSelectedOperatorId, setCalcSelectedOperatorId] = useState<string>('op-pagbank');
+  const [calcAbsorptionOverride, setCalcAbsorptionOverride] = useState<FeeAbsorptionMode | null>(null);
+
+  // Helper para gerar 12 parcelas padrão
+  const generateDefaultInstallments = (
+    sightRate: number = 3.19,
+    inst2to6: number = 3.79,
+    inst7to12: number = 4.99,
+    defaultMode: FeeAbsorptionMode = 'repassar'
+  ): OperatorInstallmentRate[] => {
+    return [
+      { installment: 1, rate: sightRate, absorptionMode: 'assumir' },
+      { installment: 2, rate: inst2to6, absorptionMode: 'repassar' },
+      { installment: 3, rate: Number((inst2to6 + 0.40).toFixed(2)), absorptionMode: 'repassar' },
+      { installment: 4, rate: Number((inst2to6 + 0.80).toFixed(2)), absorptionMode: 'repassar' },
+      { installment: 5, rate: Number((inst2to6 + 1.20).toFixed(2)), absorptionMode: 'repassar' },
+      { installment: 6, rate: Number((inst2to6 + 1.60).toFixed(2)), absorptionMode: 'repassar' },
+      { installment: 7, rate: inst7to12, absorptionMode: 'repassar' },
+      { installment: 8, rate: Number((inst7to12 + 0.40).toFixed(2)), absorptionMode: 'repassar' },
+      { installment: 9, rate: Number((inst7to12 + 0.80).toFixed(2)), absorptionMode: 'repassar' },
+      { installment: 10, rate: Number((inst7to12 + 1.20).toFixed(2)), absorptionMode: 'repassar' },
+      { installment: 11, rate: Number((inst7to12 + 1.60).toFixed(2)), absorptionMode: 'repassar' },
+      { installment: 12, rate: Number((inst7to12 + 2.00).toFixed(2)), absorptionMode: 'repassar' }
+    ];
+  };
+
+  const handleUpdateInstallmentRate = (instNumber: number, newRate: number) => {
+    setInstallmentRates(prev => prev.map(r => r.installment === instNumber ? { ...r, rate: Math.max(0, newRate) } : r));
+  };
+
+  const handleToggleInstallmentAbsorption = (instNumber: number) => {
+    setInstallmentRates(prev => prev.map(r => r.installment === instNumber ? { 
+      ...r, 
+      absorptionMode: r.absorptionMode === 'repassar' ? 'assumir' : 'repassar' 
+    } : r));
+  };
+
+  const handleSetAllAbsorption = (mode: FeeAbsorptionMode) => {
+    setInstallmentRates(prev => prev.map(r => ({ ...r, absorptionMode: mode })));
+  };
+
+  const handleSetCommonPattern = () => {
+    setInstallmentRates(prev => prev.map(r => ({ ...r, absorptionMode: r.installment === 1 ? 'assumir' : 'repassar' })));
+  };
 
   // Simulador de Webhook PagBank
   const [simOrderCode, setSimOrderCode] = useState<string>(() => {
@@ -118,6 +167,8 @@ export const CardOperatorsView: React.FC = () => {
     setCreditInstallments7to12Rate(5.20);
     setAnticipationRate(1.99);
     setAcceptedBrands(['Visa', 'Mastercard', 'Elo', 'Hipercard']);
+    setInstallmentRates(generateDefaultInstallments(2.85, 3.89, 5.20, 'repassar'));
+    setDefaultAbsorptionMode('repassar');
     setApiToken('');
     setWebhookUrl('');
     setAutoReconcile(false);
@@ -140,6 +191,12 @@ export const CardOperatorsView: React.FC = () => {
     setCreditInstallments7to12Rate(op.creditInstallments7to12Rate);
     setAnticipationRate(op.anticipationRate || 0);
     setAcceptedBrands(op.acceptedBrands || ['Visa', 'Mastercard']);
+    if (op.installmentRates && op.installmentRates.length > 0) {
+      setInstallmentRates([...op.installmentRates]);
+    } else {
+      setInstallmentRates(generateDefaultInstallments(op.creditSightRate, op.creditInstallments2to6Rate, op.creditInstallments7to12Rate, op.defaultAbsorptionMode || 'repassar'));
+    }
+    setDefaultAbsorptionMode(op.defaultAbsorptionMode || 'repassar');
     setApiToken(op.integration?.apiToken || '');
     setWebhookUrl(op.integration?.webhookUrl || '');
     setAutoReconcile(op.integration?.autoReconcile ?? true);
@@ -165,6 +222,8 @@ export const CardOperatorsView: React.FC = () => {
       creditInstallments7to12Rate: Number(creditInstallments7to12Rate),
       anticipationRate: Number(anticipationRate),
       acceptedBrands,
+      defaultAbsorptionMode,
+      installmentRates: installmentRates.length > 0 ? installmentRates : generateDefaultInstallments(creditSightRate, creditInstallments2to6Rate, creditInstallments7to12Rate, defaultAbsorptionMode),
       integration: {
         enabled: Boolean(apiToken || autoReconcile),
         environment: 'production' as const,
@@ -217,18 +276,65 @@ export const CardOperatorsView: React.FC = () => {
     }, 900);
   };
 
-  // Cálculo da simulação de taxas
-  const calculateRateAndNet = (op: CardOperator) => {
+  // Cálculo da simulação de taxas com suporte a Repassar vs Assumir
+  const calculateRateAndNet = (op: CardOperator, overrideAbsorption?: FeeAbsorptionMode | null) => {
     let rate = 0;
-    if (calcMethod === 'pix') rate = op.pixRate;
-    else if (calcMethod === 'debito') rate = op.debitRate;
-    else if (calcMethod === 'credito_vista') rate = op.creditSightRate;
-    else {
-      rate = calcInstallments <= 6 ? op.creditInstallments2to6Rate : op.creditInstallments7to12Rate;
+    let absorptionMode: FeeAbsorptionMode = op.defaultAbsorptionMode || 'repassar';
+
+    if (calcMethod === 'pix') {
+      rate = op.pixRate;
+      absorptionMode = 'assumir';
+    } else if (calcMethod === 'debito') {
+      rate = op.debitRate;
+      absorptionMode = 'assumir';
+    } else if (calcMethod === 'credito_vista') {
+      if (op.installmentRates && op.installmentRates.length > 0) {
+        const found = op.installmentRates.find(r => r.installment === 1);
+        if (found) {
+          rate = found.rate;
+          absorptionMode = found.absorptionMode;
+        } else {
+          rate = op.creditSightRate;
+        }
+      } else {
+        rate = op.creditSightRate;
+      }
+    } else {
+      if (op.installmentRates && op.installmentRates.length >= calcInstallments) {
+        const found = op.installmentRates.find(r => r.installment === calcInstallments);
+        if (found) {
+          rate = found.rate;
+          absorptionMode = found.absorptionMode;
+        } else {
+          rate = calcInstallments <= 6 ? op.creditInstallments2to6Rate : op.creditInstallments7to12Rate;
+        }
+      } else {
+        rate = calcInstallments <= 6 ? op.creditInstallments2to6Rate : op.creditInstallments7to12Rate;
+      }
     }
-    const fee = calcAmount * (rate / 100);
-    const net = calcAmount - fee;
-    return { rate, fee, net };
+
+    const effectiveMode = overrideAbsorption || absorptionMode;
+    let clientCharged = calcAmount;
+    let fee = 0;
+    let net = calcAmount;
+
+    if (effectiveMode === 'repassar') {
+      // Repasse: cliente assume a taxa / juros para a empresa receber o líquido cheio
+      if (rate < 100) {
+        clientCharged = Number((calcAmount / (1 - rate / 100)).toFixed(2));
+        fee = Number((clientCharged - calcAmount).toFixed(2));
+        net = calcAmount;
+      }
+    } else {
+      // Assumir: empresa absorve a taxa
+      clientCharged = calcAmount;
+      fee = Number((calcAmount * (rate / 100)).toFixed(2));
+      net = Number((calcAmount - fee).toFixed(2));
+    }
+
+    const installmentValue = Number((clientCharged / (calcMethod === 'credito_parcelado' ? calcInstallments : 1)).toFixed(2));
+
+    return { rate, fee, net, clientCharged, installmentValue, absorptionMode: effectiveMode };
   };
 
   return (

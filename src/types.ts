@@ -19,6 +19,14 @@ export type PaymentMethod =
 
 export type CardBrand = 'visa' | 'mastercard' | 'elo' | 'hipercard' | 'outra';
 
+export type FeeAbsorptionMode = 'assumir' | 'repassar';
+
+export interface OperatorInstallmentRate {
+  installment: number; // 1 a 12
+  rate: number; // taxa % (ex: 3.19, 3.79...)
+  absorptionMode: FeeAbsorptionMode; // 'assumir' (empresa assume taxa) | 'repassar' (repassado ao cliente com juros)
+}
+
 export interface CardOperator {
   id: string;
   name: string; // Ex: 'PagBank (PagSeguro UOL)', 'Cielo', 'Stone', 'Rede', 'Mercado Pago'
@@ -34,6 +42,8 @@ export interface CardOperator {
   creditInstallments7to12Rate: number; // Crédito Parcelado (7x a 12x) (%)
   anticipationRate?: number; // Taxa de antecipação opcional (%)
   acceptedBrands: string[]; // ['Visa', 'Mastercard', 'Elo', 'Hipercard', 'Amex']
+  installmentRates?: OperatorInstallmentRate[]; // Lista customizada de 1x a 12x com taxas e assumir/repassar
+  defaultAbsorptionMode?: FeeAbsorptionMode;
   integration?: {
     enabled: boolean;
     environment: 'sandbox' | 'production';
@@ -84,10 +94,12 @@ export interface PaymentSplit {
   id: string;
   method: PaymentMethod;
   cardBrand?: CardBrand;
+  operatorId?: string;
   installments?: number;
   ratePercentage?: number;
   rateAmount?: number;
-  amount: number; // Valor bruto pago pelo cliente
+  absorptionMode?: FeeAbsorptionMode; // 'assumir' | 'repassar'
+  amount: number; // Valor bruto pago pelo cliente (inclui acréscimo se for repassado)
   netAmount: number; // Valor líquido recebido pela empresa após taxa de cartão
 }
 
