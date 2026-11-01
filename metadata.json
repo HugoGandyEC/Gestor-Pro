@@ -1,0 +1,6 @@
+{
+  "name": "GestãoPro - Sistema de Ordens de Serviço, Vendas e Financeiro",
+  "description": "Sistema completo de gestão de Ordens de Serviço, Vendas, Financeiro, Custos Operacionais (gasolina, aluguel, internet, celular, alimentação, frota) e Relatórios Mensais de Lucratividade por Funcionário.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,1476 @@
+import React, { useState } from 'react';
+import { 
+  Building2, 
+  CreditCard, 
+  ShieldCheck, 
+  FileText, 
+  Lock, 
+  Database, 
+  Save, 
+  RefreshCw, 
+  Download, 
+  Upload, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Search,
+  ExternalLink,
+  Shield,
+  Layers,
+  Percent,
+  Terminal,
+  FileCheck,
+  ListOrdered,
+  Plus,
+  Trash2,
+  Edit2,
+  CheckSquare,
+  Square,
+  Info,
+  Sparkles,
+  Clock,
+  Tag,
+  X
+} from 'lucide-react';
+import { useApp, formatBRL } from '../context/AppContext';
+import { CardBrand, CardMachineRate, CompanySettings, UserRole, SequenceSettings, WarrantyPolicy } from '../types';
+
+type SettingsTab = 
+  | 'company' 
+  | 'sequences'
+  | 'warranty'
+  | 'cardRates' 
+  | 'fiscal' 
+  | 'permissions' 
+  | 'backup';
+
+export const SystemSettingsView: React.FC = () => {
+  const { 
+    companySettings, 
+    updateCompanySettings, 
+    sequenceSettings,
+    updateSequenceSettings,
+    warrantyPolicies,
+    addWarrantyPolicy,
+    updateWarrantyPolicy,
+    deleteWarrantyPolicy,
+    serviceCatalog,
+    cardRates, 
+    cardOperators,
+    updateCardRate, 
+    exportDatabaseJson, 
+    restoreDatabaseJson, 
+    resetToDefaults,
+    currentRole,
+    setCurrentRole,
+    lookupCep,
+    lookupCnpj
+  } = useApp();
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>('company');
+  const [formData, setFormData] = useState<CompanySettings>({ ...companySettings });
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  // Sequence settings form state
+  const [seqForm, setSeqForm] = useState<SequenceSettings>({ ...sequenceSettings });
+
+  // Update seqForm whenever sequenceSettings in context changes
+  React.useEffect(() => {
+    setSeqForm({ ...sequenceSettings });
+  }, [sequenceSettings]);
+
+  // Warranty Policy Modal State
+  const [isWarrantyModalOpen, setIsWarrantyModalOpen] = useState(false);
+  const [editingWarrantyId, setEditingWarrantyId] = useState<string | null>(null);
+  const [warrantyForm, setWarrantyForm] = useState<Omit<WarrantyPolicy, 'id' | 'createdAt'>>({
+    name: '',
+    days: 90,
+    category: 'Manutenção Preventiva',
+    isDefault: false,
+    terms: '',
+    linkedServiceIds: []
+  });
+
+  const handleOpenNewWarrantyModal = () => {
+    setEditingWarrantyId(null);
+    setWarrantyForm({
+      name: '',
+      days: 90,
+      category: 'Manutenção Preventiva',
+      isDefault: false,
+      terms: 'Garantia legal de 90 dias para mão de obra conforme Art. 26 do CDC.',
+      linkedServiceIds: []
+    });
+    setIsWarrantyModalOpen(true);
+  };
+
+  const handleOpenEditWarrantyModal = (policy: WarrantyPolicy) => {
+    setEditingWarrantyId(policy.id);
+    setWarrantyForm({
+      name: policy.name,
+      days: policy.days,
+      category: policy.category,
+      isDefault: policy.isDefault,
+      terms: policy.terms,
+      linkedServiceIds: policy.linkedServiceIds ? [...policy.linkedServiceIds] : []
+    });
+    setIsWarrantyModalOpen(true);
+  };
+
+  const handleSaveWarrantyPolicy = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!warrantyForm.name.trim()) return;
+
+    if (editingWarrantyId) {
+      updateWarrantyPolicy(editingWarrantyId, warrantyForm);
+      setSaveSuccessMsg(`Garantia "${warrantyForm.name}" atualizada com sucesso!`);
+    } else {
+      addWarrantyPolicy(warrantyForm);
+      setSaveSuccessMsg(`Nova política de garantia "${warrantyForm.name}" criada com sucesso!`);
+    }
+    setIsWarrantyModalOpen(false);
+    setTimeout(() => setSaveSuccessMsg(null), 4000);
+  };
+
+  const toggleServiceInWarranty = (serviceId: string) => {
+    setWarrantyForm(prev => {
+      const exists = prev.linkedServiceIds.includes(serviceId);
+      return {
+        ...prev,
+        linkedServiceIds: exists
+          ? prev.linkedServiceIds.filter(id => id !== serviceId)
+          : [...prev.linkedServiceIds, serviceId]
+      };
+    });
+  };
+
+  const handleSaveSequences = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSequenceSettings(seqForm);
+    setSaveSuccessMsg('Numerações e sequenciais de OS, Vendas e Orçamentos salvos com sucesso!');
+    setTimeout(() => setSaveSuccessMsg(null), 4000);
+  };
+
+  // Backup restore states
+  const [restoreJsonInput, setRestoreJsonInput] = useState('');
+  const [restoreFeedback, setRestoreFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // CNPJ automatic lookup
+  const handleCnpjSearch = async () => {
+    if (formData.cnpj.replace(/\D/g, '').length === 14) {
+      const data = await lookupCnpj(formData.cnpj);
+      if (data) {
+        setFormData(prev => ({
+          ...prev,
+          companyName: data.name || prev.companyName,
+          tradeName: data.tradeName || prev.tradeName,
+          phone: data.phone || prev.phone,
+          email: data.email || prev.email,
+          cep: data.cep || prev.cep,
+          street: data.street || prev.street,
+          number: data.number || prev.number,
+          city: data.city || prev.city,
+          state: data.state || prev.state
+        }));
+      }
+    }
+  };
+
+  // CEP automatic lookup
+  const handleCepSearch = async () => {
+    if (formData.cep.replace(/\D/g, '').length === 8) {
+      const data = await lookupCep(formData.cep);
+      if (data) {
+        setFormData(prev => ({
+          ...prev,
+          street: data.street,
+          neighborhood: data.neighborhood,
+          city: data.city,
+          state: data.state
+        }));
+      }
+    }
+  };
+
+  const handleSaveCompany = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateCompanySettings(formData);
+    setSaveSuccessMsg('Dados da empresa e parâmetros fiscais atualizados com sucesso!');
+    setTimeout(() => setSaveSuccessMsg(null), 4000);
+  };
+
+  const handleDownloadBackup = () => {
+    const jsonStr = exportDatabaseJson();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup-erp-gestaopro-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRestoreFromFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        const res = restoreDatabaseJson(content);
+        if (res.success) {
+          setRestoreFeedback({ type: 'success', message: res.message });
+          setFormData({ ...companySettings });
+        } else {
+          setRestoreFeedback({ type: 'error', message: res.message });
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const tabsConfig = [
+    { id: 'company', label: 'Dados da Empresa / Emitente', icon: Building2 },
+    { id: 'sequences', label: 'Numerações & Séries', icon: ListOrdered },
+    { id: 'warranty', label: 'Garantias & Serviços Atrelados', icon: ShieldCheck },
+    { id: 'cardRates', label: 'Taxas de Maquininha por Bandeira', icon: CreditCard },
+    { id: 'fiscal', label: 'Ambiente Fiscal & NF-e', icon: FileText },
+    { id: 'permissions', label: 'Matriz de Permissões (RBAC)', icon: Lock },
+    { id: 'backup', label: 'Backup & Banco de Dados', icon: Database }
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+              Painel de Controle
+            </span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">Configurações Gerais do Sistema</h1>
+          <p className="text-sm text-slate-300 mt-1">
+            Personalize os parâmetros operacionais, taxas financeiras, dados fiscais da empresa e rotinas de segurança.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDownloadBackup}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors"
+          >
+            <Download className="w-4 h-4" /> Exportar Backup
+          </button>
+        </div>
+      </div>
+
+      {saveSuccessMsg && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-xl text-xs flex items-center gap-2 font-medium">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{saveSuccessMsg}</span>
+        </div>
+      )}
+
+      {/* Tabs Menu */}
+      <div className="bg-white border border-slate-200 rounded-xl p-1.5 flex flex-wrap gap-1 shadow-xs">
+        {tabsConfig.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as SettingsTab)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
+                isActive
+                  ? 'bg-indigo-600 text-white shadow-xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* TAB 1: DADOS DA EMPRESA */}
+      {activeTab === 'company' && (
+        <form onSubmit={handleSaveCompany} className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Identificação & Dados Fiscais da Empresa</h2>
+              <p className="text-xs text-slate-500">Esses dados serão utilizados no cabeçalho das Ordens de Serviço, Vendas e Relatórios em PDF.</p>
+            </div>
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs"
+            >
+              <Save className="w-4 h-4" /> Salvar Alterações
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-slate-700 mb-1">Razão Social (Legal) *</label>
+              <input
+                type="text"
+                required
+                value={formData.companyName}
+                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Nome Fantasia / Marca</label>
+              <input
+                type="text"
+                value={formData.tradeName}
+                onChange={(e) => setFormData({ ...formData, tradeName: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-700">CNPJ *</label>
+                <button
+                  type="button"
+                  onClick={handleCnpjSearch}
+                  className="text-[10px] text-indigo-600 hover:underline flex items-center gap-1"
+                >
+                  <Search className="w-3 h-3" /> Buscar Receita
+                </button>
+              </div>
+              <input
+                type="text"
+                required
+                value={formData.cnpj}
+                onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Inscrição Estadual (IE)</label>
+              <input
+                type="text"
+                value={formData.ie}
+                onChange={(e) => setFormData({ ...formData, ie: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Inscrição Municipal (IM)</label>
+              <input
+                type="text"
+                value={formData.im}
+                onChange={(e) => setFormData({ ...formData, im: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Telefone Principal / WhatsApp</label>
+              <input
+                type="text"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">E-mail Comercial / SAC</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Regime Tributário</label>
+              <select
+                value={formData.taxRegime}
+                onChange={(e) => setFormData({ ...formData, taxRegime: e.target.value as any })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white"
+              >
+                <option value="simples_nacional">Simples Nacional (ME / EPP)</option>
+                <option value="lucro_presumido">Lucro Presumido</option>
+                <option value="lucro_real">Lucro Real</option>
+                <option value="mei">Microempreendedor Individual (MEI)</option>
+              </select>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-700">CEP</label>
+                <button
+                  type="button"
+                  onClick={handleCepSearch}
+                  className="text-[10px] text-indigo-600 hover:underline flex items-center gap-1"
+                >
+                  <Search className="w-3 h-3" /> Buscar ViaCEP
+                </button>
+              </div>
+              <input
+                type="text"
+                value={formData.cep}
+                onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-slate-700 mb-1">Logradouro / Avenida / Rua</label>
+              <input
+                type="text"
+                value={formData.street}
+                onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Número</label>
+              <input
+                type="text"
+                value={formData.number}
+                onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Bairro</label>
+              <input
+                type="text"
+                value={formData.neighborhood}
+                onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Cidade / UF</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-3/4 px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                />
+                <input
+                  type="text"
+                  maxLength={2}
+                  value={formData.state}
+                  onChange={(e) => setFormData({ ...formData, state: e.target.value.toUpperCase() })}
+                  className="w-1/4 px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono text-center font-bold"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 pt-4 flex justify-end">
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs"
+            >
+              <Save className="w-4 h-4" /> Salvar Configurações da Empresa
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* TAB 2: TAXAS DE MAQUININHAS */}
+      {activeTab === 'cardRates' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Taxas de Máquinas de Cartão por Bandeira</h2>
+              <p className="text-xs text-slate-500">
+                Essas alíquotas são deduzidas automaticamente nas transações divididas (Split de Pagamentos) em Ordens de Serviço e Vendas.
+              </p>
+            </div>
+            <span className="text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md font-semibold border border-emerald-200">
+              Cálculo Automático de Líquido
+            </span>
+          </div>
+
+          {/* PagBank Integration Quick Status */}
+          {(() => {
+            const pb = cardOperators.find(o => o.code === 'pagbank');
+            return pb ? (
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span>{pb.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-900 font-bold uppercase">
+                        Integrado
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-emerald-800">
+                      Taxas oficiais: Débito <strong>{pb.debitRate}%</strong> · Crédito 1x <strong>{pb.creditSightRate}%</strong> · Parcelado <strong>{pb.creditInstallments2to6Rate}%</strong> · Repasse <strong>D+1</strong> com baixa automática.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null;
+          })()}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {cardRates.map(rate => (
+              <div key={rate.brand} className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-indigo-600" />
+                    Bandeira {rate.brand}
+                  </span>
+                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">
+                    Ativo
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[11px] text-slate-600 mb-0.5">Taxa Débito (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={rate.debitRate}
+                        onChange={(e) => updateCardRate(rate.brand, { debitRate: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-semibold"
+                      />
+                      <Percent className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-600 mb-0.5">Crédito à Vista (1x) (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={rate.creditSightRate}
+                        onChange={(e) => updateCardRate(rate.brand, { creditSightRate: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-semibold"
+                      />
+                      <Percent className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-600 mb-0.5">Crédito Parcelado (2x a 12x) (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={rate.creditInstallmentsRate}
+                        onChange={(e) => updateCardRate(rate.brand, { creditInstallmentsRate: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-semibold"
+                      />
+                      <Percent className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-200">
+                  Ex: Em uma venda de R$ 1.000,00 no crédito parcelado, a taxa retida será de <strong className="font-mono text-slate-700">{formatBRL(1000 * (rate.creditInstallmentsRate / 100))}</strong>.
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: SEQUENCIAIS E NUMERAÇÕES CUSTOMIZADAS */}
+      {activeTab === 'sequences' && (
+        <form onSubmit={handleSaveSequences} className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded bg-[#53383E]/10 text-[#53383E]">
+                  <ListOrdered className="w-5 h-5" />
+                </span>
+                <h2 className="text-base font-bold text-slate-900">Numerações & Séries Customizadas</h2>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Configure a numeração inicial da sua empresa para Ordens de Serviço, Vendas e Orçamentos para continuar a sua sequência comercial.
+              </p>
+            </div>
+            <button
+              type="submit"
+              className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-[#53383E] hover:bg-[#432d32] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors shrink-0"
+            >
+              <Save className="w-4 h-4" /> Salvar Sequenciais
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* 1. Ordem de Serviço */}
+            <div className="border-2 border-indigo-100 bg-gradient-to-b from-indigo-50/40 to-white rounded-xl p-5 space-y-4 shadow-2xs">
+              <div className="flex items-center justify-between pb-2 border-b border-indigo-100">
+                <div className="font-bold text-xs text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  Ordens de Serviço (OS)
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                  Operacional
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Próximo Número da OS <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={seqForm.serviceOrderNextNumber}
+                  onChange={(e) => setSeqForm({ ...seqForm, serviceOrderNextNumber: parseInt(e.target.value) || 1 })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Ex: Digite seu número atual (ex: 2025020328) para que a próxima OS seja aberta exatamente a partir dele.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Prefixo da OS (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: OS- ou deixar em branco"
+                  value={seqForm.serviceOrderPrefix || ''}
+                  onChange={(e) => setSeqForm({ ...seqForm, serviceOrderPrefix: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono bg-white"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">Deixe vazio caso queira apenas o número puro.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Dígitos Mínimos (Zeros à esquerda)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="12"
+                  value={seqForm.serviceOrderDigits || 0}
+                  onChange={(e) => setSeqForm({ ...seqForm, serviceOrderDigits: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">0 = sem zeros à esquerda</p>
+              </div>
+
+              {/* Live Preview */}
+              <div className="p-3 bg-white border border-indigo-200 rounded-lg text-xs space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Visualização Prévia:</span>
+                <div className="font-mono font-bold text-sm text-indigo-700 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  <span>
+                    {(seqForm.serviceOrderPrefix || '') + 
+                      (seqForm.serviceOrderDigits && seqForm.serviceOrderDigits > 0 
+                        ? String(seqForm.serviceOrderNextNumber).padStart(seqForm.serviceOrderDigits, '0') 
+                        : String(seqForm.serviceOrderNextNumber))}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Venda Direta / Balcão */}
+            <div className="border-2 border-emerald-100 bg-gradient-to-b from-emerald-50/40 to-white rounded-xl p-5 space-y-4 shadow-2xs">
+              <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
+                <div className="font-bold text-xs text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-emerald-600" />
+                  Vendas Diretas / PDV
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                  Comercial
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Próximo Número de Venda <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={seqForm.saleNextNumber}
+                  onChange={(e) => setSeqForm({ ...seqForm, saleNextNumber: parseInt(e.target.value) || 1 })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Número sequencial que sairá no comprovante da venda direta / balcão.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Prefixo de Venda
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: VD- ou VENDA-"
+                  value={seqForm.salePrefix || ''}
+                  onChange={(e) => setSeqForm({ ...seqForm, salePrefix: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Dígitos Mínimos
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="12"
+                  value={seqForm.saleDigits || 0}
+                  onChange={(e) => setSeqForm({ ...seqForm, saleDigits: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white"
+                />
+              </div>
+
+              {/* Live Preview */}
+              <div className="p-3 bg-white border border-emerald-200 rounded-lg text-xs space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Visualização Prévia:</span>
+                <div className="font-mono font-bold text-sm text-emerald-700 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-500" />
+                  <span>
+                    {(seqForm.salePrefix || '') + 
+                      (seqForm.saleDigits && seqForm.saleDigits > 0 
+                        ? String(seqForm.saleNextNumber).padStart(seqForm.saleDigits, '0') 
+                        : String(seqForm.saleNextNumber))}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Orçamentos */}
+            <div className="border-2 border-amber-100 bg-gradient-to-b from-amber-50/40 to-white rounded-xl p-5 space-y-4 shadow-2xs">
+              <div className="flex items-center justify-between pb-2 border-b border-amber-100">
+                <div className="font-bold text-xs text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileCheck className="w-4 h-4 text-amber-600" />
+                  Orçamentos Comerciais
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                  Propostas
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Próximo Número de Orçamento <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={seqForm.budgetNextNumber}
+                  onChange={(e) => setSeqForm({ ...seqForm, budgetNextNumber: parseInt(e.target.value) || 1 })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold text-slate-900 bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Numeração inicial de orçamentos prévios antes da aprovação.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Prefixo de Orçamento
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: ORC- ou PROP-"
+                  value={seqForm.budgetPrefix || ''}
+                  onChange={(e) => setSeqForm({ ...seqForm, budgetPrefix: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Dígitos Mínimos
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="12"
+                  value={seqForm.budgetDigits || 0}
+                  onChange={(e) => setSeqForm({ ...seqForm, budgetDigits: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white"
+                />
+              </div>
+
+              {/* Live Preview */}
+              <div className="p-3 bg-white border border-amber-200 rounded-lg text-xs space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Visualização Prévia:</span>
+                <div className="font-mono font-bold text-sm text-amber-700 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>
+                    {(seqForm.budgetPrefix || '') + 
+                      (seqForm.budgetDigits && seqForm.budgetDigits > 0 
+                        ? String(seqForm.budgetNextNumber).padStart(seqForm.budgetDigits, '0') 
+                        : String(seqForm.budgetNextNumber))}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start gap-3">
+            <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-slate-600 space-y-1">
+              <span className="font-bold text-slate-800">Automação Contínua de Sequenciais:</span>
+              <p>
+                Sempre que uma nova Ordem de Serviço, Venda Direta ou Orçamento for gerado pelo sistema, ele utilizará o próximo código configurado aqui e incrementará o contador automaticamente (+1), garantindo que nunca ocorra numeração duplicada.
+              </p>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {/* TAB: GARANTIAS E SERVIÇOS ATRELADOS */}
+      {activeTab === 'warranty' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded bg-[#53383E]/10 text-[#53383E]">
+                  <ShieldCheck className="w-5 h-5" />
+                </span>
+                <h2 className="text-base font-bold text-slate-900">Políticas de Garantia & Serviços Atrelados</h2>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Crie suas políticas de garantia personalizadas com prazos, termos detalhados e vincule-as diretamente aos serviços do catálogo para aplicação automática nas OS.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenNewWarrantyModal}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 bg-[#53383E] hover:bg-[#432d32] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors shrink-0"
+            >
+              <Plus className="w-4 h-4" /> Nova Garantia
+            </button>
+          </div>
+
+          {/* Cards of registered warranty policies */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {warrantyPolicies.map((policy) => {
+              const linkedServices = serviceCatalog.filter(s => policy.linkedServiceIds?.includes(s.id));
+              return (
+                <div 
+                  key={policy.id} 
+                  className={`border rounded-xl p-5 space-y-3 transition-all ${
+                    policy.isDefault 
+                      ? 'border-emerald-300 bg-emerald-50/20 shadow-xs' 
+                      : 'border-slate-200 bg-slate-50/40 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-sm text-slate-900">{policy.name}</h3>
+                        {policy.isDefault && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Padrão do Sistema
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                          {policy.days} dias ({Math.round(policy.days / 30)} meses)
+                        </span>
+                        <span>•</span>
+                        <span className="bg-slate-200/80 px-2 py-0.5 rounded text-[11px] font-medium text-slate-700">
+                          {policy.category}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditWarrantyModal(policy)}
+                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-md transition-colors"
+                        title="Editar garantia"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      {warrantyPolicies.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Tem certeza que deseja remover a política "${policy.name}"?`)) {
+                              deleteWarrantyPolicy(policy.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-white rounded-md transition-colors"
+                          title="Excluir garantia"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Linked Services Box */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-1.5">
+                    <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-[#53383E]" />
+                        Serviços Atrelados ({linkedServices.length})
+                      </span>
+                      {linkedServices.length === 0 && (
+                        <span className="text-[10px] font-normal text-slate-400">Geral / Não restrito</span>
+                      )}
+                    </div>
+                    {linkedServices.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {linkedServices.map(srv => (
+                          <span
+                            key={srv.id}
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200 font-medium"
+                          >
+                            <span className="font-mono text-[10px] text-slate-500 font-bold">{srv.code}</span>
+                            <span>{srv.name}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 italic">
+                        Esta garantia pode ser aplicada a qualquer serviço quando não houver regra específica.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Terms quote */}
+                  <div className="text-xs text-slate-600 bg-white/70 p-2.5 rounded-lg border border-slate-100 text-[11px] leading-relaxed line-clamp-3">
+                    <strong className="text-slate-700">Termos:</strong> {policy.terms}
+                  </div>
+
+                  {!policy.isDefault && (
+                    <div className="pt-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => updateWarrantyPolicy(policy.id, { isDefault: true })}
+                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 hover:underline"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Tornar esta a garantia padrão
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Global Fallback Terms Section */}
+          <form onSubmit={handleSaveCompany} className="pt-6 border-t border-slate-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Termo Legal Geral da Empresa (Contrato Padrão)
+                </h4>
+                <p className="text-[11px] text-slate-500">
+                  Texto contratual exibido no rodapé do documento de Ordem de Serviço impressa ou PDF.
+                </p>
+              </div>
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-medium"
+              >
+                <Save className="w-3.5 h-3.5" /> Atualizar Contrato
+              </button>
+            </div>
+            <textarea
+              rows={4}
+              value={formData.defaultWarrantyTerms}
+              onChange={(e) => setFormData({ ...formData, defaultWarrantyTerms: e.target.value })}
+              className="w-full p-3 border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed font-sans bg-slate-50 focus:bg-white"
+            />
+          </form>
+        </div>
+      )}
+
+      {/* TAB 4: AMBIENTE FISCAL & NFE */}
+      {activeTab === 'fiscal' && (
+        <form onSubmit={handleSaveCompany} className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Emissão de NF-e, NFS-e e Parâmetros Fiscais</h2>
+              <p className="text-xs text-slate-500">Configuração do ambiente de transmissão com a SEFAZ e prefeitura municipal.</p>
+            </div>
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs"
+            >
+              <Save className="w-4 h-4" /> Salvar Parâmetros
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Ambiente de Transmissão SEFAZ</label>
+              <select
+                value={formData.fiscalEnvironment}
+                onChange={(e) => setFormData({ ...formData, fiscalEnvironment: e.target.value as any })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white font-medium"
+              >
+                <option value="homologacao">Homologação (Ambiente de Testes / Sem valor fiscal)</option>
+                <option value="producao">Produção (SEFAZ Oficial / Notas com valor jurídico)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Taxa Padrão de Visita Técnica (R$)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.standardVisitFee}
+                onChange={(e) => setFormData({ ...formData, standardVisitFee: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono font-bold text-indigo-700"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
+            <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs">
+              <FileCheck className="w-4 h-4 text-indigo-600" />
+              <span>Importação Automática de XML de Compras</span>
+            </div>
+            <p className="text-xs text-indigo-700 leading-relaxed">
+              O sistema conta com motor nativo de parsing de XML de NF-e. Ao fazer o upload de qualquer arquivo XML de compra de fornecedor na aba de Produtos, o ERP lança os produtos no estoque pelo NCM, atualiza o custo médio e agenda automaticamente a Conta a Pagar no módulo Financeiro.
+            </p>
+          </div>
+        </form>
+      )}
+
+      {/* TAB 5: MATRIZ DE PERMISSÕES (RBAC) */}
+      {activeTab === 'permissions' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Matriz de Perfis e Permissões de Acesso (RBAC)</h2>
+              <p className="text-xs text-slate-500">Controle estrito de privilégios para garantir a segurança dos dados corporativos e financeiros.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-600">Simular Perfil Ativo:</span>
+              <select
+                value={currentRole}
+                onChange={(e) => setCurrentRole(e.target.value as UserRole)}
+                className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-mono font-semibold bg-slate-50"
+              >
+                <option value="admin">Administrador (Total)</option>
+                <option value="colaborador">Colaborador (Operacional)</option>
+                <option value="tecnico">Técnico (Campo)</option>
+                <option value="contador">Contador (Fiscal/DRE)</option>
+                <option value="cliente">Cliente (Portal Exclusivo)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
+              <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                <tr>
+                  <th className="p-3">Módulo / Funcionalidade</th>
+                  <th className="p-3 text-center">Administrador</th>
+                  <th className="p-3 text-center">Colaborador</th>
+                  <th className="p-3 text-center">Técnico de Campo</th>
+                  <th className="p-3 text-center">Contador</th>
+                  <th className="p-3 text-center">Cliente</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                <tr>
+                  <td className="p-3 font-semibold text-slate-900">Abertura e Edição de Ordens de Serviço</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Total</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Criar/Editar</td>
+                  <td className="p-3 text-center text-blue-600 font-medium">Fotos / Mudar Status</td>
+                  <td className="p-3 text-center text-slate-400">Visualizar</td>
+                  <td className="p-3 text-center text-slate-500">Apenas as Próprias</td>
+                </tr>
+                <tr>
+                  <td className="p-3 font-semibold text-slate-900">Checklist Inteligente com Fotos & Assinatura Touch</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Total</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Sim</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Sim (Campo)</td>
+                  <td className="p-3 text-center text-slate-400">-</td>
+                  <td className="p-3 text-center text-blue-600">Assinar Digitalmente</td>
+                </tr>
+                <tr>
+                  <td className="p-3 font-semibold text-slate-900">Módulo Financeiro (Contas a Pagar / Receber / DRE)</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Total</td>
+                  <td className="p-3 text-center text-amber-600 font-medium">Parcial (Contas)</td>
+                  <td className="p-3 text-center text-slate-400">Bloqueado</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Total (Relatórios)</td>
+                  <td className="p-3 text-center text-slate-500">Ver Débitos Próprios</td>
+                </tr>
+                <tr>
+                  <td className="p-3 font-semibold text-slate-900">Gestão de Produtos, Estoque e XML NF-e</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Total</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Inserir / Propor</td>
+                  <td className="p-3 text-center text-slate-500">Ver Peças p/ OS</td>
+                  <td className="p-3 text-center text-slate-400">-</td>
+                  <td className="p-3 text-center text-slate-400">-</td>
+                </tr>
+                <tr>
+                  <td className="p-3 font-semibold text-slate-900">Central de Cadastros (Clientes, Fornecedores, Frota)</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Total</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Inserir / Editar</td>
+                  <td className="p-3 text-center text-slate-400">-</td>
+                  <td className="p-3 text-center text-slate-400">-</td>
+                  <td className="p-3 text-center text-slate-500">Editar Próprio Perfil</td>
+                </tr>
+                <tr>
+                  <td className="p-3 font-semibold text-slate-900">Fechamento Contábil e DRE em PDF para o Contador</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Total</td>
+                  <td className="p-3 text-center text-slate-400">Restrito</td>
+                  <td className="p-3 text-center text-slate-400">-</td>
+                  <td className="p-3 text-center text-emerald-600 font-bold">Total (Download PDF)</td>
+                  <td className="p-3 text-center text-slate-400">-</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: BACKUP & BANCO DE DADOS */}
+      {activeTab === 'backup' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Rotinas de Backup & Banco de Dados Relacional</h2>
+              <p className="text-xs text-slate-500">Exportação completa dos dados para segurança e restauração imediata em caso de auditoria.</p>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              MySQL VPS Conectado
+            </div>
+          </div>
+
+          {restoreFeedback && (
+            <div className={`p-4 rounded-xl text-xs flex items-center gap-2 ${
+              restoreFeedback.type === 'success' 
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                : 'bg-rose-50 text-rose-800 border border-rose-200'
+            }`}>
+              {restoreFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{restoreFeedback.message}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Export box */}
+            <div className="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-sm mb-1">
+                  <Download className="w-4 h-4 text-blue-600" />
+                  <span>Download de Backup Geral (JSON)</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Gera um arquivo de snapshot completo contendo todos os clientes, fornecedores, ordens de serviço, veículos, manutenções, folha de pagamento, produtos e movimentações de estoque.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownloadBackup}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+              >
+                <Download className="w-4 h-4" /> Baixar Arquivo de Backup Completo
+              </button>
+            </div>
+
+            {/* Restore box */}
+            <div className="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-sm mb-1">
+                  <Upload className="w-4 h-4 text-indigo-600" />
+                  <span>Restaurar de Arquivo de Backup</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Carregue um arquivo JSON previamente exportado para restabelecer os dados do sistema.
+                </p>
+              </div>
+
+              <div>
+                <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-colors">
+                  <Upload className="w-4 h-4" />
+                  <span>Selecionar Arquivo JSON</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleRestoreFromFile}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Paste JSON manually or Factory Reset */}
+          <div className="border-t border-slate-200 pt-6 space-y-4">
+            <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Restauração Manual via JSON Texto</h3>
+            <textarea
+              rows={4}
+              placeholder="Cole aqui o conteúdo JSON do backup caso prefira inserção direta..."
+              value={restoreJsonInput}
+              onChange={(e) => setRestoreJsonInput(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
+            />
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Atenção: Deseja restaurar a base de dados de fábrica? Todas as alterações manuais serão resetadas.')) {
+                    resetToDefaults();
+                    setFormData({ ...companySettings });
+                    setRestoreFeedback({ type: 'success', message: 'Sistema redefinido com sucesso para o estado inicial padrão!' });
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-xs font-medium border border-rose-200"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Restaurar Padrões de Fábrica
+              </button>
+
+              <button
+                type="button"
+                disabled={!restoreJsonInput.trim()}
+                onClick={() => {
+                  const res = restoreDatabaseJson(restoreJsonInput);
+                  if (res.success) {
+                    setRestoreFeedback({ type: 'success', message: res.message });
+                    setRestoreJsonInput('');
+                  } else {
+                    setRestoreFeedback({ type: 'error', message: res.message });
+                  }
+                }}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold"
+              >
+                Executar Restauração JSON
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CRIAR / EDITAR POLÍTICA DE GARANTIA */}
+      {isWarrantyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 my-8">
+            <div className="bg-gradient-to-r from-slate-900 to-[#53383E] text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-lg">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">
+                    {editingWarrantyId ? 'Editar Política de Garantia' : 'Nova Política de Garantia'}
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Defina o prazo, termos legais e selecione os serviços do catálogo cobertos.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsWarrantyModalOpen(false)}
+                className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveWarrantyPolicy} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nome da Garantia <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Garantia Especial de Troca de Resistências e Termostato"
+                  value={warrantyForm.name}
+                  onChange={(e) => setWarrantyForm({ ...warrantyForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Prazo de Cobertura (em Dias) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={warrantyForm.days}
+                    onChange={(e) => setWarrantyForm({ ...warrantyForm, days: parseInt(e.target.value) || 1 })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 font-mono"
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[30, 90, 180, 365, 730].map(d => (
+                      <button
+                        type="button"
+                        key={d}
+                        onClick={() => setWarrantyForm({ ...warrantyForm, days: d })}
+                        className={`text-[10px] px-2 py-0.5 rounded font-mono font-semibold transition-colors ${
+                          warrantyForm.days === d 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {d}d {d === 90 ? '(CDC)' : d === 365 ? '(1 ano)' : d === 730 ? '(2 anos)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Categoria da Garantia
+                  </label>
+                  <select
+                    value={warrantyForm.category}
+                    onChange={(e) => setWarrantyForm({ ...warrantyForm, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium bg-white"
+                  >
+                    <option value="Manutenção Preventiva">Manutenção Preventiva</option>
+                    <option value="Elétrica & Aquecimento">Elétrica & Aquecimento</option>
+                    <option value="Proteção Catódica">Proteção Catódica</option>
+                    <option value="Caldeiraria & Solda Especializada">Caldeiraria & Solda Especializada</option>
+                    <option value="Pressurização & Hidráulica">Pressurização & Hidráulica</option>
+                    <option value="Peças e Equipamentos">Peças e Equipamentos</option>
+                    <option value="Geral">Geral</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={warrantyForm.isDefault}
+                    onChange={(e) => setWarrantyForm({ ...warrantyForm, isDefault: e.target.checked })}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                  />
+                  <span className="text-xs font-medium text-slate-700">
+                    Definir como garantia padrão do sistema (aplicada automaticamente caso nenhum serviço específico seja vinculado)
+                  </span>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Termos e Condições Contratuais
+                </label>
+                <textarea
+                  rows={4}
+                  value={warrantyForm.terms}
+                  onChange={(e) => setWarrantyForm({ ...warrantyForm, terms: e.target.value })}
+                  placeholder="Descreva as condições de garantia, coberturas, exclusões e normas aplicáveis (ex: CDC, NBR)..."
+                  className="w-full p-3 border border-slate-300 rounded-lg text-xs leading-relaxed font-sans"
+                />
+              </div>
+
+              {/* Linked Services Checklist */}
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-[#53383E]" />
+                      Atrelar aos Serviços do Catálogo
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Ao selecionar estes serviços em uma OS, esta garantia e prazo serão vinculados automaticamente.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setWarrantyForm({ ...warrantyForm, linkedServiceIds: serviceCatalog.map(s => s.id) })}
+                      className="text-[10px] text-indigo-600 hover:underline font-semibold"
+                    >
+                      Marcar Todos
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setWarrantyForm({ ...warrantyForm, linkedServiceIds: [] })}
+                      className="text-[10px] text-slate-500 hover:underline font-semibold"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                  {serviceCatalog.map((service) => {
+                    const isChecked = warrantyForm.linkedServiceIds.includes(service.id);
+                    return (
+                      <div
+                        key={service.id}
+                        onClick={() => toggleServiceInWarranty(service.id)}
+                        className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                          isChecked 
+                            ? 'bg-indigo-50/70 border-indigo-200 text-indigo-950 font-medium' 
+                            : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {isChecked ? (
+                            <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-400 shrink-0" />
+                          )}
+                          <div>
+                            <span className="font-mono text-[10px] text-slate-500 font-bold mr-1.5">
+                              {service.code}
+                            </span>
+                            <span>{service.name}</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-600 shrink-0">
+                          {service.category}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsWarrantyModalOpen(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-5 py-2 bg-[#53383E] hover:bg-[#432d32] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+                >
+                  <Save className="w-4 h-4" /> Salvar Política de Garantia
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
