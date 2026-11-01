@@ -21,6 +21,7 @@ import { CardOperatorsView } from './components/CardOperatorsView';
 import { SystemSettingsView } from './components/SystemSettingsView';
 import { SystemDocumentationModal } from './components/SystemDocumentationModal';
 import { AuditLogsModal } from './components/AuditLogsModal';
+import { SystemHelpModal } from './components/SystemHelpModal';
 import { LoginView } from './components/LoginView';
 
 const MainLayout: React.FC = () => {
@@ -30,6 +31,7 @@ const MainLayout: React.FC = () => {
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   // If role switches to client, default tab to customerPortal
   React.useEffect(() => {
@@ -108,6 +110,7 @@ const MainLayout: React.FC = () => {
         }}
         onOpenDoc={() => setIsDocModalOpen(true)}
         onOpenAuditLogs={() => setIsAuditModalOpen(true)}
+        onOpenHelp={() => setIsHelpModalOpen(true)}
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
       />
@@ -129,6 +132,16 @@ const MainLayout: React.FC = () => {
           {renderCurrentView()}
         </main>
       </div>
+
+      {/* System Help & Functions Modal */}
+      <SystemHelpModal
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
+        onNavigate={(tab) => {
+          setActiveTab(tab);
+          setIsHelpModalOpen(false);
+        }}
+      />
 
       {/* System Documentation Modal */}
       <SystemDocumentationModal 

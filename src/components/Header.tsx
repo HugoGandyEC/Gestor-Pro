@@ -15,7 +15,8 @@ import {
   X,
   Palette,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  HelpCircle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, AppTheme } from '../types';
@@ -24,14 +25,16 @@ interface HeaderProps {
   onOpenNewOS: () => void;
   onOpenDoc: () => void;
   onOpenAuditLogs: () => void;
+  onOpenHelp: () => void;
   isMobileMenuOpen?: boolean;
   onToggleMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
   onOpenNewOS, 
-  onOpenDoc,
+  onOpenDoc, 
   onOpenAuditLogs,
+  onOpenHelp,
   isMobileMenuOpen = false,
   onToggleMobileMenu
 }) => {
@@ -104,8 +107,8 @@ export const Header: React.FC<HeaderProps> = ({
                 ERP · OS
               </span>
             </div>
-            <p className="text-[11px] text-[#5a5b5e] hidden md:block">
-              Assistência Técnica · Vendas de Equipamentos · Estoque & XML · Portal do Cliente
+            <p className="text-[11px] text-[#5a5b5e] hidden sm:block">
+              Assistência Técnica & Vendas
             </p>
           </div>
         </div>
@@ -158,6 +161,17 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Logs / Auditoria</span>
             </button>
           )}
+
+          {/* Cards de Ajuda & Guia de Uso */}
+          <button
+            type="button"
+            onClick={onOpenHelp}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#d8d8d8] bg-white hover:bg-[#f6eff1] hover:border-[#53383e] hover:text-[#53383e] text-xs font-bold text-[#363739] shadow-xs cursor-pointer transition-all"
+            title="Abrir Central de Ajuda e Guia com todas as funções do sistema"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-[#53383e]" />
+            <span className="hidden sm:inline">Ajuda & Funções</span>
+          </button>
 
           {/* Theme Switcher in Header */}
           <div className="relative">
