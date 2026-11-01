@@ -19,7 +19,10 @@ import {
   CardOperator,
   PagBankTransaction,
   SequenceSettings,
-  WarrantyPolicy
+  WarrantyPolicy,
+  AppTheme,
+  ThemeDefinition,
+  AuthUser
 } from './types';
 
 export const initialClients: Client[] = [
@@ -1600,6 +1603,123 @@ export const initialChecklistTemplates: ChecklistTemplate[] = [
       { id: 'it-b4', label: 'Aferição da corrente elétrica (Amperes) nominal do motor', category: 'Elétrica e Comando', required: true },
       { id: 'it-b5', label: 'Teste funcional de liga/desliga com abertura de pontos de consumo', category: 'Acessórios e Segurança', required: true }
     ]
+  }
+];
+
+export const themeDefinitions: ThemeDefinition[] = [
+  {
+    id: 'classico',
+    name: 'MP Piscina Clássico',
+    subtitle: 'Vinho Nobre & Grafite Urbano',
+    description: 'Identidade visual original da MP PISCINA com tons nobres de vinho, grafite, sálvia e canvas clean.',
+    swatches: ['#53383e', '#363739', '#c2bfb0', '#d8d8d8', '#f4f5f6'],
+    colors: {
+      primary: '#53383e',
+      primaryHover: '#422c31',
+      secondary: '#363739',
+      accent: '#2563eb',
+      canvas: '#f4f5f6',
+      surface: '#ffffff',
+      sidebarBg: '#53383e',
+      sidebarText: '#ffffff',
+      headerBg: '#53383e',
+      headerText: '#ffffff',
+      badgeBg: '#e8e5dc',
+      badgeText: '#53383e',
+      border: '#e2e8f0'
+    }
+  },
+  {
+    id: 'terra_oliva',
+    name: 'Terra & Oliva Vibrante',
+    subtitle: 'Paleta Superior da Foto (#50231D / #76321A / #9C5C26 / #6C6643 / #E8D1A7)',
+    description: 'Cores quentes e terrosas vibrantes combinadas com oliva floresta e marfim suave extraídas da primeira paleta.',
+    swatches: ['#50231D', '#76321A', '#9C5C26', '#633C2C', '#6C6643', '#9C9167', '#E8D1A7'],
+    colors: {
+      primary: '#50231D',
+      primaryHover: '#3c1a15',
+      secondary: '#76321A',
+      accent: '#9C5C26',
+      canvas: '#FBF8F3',
+      surface: '#ffffff',
+      sidebarBg: '#50231D',
+      sidebarText: '#FBF8F3',
+      headerBg: '#50231D',
+      headerText: '#ffffff',
+      badgeBg: '#E8D1A7',
+      badgeText: '#50231D',
+      border: '#ebdcc5'
+    }
+  },
+  {
+    id: 'claro_ouro',
+    name: 'Claro & Suave com Cores Vibrantes',
+    subtitle: 'Paleta Inferior da Foto (#3F3F3D / #985B4A / #DBA159 / #778489 / #F2E8DF)',
+    description: 'Visual claro, suave e contemporâneo com destaque para ouro vibrante solar, ardósia mineral e linho claro.',
+    swatches: ['#3F3F3D', '#985B4A', '#9C7A4E', '#DBA159', '#778489', '#9AA8A4', '#F2E8DF'],
+    colors: {
+      primary: '#3F3F3D',
+      primaryHover: '#2a2a29',
+      secondary: '#985B4A',
+      accent: '#DBA159',
+      canvas: '#F9F6F0',
+      surface: '#ffffff',
+      sidebarBg: '#3F3F3D',
+      sidebarText: '#F2E8DF',
+      headerBg: '#3F3F3D',
+      headerText: '#ffffff',
+      badgeBg: '#faebd7',
+      badgeText: '#985B4A',
+      border: '#e4dcd3'
+    }
+  }
+];
+
+export const initialAuthUsers: AuthUser[] = [
+  {
+    id: 'usr-admin',
+    username: 'hugo.gandy',
+    name: 'Hugo Gandy',
+    email: 'hugo.gandy@mppiscina.com.br',
+    role: 'admin',
+    roleBadge: 'Administrador Geral',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+  },
+  {
+    id: 'usr-tecnico',
+    username: 'carlos.silva',
+    name: 'Carlos Silva',
+    email: 'carlos.silva@mppiscina.com.br',
+    role: 'tecnico',
+    roleBadge: 'Técnico Especialista em Campo',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
+  },
+  {
+    id: 'usr-vendedor',
+    username: 'beatriz.lima',
+    name: 'Beatriz Lima',
+    email: 'beatriz.vendas@mppiscina.com.br',
+    role: 'vendedor',
+    roleBadge: 'Vendedora & Atendimento Comercial',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80'
+  },
+  {
+    id: 'usr-contador',
+    username: 'roberto.contador',
+    name: 'Dr. Roberto Camargo',
+    email: 'roberto.fiscal@progresso.com.br',
+    role: 'contador',
+    roleBadge: 'Assessoria Contábil & Fiscal',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80'
+  },
+  {
+    id: 'usr-cliente',
+    username: 'maria.gorete',
+    name: 'Maria Gorete',
+    email: 'mariagorete@email.com',
+    role: 'cliente',
+    roleBadge: 'Cliente Cadastrada / Portal',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80'
   }
 ];
 

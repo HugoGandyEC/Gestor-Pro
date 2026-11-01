@@ -25,7 +25,10 @@ import {
   CardOperator,
   PagBankTransaction,
   SequenceSettings,
-  WarrantyPolicy
+  WarrantyPolicy,
+  AppTheme,
+  ThemeDefinition,
+  AuthUser
 } from '../types';
 import { 
   initialEmployees, 
@@ -48,10 +51,25 @@ import {
   initialServiceCatalog,
   initialChecklistTemplates,
   initialSequenceSettings,
-  initialWarrantyPolicies
+  initialWarrantyPolicies,
+  themeDefinitions,
+  initialAuthUsers
 } from '../mockData';
 
 interface AppContextType {
+  // Auth & Session
+  currentUser: AuthUser | null;
+  isAuthenticated: boolean;
+  login: (identifier: string, pass?: string) => { success: boolean; message?: string };
+  logout: () => void;
+  authUsers: AuthUser[];
+
+  // Dynamic Themes
+  currentTheme: AppTheme;
+  setTheme: (theme: AppTheme) => void;
+  themeDefinitions: ThemeDefinition[];
+  activeThemeDef: ThemeDefinition;
+
   // User Persona & RBAC
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
@@ -228,14 +246,87 @@ const KEYS = {
   CARD_OPERATORS: 'gestaopro_card_operators_v2',
   PAGBANK_TRANSACTIONS: 'gestaopro_pagbank_transactions_v2',
   SEQUENCE_SETTINGS: 'gestaopro_sequence_settings_v2',
-  WARRANTY_POLICIES: 'gestaopro_warranty_policies_v2'
+  WARRANTY_POLICIES: 'gestaopro_warranty_policies_v2',
+  AUTH_USER: 'gestaopro_auth_user_v2',
+  THEME: 'gestaopro_current_theme_v2'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    const saved = localStorage.getItem(KEYS.AUTH_USER);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id) return parsed;
+      } catch {}
+    }
+    return initialAuthUsers[0];
+  });
+
+  const [currentTheme, setCurrentTheme] = useState<AppTheme>(() => {
+    const saved = localStorage.getItem(KEYS.THEME);
+    return (saved as AppTheme) || 'classico';
+  });
+
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem(KEYS.ROLE);
-    return (saved as UserRole) || 'admin';
+    return (saved as UserRole) || (currentUser?.role || 'admin');
   });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem(KEYS.THEME, currentTheme);
+  }, [currentTheme]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(KEYS.AUTH_USER, JSON.stringify(currentUser));
+      setCurrentRole(currentUser.role);
+    } else {
+      localStorage.removeItem(KEYS.AUTH_USER);
+    }
+  }, [currentUser]);
+
+  const activeThemeDef = useMemo(() => {
+    return themeDefinitions.find(t => t.id === currentTheme) || themeDefinitions[0];
+  }, [currentTheme]);
+
+  const login = (identifier: string, pass?: string) => {
+    const cleanId = identifier.trim().toLowerCase();
+    const found = initialAuthUsers.find(
+      u => u.username.toLowerCase() === cleanId || 
+           u.email.toLowerCase() === cleanId ||
+           u.role.toLowerCase() === cleanId
+    );
+    if (found) {
+      setCurrentUser(found);
+      setCurrentRole(found.role);
+      return { success: true };
+    }
+    // Fallback: create ad-hoc session if username is provided
+    if (cleanId.length >= 2) {
+      const fallbackUser: AuthUser = {
+        id: `usr-custom-${Date.now()}`,
+        username: cleanId,
+        name: identifier,
+        email: `${cleanId}@mppiscina.com.br`,
+        role: 'admin',
+        roleBadge: 'Usuário Conectado'
+      };
+      setCurrentUser(fallbackUser);
+      setCurrentRole('admin');
+      return { success: true };
+    }
+    return { 
+      success: false, 
+      message: 'Por favor, informe seu usuário ou e-mail cadastrado.' 
+    };
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem(KEYS.AUTH_USER);
+  };
 
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
     const saved = localStorage.getItem(KEYS.COMPANY_SETTINGS);
@@ -1741,6 +1832,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        currentUser,
+        isAuthenticated: !!currentUser,
+        login,
+        logout,
+        authUsers: initialAuthUsers,
+        currentTheme,
+        setTheme: setCurrentTheme,
+        themeDefinitions,
+        activeThemeDef,
         currentRole,
         setCurrentRole,
         companySettings,

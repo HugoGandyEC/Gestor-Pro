@@ -29,7 +29,8 @@ import {
   Sparkles,
   Clock,
   Tag,
-  X
+  X,
+  Palette
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { CardBrand, CardMachineRate, CompanySettings, UserRole, SequenceSettings, WarrantyPolicy } from '../types';
@@ -38,6 +39,7 @@ type SettingsTab =
   | 'company' 
   | 'sequences'
   | 'warranty'
+  | 'themes'
   | 'cardRates' 
   | 'fiscal' 
   | 'permissions' 
@@ -63,7 +65,10 @@ export const SystemSettingsView: React.FC = () => {
     currentRole,
     setCurrentRole,
     lookupCep,
-    lookupCnpj
+    lookupCnpj,
+    currentTheme,
+    setTheme,
+    themeDefinitions
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('company');
@@ -234,6 +239,7 @@ export const SystemSettingsView: React.FC = () => {
     { id: 'company', label: 'Dados da Empresa / Emitente', icon: Building2 },
     { id: 'sequences', label: 'Numerações & Séries', icon: ListOrdered },
     { id: 'warranty', label: 'Garantias & Serviços Atrelados', icon: ShieldCheck },
+    { id: 'themes', label: 'Temas & Identidade Visual', icon: Palette },
     { id: 'cardRates', label: 'Taxas de Maquininha por Bandeira', icon: CreditCard },
     { id: 'fiscal', label: 'Ambiente Fiscal & NF-e', icon: FileText },
     { id: 'permissions', label: 'Matriz de Permissões (RBAC)', icon: Lock },
@@ -995,6 +1001,116 @@ export const SystemSettingsView: React.FC = () => {
               className="w-full p-3 border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed font-sans bg-slate-50 focus:bg-white"
             />
           </form>
+        </div>
+      )}
+
+      {/* TAB: TEMAS & IDENTIDADE VISUAL */}
+      {activeTab === 'themes' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Palette className="w-5 h-5 text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-900">
+                  Temas & Paletas Visuais do Sistema
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Alterne instantaneamente o tema de cores em tempo real. As paletas abaixo foram calibradas com fidelidade total à paleta de referência.
+              </p>
+            </div>
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 self-start sm:self-auto">
+              Tema Atual: <strong className="text-indigo-600">{themeDefinitions.find(t => t.id === currentTheme)?.name}</strong>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {themeDefinitions.map((th) => {
+              const isSelected = currentTheme === th.id;
+              return (
+                <div
+                  key={th.id}
+                  className={`rounded-2xl border transition-all flex flex-col justify-between overflow-hidden ${
+                    isSelected
+                      ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/20 shadow-md'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                  }`}
+                >
+                  <div className="p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-sm text-slate-900">
+                        {th.name}
+                      </span>
+                      {isSelected ? (
+                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Ativo
+                        </span>
+                      ) : (
+                        <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          Disponível
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-600 font-medium">
+                      {th.subtitle}
+                    </p>
+
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      {th.description}
+                    </p>
+
+                    {/* Swatches Visual Pill */}
+                    <div className="pt-2">
+                      <div className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 tracking-wider">
+                        Amostras de Cor da Paleta:
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {th.swatches.map((hex, i) => (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                            <div
+                              className="w-full h-8 rounded-lg border border-black/10 shadow-xs"
+                              style={{ backgroundColor: hex }}
+                              title={hex}
+                            />
+                            <span className="text-[9px] font-mono text-slate-500 font-semibold truncate max-w-full">
+                              {hex}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTheme(th.id);
+                        setSaveSuccessMsg(`Tema alterado para "${th.name}" com sucesso!`);
+                        setTimeout(() => setSaveSuccessMsg(null), 3000);
+                      }}
+                      className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        isSelected
+                          ? 'bg-slate-200 text-slate-600 cursor-default'
+                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                      }`}
+                    >
+                      <Palette className="w-3.5 h-3.5" />
+                      <span>{isSelected ? 'Tema Ativo no Momento' : `Ativar ${th.name}`}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-start gap-3">
+            <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-slate-800">Dica de Produtividade:</span> Você também pode trocar o tema a qualquer momento diretamente no cabeçalho superior através do botão <strong className="text-slate-800">Tema</strong>, ou na própria tela inicial de login com usuário e senha.
+            </div>
+          </div>
         </div>
       )}
 

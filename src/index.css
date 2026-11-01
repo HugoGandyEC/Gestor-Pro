@@ -31,6 +31,87 @@
   --color-charcoal: #363739;
 }
 
+/* Theme variables and dynamic overrides */
+[data-theme="classico"] {
+  --color-canvas: #f4f5f6;
+  --theme-primary: #53383e;
+  --theme-primary-hover: #432c32;
+  --theme-secondary: #363739;
+  --theme-accent: #2563eb;
+  --theme-surface: #ffffff;
+  --theme-border: #d8d8d8;
+}
+
+[data-theme="terra_oliva"] {
+  --color-canvas: #FAF6EE;
+  --theme-primary: #50231D;
+  --theme-primary-hover: #3d1914;
+  --theme-secondary: #76321A;
+  --theme-accent: #9C5C26;
+  --theme-olive: #6C6643;
+  --theme-surface: #ffffff;
+  --theme-border: #E8D1A7;
+}
+
+[data-theme="terra_oliva"] .bg-\[\#53383e\],
+[data-theme="terra_oliva"] .bg-wine {
+  background-color: #50231D !important;
+}
+[data-theme="terra_oliva"] .hover\:bg-\[\#432c32\]:hover,
+[data-theme="terra_oliva"] .hover\:bg-wine-hover:hover {
+  background-color: #3d1914 !important;
+}
+[data-theme="terra_oliva"] .text-\[\#53383e\],
+[data-theme="terra_oliva"] .text-wine {
+  color: #76321A !important;
+}
+[data-theme="terra_oliva"] .border-\[\#53383e\],
+[data-theme="terra_oliva"] .border-wine {
+  border-color: #76321A !important;
+}
+[data-theme="terra_oliva"] .bg-\[\#f6eff1\] {
+  background-color: #fbede0 !important;
+}
+[data-theme="terra_oliva"] body,
+[data-theme="terra_oliva"] .bg-\[\#f4f5f6\] {
+  background-color: #FAF6EE !important;
+}
+
+[data-theme="claro_ouro"] {
+  --color-canvas: #F8F4EE;
+  --theme-primary: #3F3F3D;
+  --theme-primary-hover: #292928;
+  --theme-secondary: #985B4A;
+  --theme-accent: #DBA159;
+  --theme-slate: #778489;
+  --theme-surface: #ffffff;
+  --theme-border: #e4dcd3;
+}
+
+[data-theme="claro_ouro"] .bg-\[\#53383e\],
+[data-theme="claro_ouro"] .bg-wine {
+  background-color: #3F3F3D !important;
+}
+[data-theme="claro_ouro"] .hover\:bg-\[\#432c32\]:hover,
+[data-theme="claro_ouro"] .hover\:bg-wine-hover:hover {
+  background-color: #292928 !important;
+}
+[data-theme="claro_ouro"] .text-\[\#53383e\],
+[data-theme="claro_ouro"] .text-wine {
+  color: #985B4A !important;
+}
+[data-theme="claro_ouro"] .border-\[\#53383e\],
+[data-theme="claro_ouro"] .border-wine {
+  border-color: #DBA159 !important;
+}
+[data-theme="claro_ouro"] .bg-\[\#f6eff1\] {
+  background-color: #FFF2DD !important;
+}
+[data-theme="claro_ouro"] body,
+[data-theme="claro_ouro"] .bg-\[\#f4f5f6\] {
+  background-color: #F8F4EE !important;
+}
+
 .font-mono {
   font-family: 'JetBrains Mono', monospace;
 }

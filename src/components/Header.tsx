@@ -12,10 +12,13 @@ import {
   Calculator,
   User,
   Menu,
-  X
+  X,
+  Palette,
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { UserRole } from '../types';
+import { UserRole, AppTheme } from '../types';
 
 interface HeaderProps {
   onOpenNewOS: () => void;
@@ -37,8 +40,15 @@ export const Header: React.FC<HeaderProps> = ({
     setSelectedMonthYear, 
     resetToDefaults, 
     currentRole, 
-    setCurrentRole 
+    setCurrentRole,
+    currentUser,
+    logout,
+    currentTheme,
+    setTheme,
+    themeDefinitions
   } = useApp();
+
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = React.useState(false);
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
@@ -47,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
       case 'tecnico': return <HardHat className="w-3.5 h-3.5 text-[#363739]" />;
       case 'contador': return <Calculator className="w-3.5 h-3.5 text-emerald-700" />;
       case 'cliente': return <User className="w-3.5 h-3.5 text-[#53383e]" />;
+      case 'vendedor': return <Briefcase className="w-3.5 h-3.5 text-amber-700" />;
     }
   };
 
@@ -57,6 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
       case 'tecnico': return 'Técnico em Campo';
       case 'contador': return 'Contador / Fiscal';
       case 'cliente': return 'Portal do Cliente';
+      case 'vendedor': return 'Vendedor / Comercial';
     }
   };
 
@@ -112,6 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <option value="admin">Administrador (Total)</option>
               <option value="colaborador">Colaborador</option>
+              <option value="vendedor">Vendedor / Comercial</option>
               <option value="tecnico">Técnico em Campo</option>
               <option value="contador">Contador / Fiscal</option>
               <option value="cliente">Cliente (Portal Exclusivo)</option>
@@ -146,28 +159,129 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Botão de Documentação do Sistema */}
-          <button
-            onClick={onOpenDoc}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs"
-            title="Ver arquitetura do sistema e briefing profissional"
-          >
-            <FileText className="w-3.5 h-3.5 text-[#53383e]" />
-            <span>Arquitetura</span>
-          </button>
+          {/* Theme Switcher in Header */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsThemeMenuOpen(prev => !prev)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#d8d8d8] bg-white hover:bg-[#f4f5f6] text-xs font-semibold text-[#363739] shadow-xs cursor-pointer transition-colors"
+              title="Trocar tema de cores do sistema"
+            >
+              <Palette className="w-3.5 h-3.5 text-[#53383e]" />
+              <div className="flex -space-x-1 items-center">
+                {themeDefinitions.find(t => t.id === currentTheme)?.swatches.slice(0, 3).map((sw, i) => (
+                  <span
+                    key={i}
+                    className="w-2.5 h-2.5 rounded-full border border-white"
+                    style={{ backgroundColor: sw }}
+                  />
+                ))}
+              </div>
+              <span className="hidden xl:inline text-[11px]">Tema</span>
+              <ChevronDown className="w-3 h-3 text-[#707174]" />
+            </button>
 
-          {/* Reset Demo Data */}
-          <button
-            onClick={() => {
-              if (confirm('Deseja restaurar os dados de exemplo originais do sistema?')) {
-                resetToDefaults();
-              }
-            }}
-            className="p-1.5 text-[#707174] hover:text-[#363739] rounded-lg hover:bg-[#f4f5f6] transition-colors border border-transparent hover:border-[#d8d8d8]"
-            title="Restaurar dados de teste padrão"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+            {isThemeMenuOpen && (
+              <div 
+                className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-[#d8d8d8] p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#d8d8d8]">
+                  <span className="text-xs font-extrabold text-[#363739] flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-[#53383e]" />
+                    Paletas do Sistema
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsThemeMenuOpen(false)}
+                    className="text-[11px] text-[#707174] hover:text-[#363739] font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {themeDefinitions.map((th) => {
+                    const isSelected = currentTheme === th.id;
+                    return (
+                      <button
+                        key={th.id}
+                        type="button"
+                        onClick={() => {
+                          setTheme(th.id);
+                          setIsThemeMenuOpen(false);
+                        }}
+                        className={`w-full p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-[#53383e] bg-[#f6eff1] ring-1 ring-[#53383e]/20'
+                            : 'border-transparent hover:border-[#d8d8d8] hover:bg-[#f4f5f6]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-[#363739]">
+                            {th.name}
+                          </span>
+                          {isSelected && (
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-[#53383e] text-white">
+                              Ativo
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {th.swatches.map((color, idx) => (
+                            <div
+                              key={idx}
+                              className="flex-1 h-3.5 rounded-xs border border-black/10"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* User Profile & Logout */}
+          <div className="flex items-center gap-1.5 pl-1 sm:pl-2 border-l border-[#d8d8d8]">
+            <div className="flex items-center gap-2">
+              {currentUser?.avatar ? (
+                <img
+                  src={currentUser.avatar}
+                  alt={currentUser.name}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover border border-[#d8d8d8]"
+                />
+              ) : (
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#53383e] text-white font-bold text-xs flex items-center justify-center">
+                  {(currentUser?.name || 'U').substring(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="hidden lg:block text-left">
+                <div className="text-xs font-bold text-[#363739] leading-tight">
+                  {currentUser?.name || 'Usuário'}
+                </div>
+                <div className="text-[10px] text-[#707174] leading-tight">
+                  {currentUser?.roleBadge || 'Operador'}
+                </div>
+              </div>
+            </div>
+
+            {/* Logout Button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Deseja realmente sair do sistema e voltar para a tela de login?')) {
+                  logout();
+                }
+              }}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ml-1"
+              title="Sair do sistema (Logout)"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
+          </div>
 
           {/* Primary Action Button (se não for cliente) */}
           {currentRole !== 'cliente' && (
@@ -176,8 +290,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg transition-all shadow-xs shrink-0 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Nova Ordem de Serviço</span>
-              <span className="sm:hidden">Nova OS</span>
+              <span className="hidden sm:inline">Nova OS</span>
             </button>
           )}
         </div>

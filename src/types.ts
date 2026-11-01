@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'colaborador' | 'tecnico' | 'contador' | 'cliente';
+export type UserRole = 'admin' | 'colaborador' | 'tecnico' | 'contador' | 'cliente' | 'vendedor';
 
 export type ServiceOrderStatus = 
   | 'orcamento_aberto'
@@ -553,3 +553,37 @@ export interface ChecklistTemplate {
   items: { id: string; label: string; category: ChecklistItem['category']; required: boolean }[];
 }
 
+export type AppTheme = 'classico' | 'terra_oliva' | 'claro_ouro';
+
+export interface ThemeDefinition {
+  id: AppTheme;
+  name: string;
+  subtitle: string;
+  description: string;
+  swatches: string[];
+  colors: {
+    primary: string;
+    primaryHover: string;
+    secondary: string;
+    accent: string;
+    canvas: string;
+    surface: string;
+    sidebarBg: string;
+    sidebarText: string;
+    headerBg: string;
+    headerText: string;
+    badgeBg: string;
+    badgeText: string;
+    border: string;
+  };
+}
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  roleBadge: string;
+  avatar?: string;
+}

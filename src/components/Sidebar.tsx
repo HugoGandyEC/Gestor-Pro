@@ -20,7 +20,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  LogOut
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -85,7 +86,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     employees,
     vehicles,
     serviceCatalog,
-    checklistTemplates
+    checklistTemplates,
+    currentUser,
+    logout
   } = useApp();
 
   const openOrdersCount = serviceOrders.filter(
@@ -317,7 +320,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Navigation Categories and Items */}
         <nav className={`p-2 space-y-3 flex-1 overflow-y-auto ${isCollapsed ? 'px-1.5' : 'p-3'}`}>
           {navigationCategories.map((group) => {
-            const visibleItems = group.items.filter(item => item.roles.includes(currentRole));
+            const visibleItems = group.items.filter(item => 
+              item.roles.includes(currentRole) || 
+              (currentRole === 'vendedor' && (item.roles.includes('colaborador') || item.id === 'sales' || item.id === 'products' || item.id === 'clients'))
+            );
             if (visibleItems.length === 0) return null;
 
             return (
@@ -379,19 +385,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        {/* Footer Info Box */}
+        {/* Footer User Box & Logout */}
         {isCollapsed ? (
-          <div className="p-2 border-t border-[#3d3f42] flex justify-center text-[#c2bfb0]" title="VPS / PWA Ativo - MySQL Relacional">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="p-2 border-t border-[#3d3f42] flex flex-col items-center gap-2">
+            <button
+              onClick={() => {
+                if (confirm('Deseja realmente sair da conta?')) logout();
+              }}
+              title="Sair do sistema (Logout)"
+              className="p-2 text-rose-400 hover:text-white hover:bg-rose-900/40 rounded-lg transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         ) : (
-          <div className="p-3 m-3 rounded-lg bg-[#222325] border border-[#3d3f42] text-xs text-[#a0a2a6] space-y-1">
-            <div className="font-semibold text-white text-[11px] flex items-center justify-between">
-              <span className="text-[#d8d8d8]">Ambiente do Sistema</span>
-              <span className="text-[10px] text-[#c2bfb0] font-bold">VPS / PWA Ativo</span>
+          <div className="p-3 border-t border-[#3d3f42] bg-[#222325]">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {currentUser?.avatar ? (
+                  <img 
+                    src={currentUser.avatar} 
+                    alt={currentUser.name} 
+                    className="w-7 h-7 rounded-md object-cover border border-[#484a4e]"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-md bg-[#53383e] text-white font-bold text-xs flex items-center justify-center">
+                    {(currentUser?.name || 'U').substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 truncate">
+                  <div className="text-xs font-bold text-white truncate">
+                    {currentUser?.name || 'Usuário'}
+                  </div>
+                  <div className="text-[10px] text-[#a0a2a6] truncate">
+                    {currentUser?.roleBadge || currentRole}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (confirm('Deseja realmente sair da conta?')) logout();
+                }}
+                title="Sair (Logout)"
+                className="p-1.5 text-rose-400 hover:text-white hover:bg-rose-900/40 rounded-lg transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <div className="text-[10px] text-[#8e9094]">
-              Autenticação: JWT · MySQL Relacional
+            <div className="text-[10px] text-[#8e9094] flex items-center justify-between">
+              <span>MP PISCINA ERP</span>
+              <span className="text-emerald-400 font-mono">● Online</span>
             </div>
           </div>
         )}
