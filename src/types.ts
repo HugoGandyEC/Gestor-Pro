@@ -160,6 +160,8 @@ export interface Client {
   addresses?: ClientAddress[]; // Múltiplos endereços com títulos de referência
   createdAt: string;
   notes?: string;
+  portalUsername?: string; // Usuário de login do portal do cliente
+  portalPassword?: string; // Senha de acesso ao portal do cliente
 }
 
 export interface Supplier {

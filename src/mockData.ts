@@ -45,6 +45,8 @@ export const initialClients: Client[] = [
     city: 'Brasília',
     state: 'DF',
     createdAt: '2026-05-09',
+    portalUsername: 'maria.gorete',
+    portalPassword: '123456',
     addresses: [
       {
         id: 'addr-mg-1',
@@ -78,6 +80,8 @@ export const initialClients: Client[] = [
     city: 'São Paulo',
     state: 'SP',
     createdAt: '2024-03-12',
+    portalUsername: 'bellavista',
+    portalPassword: '123456',
     addresses: [
       {
         id: 'addr-1-1',

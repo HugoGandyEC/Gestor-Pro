@@ -28,7 +28,9 @@ import {
   Camera,
   PenTool,
   Download,
-  Info
+  Info,
+  ShoppingBag,
+  HardHat
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 
@@ -350,18 +352,84 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
       id: 'customer_portal',
       category: 'portal',
       categoryLabel: 'Portal & Clientes',
-      title: 'Portal Exclusivo do Cliente & Abertura de Chamados',
+      title: 'Portal do Cliente: Perfil, Segurança & Troca de Senha',
       icon: UserCheck,
-      badge: 'Área do Cliente',
-      summary: 'Ambiente exclusivo para que clientes consultem suas OSs finalizadas, baixem seus comprovantes e solicitem garantia online.',
+      badge: 'Autoatendimento',
+      summary: 'Área segura onde o cliente visualiza seus dados cadastrais, altera seu usuário e senha de acesso, e assina Ordens de Serviço digitalmente.',
       howToUse: [
-        'O cliente pode acessar o sistema com seu usuário (ex: maria.gorete).',
-        'A interface simplifica os menus mostrando apenas suas ordens e garantias ativas.',
-        'O cliente pode abrir um novo chamado informando o problema e anexando fotos.',
-        'A notificação entra instantaneamente para a equipe técnica no painel principal.'
+        'Acesse a aba "Portal do Cliente" no menu lateral.',
+        'Na aba "Perfil & Segurança", o cliente pode atualizar endereço, telefones e contatos.',
+        'No card de Credenciais, o próprio cliente define seu Usuário de login e sua Nova Senha.',
+        'Clique em "Salvar Alterações de Perfil e Senha" para efetivar instantaneamente.'
       ],
-      tips: 'Você pode enviar o link de acesso direto pelo WhatsApp com o número da OS do cliente.',
+      tips: 'O cliente pode entrar diretamente pela tela de login com o usuário e a senha que ele cadastrou.',
       targetTab: 'customerPortal'
+    },
+    {
+      id: 'warranties_serial',
+      category: 'portal',
+      categoryLabel: 'Portal & Clientes',
+      title: 'Garantias Desmembradas por Número de Série (S/N)',
+      icon: ShieldCheck,
+      badge: 'Garantia Inteligente',
+      summary: 'Painel separado exclusivamente para equipamentos com número de série (bombas, trocadores de calor, reservatórios). Verifique se a garantia está ativa ou expirada.',
+      howToUse: [
+        'Acesse "Portal do Cliente" e clique na aba "Garantias & S/N".',
+        'Cada equipamento vendido exibe o número de série (S/N), prazo em dias e a data de expiração.',
+        'Equipamentos com prazo vigente mostram o selo verde "Garantia Ativa" com os dias restantes.',
+        'Equipamentos com data vencida aparecem destacados com o selo vermelho "Garantia Expirada".',
+        'Clique em "Acionar Garantia deste Equipamento" para abrir o chamado já com o S/N preenchido.'
+      ],
+      tips: 'No formulário de chamado, ao selecionar o número de série, o sistema preenche o equipamento e histórico automaticamente.',
+      targetTab: 'customerPortal'
+    },
+    {
+      id: 'customer_purchases',
+      category: 'portal',
+      categoryLabel: 'Portal & Clientes',
+      title: 'Histórico de Compras & Aquisições do Cliente',
+      icon: ShoppingBag,
+      badge: 'Pós-Venda & Compras',
+      summary: 'Aba dedicada que reúne todas as compras de balcão e peças instaladas em ordens de serviço, com quantidades, valores unitários e comprovantes.',
+      howToUse: [
+        'Acesse o "Portal do Cliente" e entre na aba "Histórico de Compras".',
+        'Visualize o resumo do total investido e a lista completa de produtos adquiridos.',
+        'Clique em "Ver Comprovante de Aquisição" para emitir ou imprimir o comprovante oficial.'
+      ],
+      tips: 'Tanto compras diretas do PDV quanto peças adicionadas em manutenções aparecem integradas nesta tela.',
+      targetTab: 'customerPortal'
+    },
+    {
+      id: 'technician_view',
+      category: 'operacoes',
+      categoryLabel: 'Operações & OS',
+      title: 'Painel do Técnico: Escala e Diárias (Sem Financeiro da Empresa)',
+      icon: HardHat,
+      badge: 'Modo Técnico',
+      summary: 'Tela sob medida para o técnico em campo: exibe apenas os serviços atribuídos a ele, rotas de atendimento no GPS, e o valor de suas diárias e comissões a receber.',
+      howToUse: [
+        'Ao entrar no perfil "Técnico em Campo", o sistema remove todo o financeiro geral da empresa (lucro, DRE, faturamento total).',
+        'O técnico visualiza seus atendimentos agendados, endereço do cliente com botão direto para GPS/Rotas e WhatsApp.',
+        'O painel calcula automaticamente suas diárias de visita (R$) e sua comissão de mão de obra concluída.',
+        'O técnico pode iniciar o atendimento e marcar como concluído com 1 clique.'
+      ],
+      tips: 'Garante total privacidade financeira da empresa enquanto fornece ao técnico uma ferramenta ágil de campo.',
+      targetTab: 'dashboard'
+    },
+    {
+      id: 'os_tooltips_columns',
+      category: 'operacoes',
+      categoryLabel: 'Operações & OS',
+      title: 'Tabela de OS: Abreviaturas e Tooltips Informativos',
+      icon: Info,
+      badge: 'Visual Acessível',
+      summary: 'Colunas abreviadas (Código, Cliente, Técnico, Garantia, Taxa) com tooltips completos ao passar o mouse em cada cabeçalho e célula.',
+      howToUse: [
+        'Passe o mouse sobre os cabeçalhos com pontilhado (Código, Cliente, Técnico, Garantia, Taxa) para ver a legenda explicativa.',
+        'Ao passar o mouse sobre as células de qualquer linha, visualize o endereço completo, defeito relatado, veículo alocado e prazo de garantia.'
+      ],
+      tips: 'Torna a leitura mais limpa em telas menores sem perder nenhum detalhe operacional.',
+      targetTab: 'orders'
     },
     {
       id: 'backup_restore',

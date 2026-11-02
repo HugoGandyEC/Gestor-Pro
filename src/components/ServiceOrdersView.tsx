@@ -889,23 +889,102 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold select-none">
               <tr>
-                <th className="py-3 px-4">Código / Status</th>
-                <th className="py-3 px-4">Cliente / Equipamento</th>
-                <th className="py-3 px-3">Técnico / Frota</th>
-                <th className="py-3 px-3">Garantia / S/N</th>
-                <th className="py-3 px-3 text-right">Taxa Visita</th>
-                <th className="py-3 px-3 text-right">Serviços</th>
-                <th className="py-3 px-3 text-right">Peças</th>
-                <th className="py-3 px-4 text-right font-bold text-slate-900">Total OS</th>
+                {/* 1. Código (Abreviado de Código / Status) */}
+                <th 
+                  className="py-3 px-4 cursor-help group relative"
+                  title="Código: Código único da Ordem de Serviço e status operacional de andamento"
+                >
+                  <div className="inline-flex items-center gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
+                    <span>Código</span>
+                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
+                  </div>
+                  <div className="hidden group-hover:block absolute left-2 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none">
+                    <p className="font-semibold text-blue-300">Código / Status Operacional</p>
+                    <p className="text-slate-300 text-[10px]">Número da OS, orçamento ou venda com badge de andamento</p>
+                  </div>
+                </th>
+
+                {/* 2. Cliente (Abreviado de Cliente / Equipamento) */}
+                <th 
+                  className="py-3 px-4 cursor-help group relative"
+                  title="Cliente: Dados do cliente solicitante, endereço do atendimento e equipamento em manutenção"
+                >
+                  <div className="inline-flex items-center gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
+                    <span>Cliente</span>
+                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
+                  </div>
+                  <div className="hidden group-hover:block absolute left-4 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none">
+                    <p className="font-semibold text-blue-300">Cliente / Equipamento & Local</p>
+                    <p className="text-slate-300 text-[10px]">Nome do cliente, modelo do equipamento e defeito relatado</p>
+                  </div>
+                </th>
+
+                {/* 3. Técnico (Abreviado de Técnico / Frota) */}
+                <th 
+                  className="py-3 px-3 cursor-help group relative"
+                  title="Técnico: Técnico responsável alocado para a execução e veículo/frota da empresa"
+                >
+                  <div className="inline-flex items-center gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
+                    <span>Técnico</span>
+                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
+                  </div>
+                  <div className="hidden group-hover:block absolute left-3 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none">
+                    <p className="font-semibold text-blue-300">Técnico / Frota Alocada</p>
+                    <p className="text-slate-300 text-[10px]">Colaborador em campo, placa do veículo e quilometragem</p>
+                  </div>
+                </th>
+
+                {/* 4. Garantia (Abreviado de Garantia / S/N) */}
+                <th 
+                  className="py-3 px-3 cursor-help group relative"
+                  title="Garantia: Termo de garantia legal/fabricante e número de série (S/N) do equipamento"
+                >
+                  <div className="inline-flex items-center gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
+                    <span>Garantia</span>
+                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
+                  </div>
+                  <div className="hidden group-hover:block absolute left-3 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none">
+                    <p className="font-semibold text-blue-300">Garantia / Número de Série (S/N)</p>
+                    <p className="text-slate-300 text-[10px]">Identificador do produto vendido e prazo de vigência</p>
+                  </div>
+                </th>
+
+                {/* 5. Taxa (Abreviado de Taxa Visita) */}
+                <th 
+                  className="py-3 px-3 text-right cursor-help group relative"
+                  title="Taxa: Taxa de visita técnica e deslocamento cobrada na OS"
+                >
+                  <div className="inline-flex items-center justify-end gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
+                    <span>Taxa</span>
+                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
+                  </div>
+                  <div className="hidden group-hover:block absolute right-3 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none text-left">
+                    <p className="font-semibold text-blue-300">Taxa de Visita Técnica</p>
+                    <p className="text-slate-300 text-[10px]">Valor de deslocamento e avaliação diagnóstica em campo</p>
+                  </div>
+                </th>
+
+                {currentRole === 'tecnico' ? (
+                  <>
+                    <th className="py-3 px-3">Serviços a Realizar</th>
+                    <th className="py-3 px-4 text-right font-bold text-slate-900">Diária / A Receber</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="py-3 px-3 text-right">Serviços</th>
+                    <th className="py-3 px-3 text-right">Peças</th>
+                    <th className="py-3 px-4 text-right font-bold text-slate-900">Total OS</th>
+                  </>
+                )}
                 <th className="py-3 px-3 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                  <td colSpan={currentRole === 'tecnico' ? 8 : 9} className="py-8 text-center text-slate-400">
                     Nenhuma Ordem de Serviço encontrada com os filtros selecionados.
                   </td>
                 </tr>
@@ -917,16 +996,28 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   const prtTotal = os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
                   const grandTotal = srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
 
+                  // Remuneração técnica (comissão sobre serviços executados + percentual de diária de visita)
+                  const techRate = (tech?.commissionRate || 8) / 100;
+                  const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
+
                   const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
 
                   return (
                     <tr key={os.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 font-mono">
+                      {/* Código */}
+                      <td 
+                        className="py-3 px-4 font-mono"
+                        title={`OS: ${os.code} · Abertura: ${formatDateBR(os.openDate)} · Status: ${os.status.replace(/_/g, ' ')}`}
+                      >
                         <div className="font-bold text-blue-600">{os.code}</div>
                         <div className="mt-1">{getStatusBadge(os.status)}</div>
                       </td>
 
-                      <td className="py-3 px-4">
+                      {/* Cliente */}
+                      <td 
+                        className="py-3 px-4"
+                        title={`Cliente: ${os.clientName} | Fone: ${os.clientPhone}\nEndereço: ${os.clientAddress}\nEquipamento: ${os.equipmentType || 'N/A'}\nDefeito: ${os.description}`}
+                      >
                         <div className="font-semibold text-slate-900">{os.clientName}</div>
                         {os.equipmentType && (
                           <div className="text-[11px] text-slate-500 font-medium truncate max-w-xs">
@@ -936,14 +1027,22 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                         <div className="text-[10px] text-slate-400 truncate max-w-xs">{os.description}</div>
                       </td>
 
-                      <td className="py-3 px-3">
+                      {/* Técnico */}
+                      <td 
+                        className="py-3 px-3"
+                        title={`Técnico Responsável: ${tech?.name || 'Não alocado'}\nVeículo: ${veh ? `${veh.model} - ${veh.plate}` : 'Sem veículo'}\nKM Deslocamento: ${os.kmDriven} km`}
+                      >
                         <div className="text-slate-800 font-medium">{tech?.name || 'Não alocado'}</div>
                         <div className="text-[11px] text-slate-400 font-mono">
                           {veh ? `${veh.plate} (${os.kmDriven} km)` : 'Sem veículo'}
                         </div>
                       </td>
 
-                      <td className="py-3 px-3 font-mono text-slate-600">
+                      {/* Garantia */}
+                      <td 
+                        className="py-3 px-3 font-mono text-slate-600"
+                        title={os.equipmentSerial ? `Equipamento S/N: ${os.equipmentSerial}\nPrazo de Garantia: ${os.warrantyPeriodDays} dias\nExpira em: ${os.warrantyExpiresAt ? formatDateBR(os.warrantyExpiresAt) : 'Calculada'}` : 'Nenhum número de série cadastrado nesta OS'}
+                      >
                         {os.equipmentSerial ? (
                           <div>
                             <span className="font-bold text-slate-800">{os.equipmentSerial}</span>
@@ -956,26 +1055,52 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                         )}
                       </td>
 
-                      <td className="py-3 px-3 text-right font-mono text-slate-600">
+                      {/* Taxa */}
+                      <td 
+                        className="py-3 px-3 text-right font-mono text-slate-600"
+                        title={`Taxa de visita técnica: ${formatBRL(os.visitFee || 0)}`}
+                      >
                         {formatBRL(os.visitFee || 0)}
                       </td>
 
-                      <td className="py-3 px-3 text-right font-mono text-slate-700">
-                        {formatBRL(srvTotal)}
-                      </td>
+                      {currentRole === 'tecnico' ? (
+                        <>
+                          <td className="py-3 px-3 text-xs text-slate-700 max-w-xs">
+                            <div className="font-medium truncate">
+                              {os.services.length > 0 ? os.services.map(s => s.name).join(', ') : 'Manutenção / Inspeção Geral'}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {os.services.reduce((acc, s) => acc + (s.hours || 1), 0)}h estimadas
+                            </div>
+                          </td>
 
-                      <td className="py-3 px-3 text-right font-mono text-slate-500">
-                        {formatBRL(prtTotal)}
-                      </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
+                            {formatBRL(techEarnings)}
+                            <div className="text-[10px] text-slate-500 font-normal">
+                              Diária + Comis.
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-3 px-3 text-right font-mono text-slate-700" title={`Mão de obra e serviços: ${formatBRL(srvTotal)}`}>
+                            {formatBRL(srvTotal)}
+                          </td>
 
-                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
-                        {formatBRL(grandTotal)}
-                        {os.calculatedDiscount > 0 && (
-                          <div className="text-[10px] text-rose-600 font-normal">
-                            Desc: -{formatBRL(os.calculatedDiscount)}
-                          </div>
-                        )}
-                      </td>
+                          <td className="py-3 px-3 text-right font-mono text-slate-500" title={`Peças e insumos aplicados: ${formatBRL(prtTotal)}`}>
+                            {formatBRL(prtTotal)}
+                          </td>
+
+                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700" title={`Valor Total da OS: ${formatBRL(grandTotal)}`}>
+                            {formatBRL(grandTotal)}
+                            {os.calculatedDiscount > 0 && (
+                              <div className="text-[10px] text-rose-600 font-normal">
+                                Desc: -{formatBRL(os.calculatedDiscount)}
+                              </div>
+                            )}
+                          </td>
+                        </>
+                      )}
 
                       <td className="py-3 px-3 text-right">
                         <div className="flex items-center justify-end gap-1 flex-wrap">

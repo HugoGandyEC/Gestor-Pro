@@ -25,6 +25,7 @@ import {
 import { useApp, formatBRL } from '../context/AppContext';
 import { ActiveTab } from './Sidebar';
 import { ServiceOrder, DirectSale } from '../types';
+import { TechnicianDashboardView } from './TechnicianDashboardView';
 
 interface DashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
@@ -44,8 +45,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     vehicles, 
     vehicleExpenses,
     generalExpenses,
-    employees
+    employees,
+    currentRole
   } = useApp();
+
+  // Se o perfil logado for Técnico, exibe exclusivamente a tela de serviços e remuneração técnica (sem financeiro da empresa)
+  if (currentRole === 'tecnico') {
+    return <TechnicianDashboardView onNavigate={onNavigate} />;
+  }
 
   // Period mode: 'dia' (por dia), 'mes' (por mês), 'ano' (por ano)
   const [periodMode, setPeriodMode] = useState<PeriodMode>('mes');
