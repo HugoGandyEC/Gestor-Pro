@@ -600,4 +600,6 @@ export interface AuthUser {
   role: UserRole;
   roleBadge: string;
   avatar?: string;
+  clientId?: string; // ID do cliente vinculado para isolamento de dados no Portal do Cliente (Multi-Tenancy)
+  employeeId?: string; // ID do técnico/funcionário vinculado para isolamento de atendimentos (RBAC)
 }

@@ -55,6 +55,12 @@ import {
   themeDefinitions,
   initialAuthUsers
 } from '../mockData';
+import { 
+  canModifyClientData, 
+  canModifyServiceOrder, 
+  getTenantClientId, 
+  getTechnicianEmployeeId 
+} from '../security/rbac';
 
 interface AppContextType {
   // Auth & Session
@@ -1092,11 +1098,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateClient = (id: string, updates: Partial<Client>) => {
+    // Validação de Segurança RBAC e Prevenção contra IDOR
+    if (currentUser?.role === 'cliente') {
+      const tenantId = getTenantClientId(currentUser);
+      if (tenantId && id !== tenantId) {
+        console.error(`[SEGURANÇA ERP - BLOQUEIO IDOR] Usuário ${currentUser.name} tentou alterar dados do cliente ${id}`);
+        addAuditLog('Bloqueio de Segurança (IDOR)', `Tentativa não autorizada de alteração cadastral no cliente ${id} bloqueada.`);
+        return;
+      }
+    }
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     addAuditLog('Edição de Cliente', `Cliente ID ${id} atualizado.`);
   };
 
   const deleteClient = (id: string) => {
+    if (currentUser?.role === 'cliente' || currentUser?.role === 'tecnico') {
+      console.error(`[SEGURANÇA ERP - BLOQUEIO 403] Perfil ${currentUser?.role} não possui permissão para excluir clientes.`);
+      addAuditLog('Bloqueio de Segurança', `Tentativa de exclusão de cliente pelo perfil ${currentUser?.role} bloqueada.`);
+      return;
+    }
     setClients(prev => prev.filter(c => c.id !== id));
     addAuditLog('Exclusão de Cliente', `Cliente ID ${id} removido.`);
   };
@@ -1364,9 +1384,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addCustomerTicket = (t: Omit<CustomerPortalTicket, 'id' | 'createdAt' | 'status'>) => {
+    // Forçar clientId do usuário logado se for cliente (Anti-Spoofing / Anti-IDOR)
+    const effectiveClientId = currentUser?.role === 'cliente'
+      ? (getTenantClientId(currentUser) || t.clientId)
+      : t.clientId;
+
     const now = new Date();
     const newTicket: CustomerPortalTicket = {
       ...t,
+      clientId: effectiveClientId,
       id: `tkt-${Date.now()}`,
       status: 'aberto',
       createdAt: now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR')
@@ -1440,11 +1466,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateServiceOrder = (id: string, updates: Partial<ServiceOrder>) => {
+    // Validação de Permissão RBAC (Anti-IDOR)
+    const targetOrder = serviceOrders.find(o => o.id === id);
+    if (targetOrder) {
+      if (!canModifyServiceOrder(currentUser, targetOrder)) {
+        console.error(`[SEGURANÇA ERP - BLOQUEIO IDOR] Usuário ${currentUser?.name} (${currentUser?.role}) tentou alterar OS ${targetOrder.code} sem permissão.`);
+        addAuditLog('Bloqueio de Segurança (IDOR)', `Tentativa não autorizada de alteração na OS ${targetOrder.code} bloqueada.`);
+        return;
+      }
+    }
+
     setServiceOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
     addAuditLog('Atualização de OS', `OS ID ${id} atualizada com status ${updates.status || 'modificado'}.`);
   };
 
   const deleteServiceOrder = (id: string) => {
+    // Apenas Administradores podem excluir Ordens de Serviço
+    if (currentUser?.role === 'cliente' || currentUser?.role === 'tecnico') {
+      console.error(`[SEGURANÇA ERP - BLOQUEIO 403] Perfil ${currentUser?.role} não possui permissão para excluir ordens de serviço.`);
+      addAuditLog('Bloqueio de Segurança', `Tentativa de exclusão de OS pelo perfil ${currentUser?.role} bloqueada.`);
+      return;
+    }
     setServiceOrders(prev => prev.filter(o => o.id !== id));
     addAuditLog('Exclusão de OS', `OS ID ${id} removida.`);
   };

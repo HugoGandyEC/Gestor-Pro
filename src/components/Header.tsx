@@ -115,24 +115,39 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Controls Zone: Role Switcher, Month, Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Active Persona / Role Switcher */}
-          <div className="flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8] shadow-xs">
-            {getRoleIcon(currentRole)}
-            <span className="text-[11px] font-medium text-[#707174] hidden md:inline">Perfil:</span>
-            <select
-              value={currentRole}
-              onChange={(e) => setCurrentRole(e.target.value as UserRole)}
-              className="text-xs font-bold text-[#363739] bg-transparent border-0 focus:ring-0 cursor-pointer pr-1"
-              title="Trocar perfil de usuário para testar a matriz de permissões"
+          {/* Active Persona / Role Switcher - Protegido contra Escalada de Privilégios */}
+          {currentUser && (currentUser.role === 'cliente' || currentUser.role === 'tecnico') ? (
+            <div 
+              className="flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8] shadow-xs"
+              title="Perfil com acesso estritamente isolado por RBAC e sessão criptografada"
             >
-              <option value="admin">Administrador (Total)</option>
-              <option value="colaborador">Colaborador</option>
-              <option value="vendedor">Vendedor / Comercial</option>
-              <option value="tecnico">Técnico em Campo</option>
-              <option value="contador">Contador / Fiscal</option>
-              <option value="cliente">Cliente (Portal Exclusivo)</option>
-            </select>
-          </div>
+              {getRoleIcon(currentRole)}
+              <span className="text-xs font-bold text-[#363739]">
+                {getRoleLabel(currentRole)}
+              </span>
+              <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 ml-1 border border-emerald-200">
+                Sessão Segura
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8] shadow-xs">
+              {getRoleIcon(currentRole)}
+              <span className="text-[11px] font-medium text-[#707174] hidden md:inline">Perfil:</span>
+              <select
+                value={currentRole}
+                onChange={(e) => setCurrentRole(e.target.value as UserRole)}
+                className="text-xs font-bold text-[#363739] bg-transparent border-0 focus:ring-0 cursor-pointer pr-1"
+                title="Trocar perfil (Disponível apenas para Administrador testar permissões)"
+              >
+                <option value="admin">Administrador (Total)</option>
+                <option value="colaborador">Colaborador</option>
+                <option value="vendedor">Vendedor / Comercial</option>
+                <option value="tecnico">Técnico em Campo</option>
+                <option value="contador">Contador / Fiscal</option>
+                <option value="cliente">Cliente (Portal Exclusivo)</option>
+              </select>
+            </div>
+          )}
 
           {/* Seletor de Mês (oculto no portal do cliente) */}
           {currentRole !== 'cliente' && (

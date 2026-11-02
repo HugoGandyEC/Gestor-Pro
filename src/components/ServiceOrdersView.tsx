@@ -48,6 +48,7 @@ import {
   CardBrand 
 } from '../types';
 import { ServiceOrderPrintTemplate } from './ServiceOrderPrintTemplate';
+import { getScopedServiceOrders } from '../security/secureDataAccess';
 
 interface ServiceOrdersViewProps {
   isNewModalOpen: boolean;
@@ -69,7 +70,8 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     updateServiceOrder, 
     deleteServiceOrder,
     convertBudgetToOrderOrSale,
-    currentRole 
+    currentRole,
+    currentUser
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -790,8 +792,13 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
     alert('Assinatura registrada e OS finalizada!');
   };
 
+  // Multi-Tenancy & RBAC Scoping: técnicos e clientes visualizam apenas seus registros autorizados
+  const scopedOrders = React.useMemo(() => {
+    return getScopedServiceOrders(serviceOrders, currentUser);
+  }, [serviceOrders, currentUser]);
+
   // Filter
-  const filteredOrders = serviceOrders.filter(o => {
+  const filteredOrders = scopedOrders.filter(o => {
     const matchesSearch = 
       o.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||

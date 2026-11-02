@@ -1734,6 +1734,7 @@ export const initialAuthUsers: AuthUser[] = [
     email: 'hugo.gandy@mppiscina.com.br',
     role: 'admin',
     roleBadge: 'Administrador Geral',
+    employeeId: 'emp-hugo-gandy',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
   },
   {
@@ -1743,6 +1744,7 @@ export const initialAuthUsers: AuthUser[] = [
     email: 'carlos.silva@mppiscina.com.br',
     role: 'tecnico',
     roleBadge: 'Técnico Especialista em Campo',
+    employeeId: 'emp-1',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
   },
   {
@@ -1752,6 +1754,7 @@ export const initialAuthUsers: AuthUser[] = [
     email: 'beatriz.vendas@mppiscina.com.br',
     role: 'vendedor',
     roleBadge: 'Vendedora & Atendimento Comercial',
+    employeeId: 'emp-4',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80'
   },
   {
@@ -1770,6 +1773,7 @@ export const initialAuthUsers: AuthUser[] = [
     email: 'mariagorete@email.com',
     role: 'cliente',
     roleBadge: 'Cliente Cadastrada / Portal',
+    clientId: 'cli-maria-gorete',
     avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80'
   }
 ];

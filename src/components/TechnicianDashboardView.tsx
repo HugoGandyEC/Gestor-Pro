@@ -21,11 +21,14 @@ import {
   Wrench,
   Navigation,
   MessageCircle,
-  FileText
+  FileText,
+  ShieldCheck,
+  ShieldAlert
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { ActiveTab } from './Sidebar';
 import { ServiceOrder, ServiceOrderStatus } from '../types';
+import { getTechnicianEmployeeId } from '../security/rbac';
 
 interface TechnicianDashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
@@ -52,8 +55,14 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
     return list.length > 0 ? list : employees;
   }, [employees]);
 
+  // ISOLAMENTO MULTI-TENANCY & RBAC ESTRETO PARA TÉCNICO:
+  // Se o usuário logado for técnico, ele tem acesso ESTRITO apenas à sua própria escala (Worker ID).
+  // Administradores e gestores podem alternar para auditar ou gerenciar escalas.
+  const isRealTechSession = currentUser?.role === 'tecnico';
+  const authenticatedTechId = getTechnicianEmployeeId(currentUser);
+
   // Seletor de técnico ativo (padrão: o usuário logado ou o primeiro técnico Carlos Silva)
-  const [selectedTechId, setSelectedTechId] = useState<string>(() => {
+  const [adminSimulatedTechId, setAdminSimulatedTechId] = useState<string>(() => {
     if (currentUser?.name) {
       const match = technicianEmployees.find(e => 
         e.name.toLowerCase().includes(currentUser.name.toLowerCase()) ||
@@ -61,22 +70,26 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
       );
       if (match) return match.id;
     }
-    return technicianEmployees[0]?.id || employees[0]?.id || '';
+    return technicianEmployees[0]?.id || employees[0]?.id || 'emp-1';
   });
 
-  const activeTechnician = employees.find(e => e.id === selectedTechId) || technicianEmployees[0];
+  const effectiveTechId = isRealTechSession 
+    ? (authenticatedTechId || 'emp-1')
+    : adminSimulatedTechId;
+
+  const activeTechnician = employees.find(e => e.id === effectiveTechId) || technicianEmployees[0];
 
   // Filtros
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendentes' | 'em_andamento' | 'concluidos'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Ordens de serviço do técnico selecionado
+  // Ordens de serviço do técnico selecionado (isolamento estrito)
   const techOrders = useMemo(() => {
-    return serviceOrders.filter(os => os.employeeId === selectedTechId);
-  }, [serviceOrders, selectedTechId]);
+    return serviceOrders.filter(os => os.employeeId === effectiveTechId);
+  }, [serviceOrders, effectiveTechId]);
 
   // Veículo alocado ao técnico
-  const techVehicle = vehicles.find(v => v.assignedEmployeeId === selectedTechId || v.id === techOrders[0]?.vehicleId);
+  const techVehicle = vehicles.find(v => v.assignedEmployeeId === effectiveTechId || v.id === techOrders[0]?.vehicleId);
 
   // Remuneração e Diárias calculadas
   // Percentual de comissão do técnico (ex: 8% contratual)
@@ -159,12 +172,24 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
     });
   }, [techOrders, searchTerm, statusFilter]);
 
-  // Mudança rápida de status pelo técnico
+  // Mudança rápida de status pelo técnico com validação de autorização (Anti-IDOR)
   const handleStartService = (orderId: string) => {
+    const target = serviceOrders.find(o => o.id === orderId);
+    if (!target) return;
+    if (isRealTechSession && target.employeeId !== effectiveTechId) {
+      alert('Acesso negado: Você não pode alterar uma ordem de serviço que não foi atribuída a você.');
+      return;
+    }
     updateServiceOrder(orderId, { status: 'aprovada_em_andamento' });
   };
 
   const handleFinishService = (orderId: string) => {
+    const target = serviceOrders.find(o => o.id === orderId);
+    if (!target) return;
+    if (isRealTechSession && target.employeeId !== effectiveTechId) {
+      alert('Acesso negado: Você não pode alterar uma ordem de serviço que não foi atribuída a você.');
+      return;
+    }
     const today = new Date().toISOString().split('T')[0];
     updateServiceOrder(orderId, { 
       status: 'concluida_aguardando_retirada',
@@ -194,29 +219,50 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
           </p>
         </div>
 
-        {/* Seletor de Técnico (para alternar em teste/demonstração) */}
-        <div className="bg-white/10 p-3.5 rounded-xl border border-white/20 shrink-0 space-y-1.5 backdrop-blur-xs">
-          <label className="block text-[11px] font-semibold text-slate-200">
-            Técnico Selecionado:
-          </label>
-          <select
-            value={selectedTechId}
-            onChange={(e) => setSelectedTechId(e.target.value)}
-            className="w-full text-xs font-bold text-slate-900 bg-white rounded-lg p-2 cursor-pointer shadow-xs focus:ring-2 focus:ring-amber-500"
-          >
-            {technicianEmployees.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.role})
-              </option>
-            ))}
-          </select>
-          {techVehicle && (
-            <div className="text-[10px] text-slate-300 flex items-center gap-1 pt-1">
-              <Car className="w-3 h-3 text-amber-400" />
-              <span>Veículo: {techVehicle.model} ({techVehicle.plate})</span>
+        {/* Identificação de Técnico / Prevenção IDOR */}
+        {isRealTechSession ? (
+          <div className="bg-amber-500/20 p-3.5 rounded-xl border border-amber-400/40 shrink-0 space-y-1.5 backdrop-blur-xs min-w-[270px]">
+            <div className="flex items-center gap-1.5 text-amber-300 text-xs font-semibold">
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+              <span>Sessão de Campo Autenticada</span>
             </div>
-          )}
-        </div>
+            <p className="text-sm font-bold text-white truncate">{activeTechnician?.name || 'Técnico de Campo'}</p>
+            <p className="text-[11px] text-amber-200/90 font-mono">Matrícula: {effectiveTechId} · {activeTechnician?.role}</p>
+            {techVehicle && (
+              <div className="text-[10px] text-amber-200 flex items-center gap-1 pt-1 border-t border-amber-400/20 mt-1">
+                <Car className="w-3.5 h-3.5 text-amber-300" />
+                <span>Veículo: {techVehicle.model} ({techVehicle.plate})</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white/10 p-3.5 rounded-xl border border-white/20 shrink-0 space-y-1.5 backdrop-blur-xs min-w-[260px]">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-semibold text-amber-300 flex items-center gap-1">
+                <ShieldAlert className="w-3.5 h-3.5" />
+                Auditoria / Admin:
+              </label>
+              <span className="text-[10px] text-amber-200 bg-amber-500/20 px-1.5 py-0.5 rounded font-mono">Simulação</span>
+            </div>
+            <select
+              value={effectiveTechId}
+              onChange={(e) => setAdminSimulatedTechId(e.target.value)}
+              className="w-full text-xs font-bold text-slate-900 bg-white rounded-lg p-2 cursor-pointer shadow-xs focus:ring-2 focus:ring-amber-500"
+            >
+              {technicianEmployees.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.role})
+                </option>
+              ))}
+            </select>
+            {techVehicle && (
+              <div className="text-[10px] text-slate-300 flex items-center gap-1 pt-1">
+                <Car className="w-3 h-3 text-amber-400" />
+                <span>Veículo: {techVehicle.model} ({techVehicle.plate})</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Cards de Resumo Operacional e Remuneração do Técnico (SEM financeiro da empresa) */}

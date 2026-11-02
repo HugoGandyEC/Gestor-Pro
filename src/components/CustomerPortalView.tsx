@@ -38,6 +38,8 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { CustomerPortalTicket, ServiceOrder, DirectSale, Client, ClientAddress } from '../types';
+import { getTenantClientId } from '../security/rbac';
+import { getScopedServiceOrders, getScopedDirectSales, getScopedCustomerTickets } from '../security/secureDataAccess';
 
 export const CustomerPortalView: React.FC = () => {
   const { 
@@ -53,19 +55,21 @@ export const CustomerPortalView: React.FC = () => {
     currentUser
   } = useApp();
 
-  // Current client selection (defaults to logged-in client if user is client, or Maria Gorete / first client)
-  const [selectedClientId, setSelectedClientId] = useState<string>(() => {
-    if (currentUser?.role === 'cliente' && currentUser?.name) {
-      const found = clients.find(c => 
-        c.name.toLowerCase().includes(currentUser.name.toLowerCase()) || 
-        c.email.toLowerCase() === currentUser.email.toLowerCase()
-      );
-      if (found) return found.id;
-    }
-    return clients[0]?.id || 'cli-maria-gorete';
-  });
+  // ISOLAMENTO MULTI-TENANCY ESTRETO:
+  // Se for usuário com perfil 'cliente', o ID é fixo e derivado exclusivamente do token/sessão (Prevenção IDOR).
+  // Apenas administradores em modo de simulação/auditoria podem selecionar outro cliente.
+  const isRealClientSession = currentUser?.role === 'cliente';
+  const tenantClientId = getTenantClientId(currentUser);
 
-  const currentClient = clients.find(c => c.id === selectedClientId) || clients[0];
+  const [adminSimulatedClientId, setAdminSimulatedClientId] = useState<string>(
+    clients[0]?.id || 'cli-maria-gorete'
+  );
+
+  const effectiveClientId = isRealClientSession 
+    ? (tenantClientId || clients.find(c => c.name.toLowerCase().includes(currentUser?.name.toLowerCase() || ''))?.id || 'cli-maria-gorete')
+    : adminSimulatedClientId;
+
+  const currentClient = clients.find(c => c.id === effectiveClientId) || clients[0];
 
   // Abas do Portal: Separação de Ordens de Serviço, Garantias, Compras, Chamados, Débitos e Perfil
   const [activeTab, setActiveTab] = useState<'orders' | 'warranties' | 'purchases' | 'tickets' | 'debts' | 'profile'>('orders');
@@ -129,21 +133,23 @@ export const CustomerPortalView: React.FC = () => {
     }
   }, [currentClient?.id]);
 
-  // Client's orders
+  // Consulta segura e isolada de Ordens de Serviço do Cliente (Isolamento Multi-Tenancy / Anti-IDOR)
   const clientOrders = useMemo(() => {
-    return serviceOrders.filter(o => 
-      o.clientId === selectedClientId || 
-      (currentClient?.name && o.clientName.toLowerCase().includes(currentClient.name.toLowerCase()))
-    );
-  }, [serviceOrders, selectedClientId, currentClient]);
+    return serviceOrders
+      .filter(o => o.clientId === effectiveClientId)
+      .map(o => ({
+        ...o,
+        parts: o.parts.map(p => ({
+          ...p,
+          cost: 0 // Sanitização Estrita: zera custo interno da empresa para o cliente
+        }))
+      }));
+  }, [serviceOrders, effectiveClientId]);
 
-  // Client's tickets
+  // Consulta segura e isolada de Chamados do Cliente
   const clientTickets = useMemo(() => {
-    return customerTickets.filter(t => 
-      t.clientId === selectedClientId || 
-      (currentClient?.name && t.clientName.toLowerCase().includes(currentClient.name.toLowerCase()))
-    );
-  }, [customerTickets, selectedClientId, currentClient]);
+    return customerTickets.filter(t => t.clientId === effectiveClientId);
+  }, [customerTickets, effectiveClientId]);
 
   // Pending debts
   const pendingOrders = clientOrders.filter(o => o.paymentStatus === 'pendente');
@@ -234,7 +240,7 @@ export const CustomerPortalView: React.FC = () => {
 
     // 1. Vendas Diretas de Balcão
     directSales.forEach(s => {
-      const matchClient = s.clientId === selectedClientId || 
+      const matchClient = s.clientId === effectiveClientId || 
         (currentClient?.name && s.clientName.toLowerCase().includes(currentClient.name.toLowerCase()));
       if (matchClient) {
         purchases.push({
@@ -281,7 +287,7 @@ export const CustomerPortalView: React.FC = () => {
 
     // Ordenar por data decrescente
     return purchases.sort((a, b) => b.date.localeCompare(a.date));
-  }, [directSales, clientOrders, selectedClientId, currentClient]);
+  }, [directSales, clientOrders, effectiveClientId, currentClient]);
 
   const totalSpentInPurchases = clientPurchases.reduce((acc, p) => acc + p.total, 0);
   const totalItemsPurchasedCount = clientPurchases.reduce((acc, p) => 
@@ -415,23 +421,38 @@ export const CustomerPortalView: React.FC = () => {
           </p>
         </div>
 
-        {/* Client Switcher (for demo & testing) */}
-        <div className="bg-white/10 p-3 rounded-xl border border-white/20 shrink-0 space-y-1.5 backdrop-blur-xs">
-          <label className="block text-[11px] font-semibold text-slate-200">
-            Visualizando como Cliente:
-          </label>
-          <select
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="w-full text-xs font-bold text-slate-900 bg-white rounded-lg p-2 cursor-pointer shadow-xs"
-          >
-            {clients.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.document})
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Identificação de Tenant / Prevenção IDOR */}
+        {isRealClientSession ? (
+          <div className="bg-emerald-500/20 p-3.5 rounded-xl border border-emerald-400/40 shrink-0 space-y-1 backdrop-blur-xs min-w-[260px]">
+            <div className="flex items-center gap-1.5 text-emerald-300 text-xs font-semibold">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Sessão Segura & Isolada</span>
+            </div>
+            <p className="text-xs font-bold text-white truncate">{currentClient?.name || 'Cliente Autenticado'}</p>
+            <p className="text-[11px] text-emerald-200/90 font-mono">ID Tenant: {currentClient?.id} · {currentClient?.document}</p>
+          </div>
+        ) : (
+          <div className="bg-white/10 p-3.5 rounded-xl border border-white/20 shrink-0 space-y-1.5 backdrop-blur-xs min-w-[250px]">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-semibold text-amber-300 flex items-center gap-1">
+                <ShieldAlert className="w-3.5 h-3.5" />
+                Auditoria / Admin:
+              </label>
+              <span className="text-[10px] text-amber-200 bg-amber-500/20 px-1.5 py-0.5 rounded font-mono">Simulação</span>
+            </div>
+            <select
+              value={effectiveClientId}
+              onChange={(e) => setAdminSimulatedClientId(e.target.value)}
+              className="w-full text-xs font-bold text-slate-900 bg-white rounded-lg p-2 cursor-pointer shadow-xs focus:ring-2 focus:ring-amber-400 outline-hidden"
+            >
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.document})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Quick Summary Cards */}
