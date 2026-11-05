@@ -135,7 +135,7 @@ interface AppContextType {
 
   // External APIs / Lookups
   lookupCep: (cep: string) => Promise<{ street: string; neighborhood: string; city: string; state: string } | null>;
-  lookupCnpj: (cnpj: string) => Promise<{ name: string; tradeName?: string; phone?: string; email?: string; cep?: string; street?: string; number?: string; city?: string; state?: string } | null>;
+  lookupCnpj: (cnpj: string) => Promise<{ name: string; tradeName?: string; phone?: string; email?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string } | null>;
 
   // XML & Batch Import
   parseNFeXml: (xmlContent: string) => { success: boolean; message: string; parsedNFe?: ParsedXmlNFe };
@@ -791,7 +791,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Live Lookups: CNPJ via BrasilAPI / Receita
+  // Live Lookups: CNPJ via BrasilAPI / Receita Federal
   const lookupCnpj = async (cnpj: string) => {
     const clean = cnpj.replace(/\D/g, '');
     if (clean.length !== 14) return null;
@@ -802,29 +802,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           name: data.razao_social || data.nome_fantasia || '',
           tradeName: data.nome_fantasia || '',
-          phone: data.ddd_telefone_1 ? `(${data.ddd_telefone_1.slice(0,2)}) ${data.ddd_telefone_1.slice(2)}` : '',
+          phone: data.ddd_telefone_1 ? `(${data.ddd_telefone_1.slice(0, 2)}) ${data.ddd_telefone_1.slice(2)}` : '',
           email: data.email || '',
           cep: data.cep || '',
           street: data.logradouro || '',
           number: data.numero || '',
+          neighborhood: data.bairro || '',
           city: data.municipio || '',
           state: data.uf || ''
         };
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.warn('Erro ao consultar BrasilAPI para CNPJ:', err);
     }
-    return {
-      name: 'Empresa Industrial & Serviços do Brasil Ltda',
-      tradeName: 'Brasil Serviços & Equipamentos',
-      phone: '(11) 3200-4000',
-      email: 'contato@brasilservicos.com.br',
-      cep: '01310-100',
-      street: 'Avenida Paulista',
-      number: '1000',
-      city: 'São Paulo',
-      state: 'SP'
-    };
+    return null;
   };
 
   // Parser for NF-e XML that prepares staging data for user review & price/margin adjustment

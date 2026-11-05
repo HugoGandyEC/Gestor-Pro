@@ -548,6 +548,7 @@ export interface CompanySettings {
   fiscalEnvironment: 'homologacao' | 'producao';
   standardVisitFee: number;
   sequenceSettings?: SequenceSettings;
+  logoUrl?: string;
 }
 
 export interface ServiceCatalogItem {

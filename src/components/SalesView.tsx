@@ -33,7 +33,8 @@ export const SalesView: React.FC = () => {
     addDirectSale, 
     deleteDirectSale,
     cardRates,
-    currentRole 
+    currentRole,
+    companySettings 
   } = useApp();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -63,6 +64,10 @@ export const SalesView: React.FC = () => {
   };
 
   const handleDownloadSale = (sale: DirectSale) => {
+    const companyLogoHtml = companySettings.logoUrl 
+      ? `<img src="${companySettings.logoUrl}" style="max-height: 55px; max-width: 160px; object-fit: contain; margin-bottom: 8px; display: block;" alt="Logo" />`
+      : '';
+
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -70,7 +75,7 @@ export const SalesView: React.FC = () => {
   <title>Venda_${sale.code}_${sale.clientName}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 30px; color: #363739; margin: 0; }
-    .header { border-bottom: 2px solid #53383e; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+    .header { border-bottom: 2px solid #53383e; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
     .brand { font-size: 20px; font-weight: bold; color: #53383e; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
     th { background: #53383e; color: #fff; padding: 8px 10px; text-align: left; }
@@ -81,13 +86,17 @@ export const SalesView: React.FC = () => {
 <body>
   <div class="header">
     <div>
-      <div class="brand">GESTAOPRO · Comprovante de Venda / PDV</div>
-      <div style="font-size: 11px; color: #707174;">Varejo & Atacadista de Equipamentos e Peças Térmicas</div>
+      ${companyLogoHtml}
+      <div class="brand">${companySettings.tradeName || companySettings.companyName || 'GESTAOPRO'} · Comprovante de Venda</div>
+      <div style="font-size: 11px; color: #707174;">${companySettings.companyName || 'Varejo & Atacado'}</div>
+      <div style="font-size: 10px; color: #707174; margin-top: 2px;">
+        ${[companySettings.cnpj ? `CNPJ: ${companySettings.cnpj}` : '', companySettings.phone ? `Tel: ${companySettings.phone}` : '', companySettings.city ? `${companySettings.city}/${companySettings.state || ''}` : ''].filter(Boolean).join(' · ')}
+      </div>
     </div>
     <div style="text-align: right; font-size: 12px;">
-      <div><strong>Venda:</strong> ${sale.code}</div>
+      <div><strong>Pedido Nº:</strong> ${sale.code}</div>
       <div><strong>Data:</strong> ${sale.date}</div>
-      <div><strong>Tipo:</strong> ${sale.priceType.toUpperCase()}</div>
+      <div><strong>Tabela:</strong> ${sale.priceType.toUpperCase()}</div>
     </div>
   </div>
   <div style="font-size: 12px; margin-bottom: 15px;">

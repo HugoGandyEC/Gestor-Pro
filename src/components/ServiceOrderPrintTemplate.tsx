@@ -1,6 +1,6 @@
 import React from 'react';
 import { ServiceOrder, Employee } from '../types';
-import { formatBRL, formatDateBR } from '../context/AppContext';
+import { formatBRL, formatDateBR, useApp } from '../context/AppContext';
 
 interface ServiceOrderPrintTemplateProps {
   os: ServiceOrder;
@@ -8,6 +8,7 @@ interface ServiceOrderPrintTemplateProps {
 }
 
 export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps> = ({ os, employee }) => {
+  const { companySettings } = useApp();
   // Check whether we have parts and/or services
   const activeParts = (os.parts || []).filter(p => p.name && p.name.trim() !== '');
   const activeServices = (os.services || []).filter(s => s.name && s.name.trim() !== '');
@@ -54,38 +55,60 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
       <div className="flex items-start justify-between pb-3 border-b-2 border-slate-900 gap-4">
         {/* Left: Logo & Company Information */}
         <div className="flex items-center gap-3.5">
-          {/* Logo Emblem */}
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 flex flex-col items-center justify-center text-white shrink-0 shadow-xs border border-blue-600">
-            <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 12h20" />
-              <path d="M20 12v8H4v-8" />
-              <path d="m4 8 16-4" />
-              <path d="m4 4 16 4" />
-              <circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none" />
-            </svg>
-            <span className="text-[7px] font-black tracking-widest uppercase mt-0.5">MP PISCINA</span>
-          </div>
+          {/* Logo Oficial ou Emblema Padronizado */}
+          {companySettings.logoUrl ? (
+            <img
+              src={companySettings.logoUrl}
+              alt={companySettings.tradeName || companySettings.companyName || 'Logomarca'}
+              className="max-h-16 max-w-[160px] object-contain shrink-0 rounded"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 flex flex-col items-center justify-center text-white shrink-0 shadow-xs border border-blue-600">
+              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 12h20" />
+                <path d="M20 12v8H4v-8" />
+                <path d="m4 8 16-4" />
+                <path d="m4 4 16 4" />
+                <circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none" />
+              </svg>
+              <span className="text-[7px] font-black tracking-widest uppercase mt-0.5">
+                {(companySettings.tradeName || companySettings.companyName || 'EMPRESA').slice(0, 10)}
+              </span>
+            </div>
+          )}
 
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">
-              MP PISCINA
+              {companySettings.tradeName || companySettings.companyName || 'EMPRESA'}
             </h1>
-            <p className="text-[9.5px] text-slate-700 font-bold uppercase tracking-wider mt-1">
-              Aquecimento, Filtros & Assistência Técnica Especializada
-            </p>
-            <p className="text-[9px] text-slate-600 font-medium uppercase tracking-wide">
-              QUADRA QR 114 CONJUNTO 6, 201 - SAMAMBAIA SUL (SAMAMBAIA) · BRASILIA / DF
+            {companySettings.companyName && companySettings.companyName !== companySettings.tradeName && (
+              <p className="text-[9.5px] text-slate-700 font-bold uppercase tracking-wider mt-1">
+                {companySettings.companyName}
+              </p>
+            )}
+            <p className="text-[9px] text-slate-600 font-medium uppercase tracking-wide mt-0.5">
+              {[
+                [companySettings.street, companySettings.number].filter(Boolean).join(', '),
+                companySettings.neighborhood,
+                companySettings.city ? `${companySettings.city} / ${companySettings.state || ''}` : ''
+              ].filter(Boolean).join(' - ') || 'Endereço Comercial Cadastrado'}
             </p>
             <p className="text-[9.5px] text-slate-800 font-semibold mt-0.5">
-              (61) 99860-1113 | mppiscina2004@gmail.com
+              {[
+                companySettings.phone ? `Tel: ${companySettings.phone}` : '',
+                companySettings.email ? `E-mail: ${companySettings.email}` : '',
+                companySettings.cnpj ? `CNPJ: ${companySettings.cnpj}` : ''
+              ].filter(Boolean).join(' | ')}
             </p>
           </div>
         </div>
 
-        {/* Top Right: Prominent OS Number Box */}
+        {/* Top Right: Prominent OS / Orçamento Number Box */}
         <div className="border-2 border-slate-900 rounded-lg overflow-hidden bg-white text-center min-w-[190px] shrink-0 shadow-2xs">
           <div className="bg-slate-900 text-white px-3 py-1 text-[9.5px] font-black uppercase tracking-widest">
-            ORDEM DE SERVIÇO
+            {os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao'
+              ? 'ORÇAMENTO & PROPOSTA'
+              : 'ORDEM DE SERVIÇO'}
           </div>
           <div className="p-2 bg-slate-50">
             <div className="text-lg sm:text-xl font-black font-mono text-slate-900 tracking-wider">

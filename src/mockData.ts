@@ -173,7 +173,8 @@ export const initialCompanySettings: CompanySettings = {
   defaultWarrantyTerms: 'Garantia legal de 90 dias para mão de obra conforme Código de Defesa do Consumidor (Art. 26, II). Equipamentos e peças possuem garantia do fabricante conforme certificado de garantia fornecido com o produto.',
   fiscalEnvironment: 'homologacao',
   standardVisitFee: 0,
-  sequenceSettings: initialSequenceSettings
+  sequenceSettings: initialSequenceSettings,
+  logoUrl: ''
 };
 
 export const initialServiceCatalog: ServiceCatalogItem[] = [];

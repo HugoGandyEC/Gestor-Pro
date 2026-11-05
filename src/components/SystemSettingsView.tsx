@@ -30,7 +30,9 @@ import {
   Clock,
   Tag,
   X,
-  Palette
+  Palette,
+  Image as ImageIcon,
+  Loader2
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { CardBrand, CardMachineRate, CompanySettings, UserRole, SequenceSettings, WarrantyPolicy } from '../types';
@@ -159,25 +161,102 @@ export const SystemSettingsView: React.FC = () => {
   const [restoreJsonInput, setRestoreJsonInput] = useState('');
   const [restoreFeedback, setRestoreFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // CNPJ automatic lookup
-  const handleCnpjSearch = async () => {
-    if (formData.cnpj.replace(/\D/g, '').length === 14) {
-      const data = await lookupCnpj(formData.cnpj);
-      if (data) {
-        setFormData(prev => ({
-          ...prev,
-          companyName: data.name || prev.companyName,
-          tradeName: data.tradeName || prev.tradeName,
-          phone: data.phone || prev.phone,
-          email: data.email || prev.email,
-          cep: data.cep || prev.cep,
-          street: data.street || prev.street,
-          number: data.number || prev.number,
-          city: data.city || prev.city,
-          state: data.state || prev.state
-        }));
+  // CNPJ automatic lookup states
+  const [isSearchingCnpj, setIsSearchingCnpj] = useState(false);
+  const [cnpjFeedback, setCnpjFeedback] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
+
+  // Formata CNPJ: 00.000.000/0000-00
+  const formatCnpjMask = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 14);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+    if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+    if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12, 14)}`;
+  };
+
+  // Preenchimento automático ao digitar o CNPJ
+  const handleCnpjChange = async (value: string) => {
+    const masked = formatCnpjMask(value);
+    setFormData(prev => ({ ...prev, cnpj: masked }));
+
+    const raw = masked.replace(/\D/g, '');
+    if (raw.length === 14) {
+      setIsSearchingCnpj(true);
+      setCnpjFeedback({ type: 'info', message: 'Consultando dados na Receita Federal / BrasilAPI...' });
+      try {
+        const data = await lookupCnpj(raw);
+        if (data) {
+          setFormData(prev => ({
+            ...prev,
+            companyName: data.name || prev.companyName,
+            tradeName: data.tradeName || prev.tradeName || prev.companyName,
+            phone: data.phone || prev.phone,
+            email: data.email || prev.email,
+            cep: data.cep || prev.cep,
+            street: data.street || prev.street,
+            number: data.number || prev.number,
+            neighborhood: data.neighborhood || prev.neighborhood,
+            city: data.city || prev.city,
+            state: data.state || prev.state
+          }));
+          setCnpjFeedback({ type: 'success', message: 'Dados da empresa preenchidos automaticamente via Receita Federal!' });
+        } else {
+          setCnpjFeedback({ type: 'error', message: 'CNPJ não encontrado na base pública. Preencha os campos manualmente.' });
+        }
+      } catch (err) {
+        setCnpjFeedback({ type: 'error', message: 'Erro ao consultar CNPJ. Preencha os campos manualmente.' });
+      } finally {
+        setIsSearchingCnpj(false);
+        setTimeout(() => setCnpjFeedback(null), 6000);
       }
+    } else {
+      setCnpjFeedback(null);
     }
+  };
+
+  // Busca manual por botão se o usuário preferir
+  const handleCnpjSearch = async () => {
+    const raw = formData.cnpj.replace(/\D/g, '');
+    if (raw.length === 14) {
+      handleCnpjChange(raw);
+    } else {
+      setCnpjFeedback({ type: 'error', message: 'Digite os 14 dígitos do CNPJ para buscar.' });
+      setTimeout(() => setCnpjFeedback(null), 4000);
+    }
+  };
+
+  // Upload e gerenciamento de logomarca da empresa
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Selecione um arquivo de imagem válido (PNG, JPG, WebP ou SVG).');
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 3MB para garantir alta velocidade.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        setFormData(prev => ({ ...prev, logoUrl: dataUrl }));
+        setSaveSuccessMsg('Logomarca carregada com sucesso! Clique em "Salvar Alterações" para confirmar.');
+        setTimeout(() => setSaveSuccessMsg(null), 5000);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setFormData(prev => ({ ...prev, logoUrl: '' }));
+    setSaveSuccessMsg('Logomarca removida. Clique em "Salvar Alterações" para confirmar.');
+    setTimeout(() => setSaveSuccessMsg(null), 4000);
   };
 
   // CEP automatic lookup
@@ -304,20 +383,159 @@ export const SystemSettingsView: React.FC = () => {
       {/* TAB 1: DADOS DA EMPRESA */}
       {activeTab === 'company' && (
         <form onSubmit={handleSaveCompany} className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Identificação & Dados Fiscais da Empresa</h2>
-              <p className="text-xs text-slate-500">Esses dados serão utilizados no cabeçalho das Ordens de Serviço, Vendas e Relatórios em PDF.</p>
+              <h2 className="text-base font-bold text-slate-900">Identificação, Logomarca & Dados Fiscais da Empresa</h2>
+              <p className="text-xs text-slate-500">Esses dados e a logomarca serão impressos nos cabeçalhos de Ordens de Serviço, Orçamentos, Vendas, Garantias e Relatórios.</p>
             </div>
             <button
               type="submit"
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
             >
               <Save className="w-4 h-4" /> Salvar Alterações
             </button>
           </div>
 
+          {/* CARD DE UPLOAD DE LOGOMARCA OFICIAL */}
+          <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 border border-indigo-100 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-sm font-bold text-slate-900">Logomarca Oficial da Empresa</h3>
+              </div>
+              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100/70 px-2.5 py-0.5 rounded-full">
+                Documentos & Relatórios
+              </span>
+            </div>
+            <p className="text-xs text-slate-600">
+              Faça o upload da imagem da logo. Ela será exibida automaticamente em <strong>todos os relatórios, Ordens de Serviço (OS), Pedidos de Venda, Orçamentos e Termos de Garantia</strong>.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pt-1">
+              {/* Preview */}
+              <div className="md:col-span-4 flex flex-col items-center justify-center p-3.5 bg-white border-2 border-dashed border-indigo-200 rounded-xl min-h-[110px] text-center">
+                {formData.logoUrl ? (
+                  <div className="space-y-2 text-center w-full">
+                    <img
+                      src={formData.logoUrl}
+                      alt="Logo da Empresa"
+                      className="max-h-20 max-w-full object-contain mx-auto rounded shadow-2xs"
+                    />
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        Logo Ativa
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="text-[10px] text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 font-semibold"
+                      >
+                        <Trash2 className="w-3 h-3" /> Remover
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-slate-400 space-y-1">
+                    <ImageIcon className="w-8 h-8 mx-auto text-slate-300" />
+                    <p className="text-xs font-semibold text-slate-500">Nenhuma logo carregada</p>
+                    <p className="text-[10px] text-slate-400">PNG, JPG, WebP ou SVG (máx. 3MB)</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Controls */}
+              <div className="md:col-span-8 space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs transition-colors">
+                    <Upload className="w-4 h-4" />
+                    <span>Subir Logo do Computador</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {formData.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      className="px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Remover Logo Atual
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Ou informe uma URL direta da imagem da logo:
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://suaempresa.com.br/logo.png"
+                    value={formData.logoUrl || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, logoUrl: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-800 placeholder:text-slate-400 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feedback de Consulta CNPJ */}
+          {cnpjFeedback && (
+            <div className={`p-3 rounded-xl text-xs flex items-center gap-2 font-medium ${
+              cnpjFeedback.type === 'success' 
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : cnpjFeedback.type === 'info'
+                ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                : 'bg-amber-50 text-amber-800 border border-amber-200'
+            }`}>
+              {isSearchingCnpj ? (
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
+              ) : cnpjFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              )}
+              <span>{cnpjFeedback.message}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span>CNPJ *</span>
+                  {isSearchingCnpj && (
+                    <span className="text-[10px] text-blue-600 flex items-center gap-1 font-normal">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Buscando...
+                    </span>
+                  )}
+                </label>
+                <button
+                  type="button"
+                  onClick={handleCnpjSearch}
+                  className="text-[10px] text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                >
+                  <Search className="w-3 h-3" /> Buscar na Receita
+                </button>
+              </div>
+              <input
+                type="text"
+                required
+                placeholder="00.000.000/0000-00"
+                value={formData.cnpj}
+                onChange={(e) => handleCnpjChange(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Digite os 14 dígitos para preencher automaticamente razão social, endereço e telefone.
+              </p>
+            </div>
+
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-slate-700 mb-1">Razão Social (Legal) *</label>
               <input
@@ -328,6 +546,7 @@ export const SystemSettingsView: React.FC = () => {
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
               />
             </div>
+
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Nome Fantasia / Marca</label>
               <input
@@ -335,26 +554,6 @@ export const SystemSettingsView: React.FC = () => {
                 value={formData.tradeName}
                 onChange={(e) => setFormData({ ...formData, tradeName: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-slate-700">CNPJ *</label>
-                <button
-                  type="button"
-                  onClick={handleCnpjSearch}
-                  className="text-[10px] text-indigo-600 hover:underline flex items-center gap-1"
-                >
-                  <Search className="w-3 h-3" /> Buscar Receita
-                </button>
-              </div>
-              <input
-                type="text"
-                required
-                value={formData.cnpj}
-                onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
               />
             </div>
             <div>

@@ -47,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
     currentUser,
     logout,
     openLogoutModal,
+    companySettings,
     currentTheme,
     setTheme,
     themeDefinitions
@@ -96,20 +97,28 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#53383e] flex items-center justify-center text-white shadow-sm ring-2 ring-[#c2bfb0]/40 shrink-0">
-            <Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-          </div>
+          {companySettings.logoUrl ? (
+            <img 
+              src={companySettings.logoUrl} 
+              alt={companySettings.tradeName || 'Logo'} 
+              className="max-h-9 max-w-[120px] object-contain shrink-0 rounded"
+            />
+          ) : (
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#53383e] flex items-center justify-center text-white shadow-sm ring-2 ring-[#c2bfb0]/40 shrink-0">
+              <Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="text-base sm:text-lg font-bold text-[#363739] tracking-tight whitespace-nowrap">
-                GestãoPro
+                {companySettings.tradeName || 'GestãoPro'}
               </span>
               <span className="hidden xs:inline-block text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
                 ERP · OS
               </span>
             </div>
-            <p className="text-[11px] text-[#5a5b5e] hidden sm:block">
-              Assistência Técnica & Vendas
+            <p className="text-[11px] text-[#5a5b5e] hidden sm:block truncate max-w-[180px]">
+              {companySettings.companyName || 'Assistência Técnica & Vendas'}
             </p>
           </div>
         </div>

@@ -25,7 +25,8 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
     serviceOrders,
     vehicleExpenses,
     generalExpenses,
-    vehicles
+    vehicles,
+    companySettings
   } = useApp();
 
   const [selectedEmployeeForDetail, setSelectedEmployeeForDetail] = useState<EmployeeProfitabilityReport | null>(null);
@@ -117,18 +118,27 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
     <div className="space-y-6">
       {/* Header and Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Relatório Mensal de Lucratividade por Funcionário
-            </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Auditoria de Custos Reais
-            </span>
+        <div className="flex items-center gap-3.5">
+          {companySettings.logoUrl && (
+            <img 
+              src={companySettings.logoUrl} 
+              alt={companySettings.tradeName || 'Logo'} 
+              className="max-h-12 max-w-[130px] object-contain rounded shrink-0 border border-slate-200 p-0.5 bg-white" 
+            />
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                Relatório Mensal de Lucratividade por Funcionário
+              </h1>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Auditoria de Custos Reais
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {companySettings.tradeName || companySettings.companyName || 'GestãoPro'} · Apuração exata da receita faturada deduzindo peças, salários, comissões, combustível, manutenção da frota e despesas operacionais.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Apuração exata da receita faturada deduzindo peças, salários, comissões, gasolina, manutenção do veículo (óleo, pastilhas, IPVA, seguro), alimentação e telefone.
-          </p>
         </div>
 
         <div className="no-print flex items-center gap-2.5">

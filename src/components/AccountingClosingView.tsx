@@ -21,7 +21,8 @@ export const AccountingClosingView: React.FC = () => {
     directSales, 
     generalExpenses, 
     monthlyFinancialSummary,
-    employees 
+    employees,
+    companySettings 
   } = useApp();
 
   const monthOrders = serviceOrders.filter(o => {
@@ -71,18 +72,27 @@ export const AccountingClosingView: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Relatório de Fechamento Mensal para o Contador
-            </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Espelho Fiscal & Contábil
-            </span>
+        <div className="flex items-center gap-3.5">
+          {companySettings.logoUrl && (
+            <img 
+              src={companySettings.logoUrl} 
+              alt={companySettings.tradeName || 'Logo'} 
+              className="max-h-12 max-w-[130px] object-contain rounded shrink-0 border border-slate-200 p-0.5 bg-white" 
+            />
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                Relatório de Fechamento Mensal para o Contador
+              </h1>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Espelho Fiscal & Contábil
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {companySettings.tradeName || companySettings.companyName || 'GestãoPro'} · Consolidação das notas fiscais, faturamento tributável (Serviços vs Comércio) e deduções fiscais.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Consolidação das notas fiscais, faturamento tributável (Serviços vs Comércio), deduções de cartão e comprovações de despesas.
-          </p>
         </div>
 
         <div className="no-print flex items-center gap-2.5">
