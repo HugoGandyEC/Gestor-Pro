@@ -23,7 +23,8 @@ import {
   MessageCircle,
   FileText,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  LogOut
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { ActiveTab } from './Sidebar';
@@ -41,7 +42,8 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
     vehicles, 
     clients, 
     currentUser, 
-    updateServiceOrder 
+    updateServiceOrder,
+    openLogoutModal 
   } = useApp();
 
   // Encontrar técnicos na lista de funcionários
@@ -222,9 +224,20 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
         {/* Identificação de Técnico / Prevenção IDOR */}
         {isRealTechSession ? (
           <div className="bg-amber-500/20 p-3.5 rounded-xl border border-amber-400/40 shrink-0 space-y-1.5 backdrop-blur-xs min-w-[270px]">
-            <div className="flex items-center gap-1.5 text-amber-300 text-xs font-semibold">
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
-              <span>Sessão de Campo Autenticada</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-amber-300 text-xs font-semibold">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                <span>Sessão de Campo Autenticada</span>
+              </div>
+              <button
+                type="button"
+                onClick={openLogoutModal}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-rose-200 hover:text-white bg-rose-500/30 hover:bg-rose-600 border border-rose-400/50 rounded transition-all cursor-pointer shadow-2xs"
+                title="Sair da Conta de Técnico"
+              >
+                <LogOut className="w-3 h-3" />
+                <span>Sair</span>
+              </button>
             </div>
             <p className="text-sm font-bold text-white truncate">{activeTechnician?.name || 'Técnico de Campo'}</p>
             <p className="text-[11px] text-amber-200/90 font-mono">Matrícula: {effectiveTechId} · {activeTechnician?.role}</p>

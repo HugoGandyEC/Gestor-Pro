@@ -88,7 +88,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     serviceCatalog,
     checklistTemplates,
     currentUser,
-    logout
+    logout,
+    openLogoutModal
   } = useApp();
 
   const openOrdersCount = serviceOrders.filter(
@@ -389,11 +390,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {isCollapsed ? (
           <div className="p-2 border-t border-[#3d3f42] flex flex-col items-center gap-2">
             <button
-              onClick={() => {
-                if (confirm('Deseja realmente sair da conta?')) logout();
-              }}
+              type="button"
+              onClick={openLogoutModal}
               title="Sair do sistema (Logout)"
-              className="p-2 text-rose-400 hover:text-white hover:bg-rose-900/40 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-rose-400 hover:text-white hover:bg-rose-900/60 rounded-lg transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -423,13 +423,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </div>
               <button
-                onClick={() => {
-                  if (confirm('Deseja realmente sair da conta?')) logout();
-                }}
-                title="Sair (Logout)"
-                className="p-1.5 text-rose-400 hover:text-white hover:bg-rose-900/40 rounded-lg transition-colors cursor-pointer"
+                type="button"
+                onClick={openLogoutModal}
+                title="Sair do sistema"
+                className="px-2 py-1 text-xs text-rose-400 hover:text-white hover:bg-rose-900/50 rounded-lg transition-colors cursor-pointer flex items-center gap-1 border border-rose-900/40"
               >
                 <LogOut className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-semibold">Sair</span>
               </button>
             </div>
             <div className="text-[10px] text-[#8e9094] flex items-center justify-between">

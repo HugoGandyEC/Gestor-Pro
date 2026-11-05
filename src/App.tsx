@@ -22,6 +22,7 @@ import { SystemSettingsView } from './components/SystemSettingsView';
 import { SystemDocumentationModal } from './components/SystemDocumentationModal';
 import { AuditLogsModal } from './components/AuditLogsModal';
 import { SystemHelpModal } from './components/SystemHelpModal';
+import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
 import { LoginView } from './components/LoginView';
 
 const MainLayout: React.FC = () => {
@@ -154,6 +155,9 @@ const MainLayout: React.FC = () => {
         isOpen={isAuditModalOpen}
         onClose={() => setIsAuditModalOpen(false)}
       />
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmationModal />
     </div>
   );
 };

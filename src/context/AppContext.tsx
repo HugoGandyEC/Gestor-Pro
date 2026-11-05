@@ -68,6 +68,9 @@ interface AppContextType {
   isAuthenticated: boolean;
   login: (identifier: string, pass?: string) => { success: boolean; message?: string };
   logout: () => void;
+  isLogoutModalOpen: boolean;
+  openLogoutModal: () => void;
+  closeLogoutModal: () => void;
   authUsers: AuthUser[];
 
   // Dynamic Themes
@@ -396,9 +399,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const openLogoutModal = () => setIsLogoutModalOpen(true);
+  const closeLogoutModal = () => setIsLogoutModalOpen(false);
+
   const logout = () => {
+    setIsLogoutModalOpen(false);
+    try {
+      localStorage.removeItem(KEYS.AUTH_USER);
+      sessionStorage.clear();
+    } catch (err) {
+      console.warn('Erro ao limpar auth do storage:', err);
+    }
     setCurrentUser(null);
-    localStorage.removeItem(KEYS.AUTH_USER);
   };
 
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
@@ -1945,6 +1958,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthenticated: !!currentUser,
         login,
         logout,
+        isLogoutModalOpen,
+        openLogoutModal,
+        closeLogoutModal,
         authUsers: initialAuthUsers,
         currentTheme,
         setTheme: setCurrentTheme,

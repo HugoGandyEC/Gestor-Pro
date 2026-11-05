@@ -46,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
     setCurrentRole,
     currentUser,
     logout,
+    openLogoutModal,
     currentTheme,
     setTheme,
     themeDefinitions
@@ -299,12 +300,8 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Logout Button */}
             <button
               type="button"
-              onClick={() => {
-                if (confirm('Deseja realmente sair do sistema e voltar para a tela de login?')) {
-                  logout();
-                }
-              }}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ml-1"
+              onClick={openLogoutModal}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ml-1 shadow-2xs"
               title="Sair do sistema (Logout)"
             >
               <LogOut className="w-3.5 h-3.5" />
