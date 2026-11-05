@@ -77,44 +77,85 @@ export const CardOperatorsView: React.FC = () => {
   const [calcAbsorptionOverride, setCalcAbsorptionOverride] = useState<FeeAbsorptionMode | null>(null);
 
   // Helper para gerar 12 parcelas padrão
+  // Gerador flexível de parcelas padrão
   const generateDefaultInstallments = (
     sightRate: number = 3.19,
     inst2to6: number = 3.79,
     inst7to12: number = 4.99,
-    defaultMode: FeeAbsorptionMode = 'repassar'
+    defaultMode: FeeAbsorptionMode = 'repassar',
+    count: number = 12
   ): OperatorInstallmentRate[] => {
-    return [
-      { installment: 1, rate: sightRate, absorptionMode: 'assumir' },
-      { installment: 2, rate: inst2to6, absorptionMode: 'repassar' },
-      { installment: 3, rate: Number((inst2to6 + 0.40).toFixed(2)), absorptionMode: 'repassar' },
-      { installment: 4, rate: Number((inst2to6 + 0.80).toFixed(2)), absorptionMode: 'repassar' },
-      { installment: 5, rate: Number((inst2to6 + 1.20).toFixed(2)), absorptionMode: 'repassar' },
-      { installment: 6, rate: Number((inst2to6 + 1.60).toFixed(2)), absorptionMode: 'repassar' },
-      { installment: 7, rate: inst7to12, absorptionMode: 'repassar' },
-      { installment: 8, rate: Number((inst7to12 + 0.40).toFixed(2)), absorptionMode: 'repassar' },
-      { installment: 9, rate: Number((inst7to12 + 0.80).toFixed(2)), absorptionMode: 'repassar' },
-      { installment: 10, rate: Number((inst7to12 + 1.20).toFixed(2)), absorptionMode: 'repassar' },
-      { installment: 11, rate: Number((inst7to12 + 1.60).toFixed(2)), absorptionMode: 'repassar' },
-      { installment: 12, rate: Number((inst7to12 + 2.00).toFixed(2)), absorptionMode: 'repassar' }
-    ];
+    const list: OperatorInstallmentRate[] = [];
+    for (let i = 1; i <= count; i++) {
+      let r = sightRate;
+      if (i === 1) {
+        r = sightRate;
+      } else if (i === 2) {
+        r = inst2to6;
+      } else if (i <= 6) {
+        r = Number((inst2to6 + (i - 2) * 0.40).toFixed(2));
+      } else if (i <= 12) {
+        r = Number((inst7to12 + (i - 7) * 0.40).toFixed(2));
+      } else {
+        r = Number((inst7to12 + 2.00 + (i - 12) * 0.50).toFixed(2));
+      }
+      list.push({
+        installment: i,
+        rate: r,
+        absorptionMode: i === 1 ? 'assumir' : defaultMode
+      });
+    }
+    return list;
   };
 
-  const handleUpdateInstallmentRate = (instNumber: number, newRate: number) => {
-    setInstallmentRates(prev => prev.map(r => r.installment === instNumber ? { ...r, rate: Math.max(0, newRate) } : r));
+  // Handlers para manipulação dinâmica de parcelas
+  const handleAddInstallment = () => {
+    setInstallmentRates(prev => {
+      const numbers = prev.map(p => Number(p.installment) || 0);
+      const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+      const lastRate = prev.length > 0 ? prev[prev.length - 1].rate : 3.50;
+      const step = nextNum <= 6 ? 0.40 : 0.50;
+      const newRate = Number((lastRate + step).toFixed(2));
+      return [
+        ...prev,
+        {
+          installment: nextNum,
+          rate: newRate,
+          absorptionMode: nextNum === 1 ? 'assumir' : defaultAbsorptionMode
+        }
+      ];
+    });
   };
 
-  const handleToggleInstallmentAbsorption = (instNumber: number) => {
-    setInstallmentRates(prev => prev.map(r => r.installment === instNumber ? { 
-      ...r, 
-      absorptionMode: r.absorptionMode === 'repassar' ? 'assumir' : 'repassar' 
-    } : r));
+  const handleRemoveInstallment = (index: number) => {
+    setInstallmentRates(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSetAllAbsorption = (mode: FeeAbsorptionMode) => {
+  const handleUpdateInstallmentNumber = (index: number, newNumber: number) => {
+    setInstallmentRates(prev => prev.map((item, i) => i === index ? { ...item, installment: Math.max(1, newNumber) } : item));
+  };
+
+  const handleUpdateInstallmentRateByIndex = (index: number, newRate: number) => {
+    setInstallmentRates(prev => prev.map((item, i) => i === index ? { ...item, rate: Math.max(0, newRate) } : item));
+  };
+
+  const handleUpdateInstallmentAbsorptionByIndex = (index: number, mode: FeeAbsorptionMode) => {
+    setInstallmentRates(prev => prev.map((item, i) => i === index ? { ...item, absorptionMode: mode } : item));
+  };
+
+  const handleGeneratePreset = (count: number) => {
+    setInstallmentRates(generateDefaultInstallments(creditSightRate, creditInstallments2to6Rate, creditInstallments7to12Rate, defaultAbsorptionMode, count));
+  };
+
+  const handleClearAllInstallments = () => {
+    setInstallmentRates([]);
+  };
+
+  const handleSetAllAbsorptionMode = (mode: FeeAbsorptionMode) => {
     setInstallmentRates(prev => prev.map(r => ({ ...r, absorptionMode: mode })));
   };
 
-  const handleSetCommonPattern = () => {
+  const handleSetStandardAbsorption = () => {
     setInstallmentRates(prev => prev.map(r => ({ ...r, absorptionMode: r.installment === 1 ? 'assumir' : 'repassar' })));
   };
 
@@ -208,6 +249,26 @@ export const CardOperatorsView: React.FC = () => {
     e.preventDefault();
     if (!name.trim()) return;
 
+    // Ordenar parcelas por ordem crescente de número de parcela
+    const sortedInstallments = [...installmentRates]
+      .filter(r => r.installment > 0)
+      .sort((a, b) => a.installment - b.installment);
+
+    const effectiveInstallments = sortedInstallments.length > 0
+      ? sortedInstallments
+      : generateDefaultInstallments(creditSightRate, creditInstallments2to6Rate, creditInstallments7to12Rate, defaultAbsorptionMode, 12);
+
+    // Manter campos herdados coerentes com a tabela de parcelas
+    const derivedSight = effectiveInstallments.find(r => r.installment === 1)?.rate ?? Number(creditSightRate);
+    const inst2to6Matches = effectiveInstallments.filter(r => r.installment >= 2 && r.installment <= 6);
+    const derived2to6 = inst2to6Matches.length > 0
+      ? Number((inst2to6Matches.reduce((acc, curr) => acc + curr.rate, 0) / inst2to6Matches.length).toFixed(2))
+      : Number(creditInstallments2to6Rate);
+    const inst7to12Matches = effectiveInstallments.filter(r => r.installment >= 7 && r.installment <= 12);
+    const derived7to12 = inst7to12Matches.length > 0
+      ? Number((inst7to12Matches.reduce((acc, curr) => acc + curr.rate, 0) / inst7to12Matches.length).toFixed(2))
+      : Number(creditInstallments7to12Rate);
+
     const opData = {
       name,
       code,
@@ -217,13 +278,13 @@ export const CardOperatorsView: React.FC = () => {
       settlementTermDays: Number(settlementTermDays),
       pixRate: Number(pixRate),
       debitRate: Number(debitRate),
-      creditSightRate: Number(creditSightRate),
-      creditInstallments2to6Rate: Number(creditInstallments2to6Rate),
-      creditInstallments7to12Rate: Number(creditInstallments7to12Rate),
+      creditSightRate: derivedSight,
+      creditInstallments2to6Rate: derived2to6,
+      creditInstallments7to12Rate: derived7to12,
       anticipationRate: Number(anticipationRate),
       acceptedBrands,
       defaultAbsorptionMode,
-      installmentRates: installmentRates.length > 0 ? installmentRates : generateDefaultInstallments(creditSightRate, creditInstallments2to6Rate, creditInstallments7to12Rate, defaultAbsorptionMode),
+      installmentRates: effectiveInstallments,
       integration: {
         enabled: Boolean(apiToken || autoReconcile),
         environment: 'production' as const,
@@ -300,7 +361,7 @@ export const CardOperatorsView: React.FC = () => {
         rate = op.creditSightRate;
       }
     } else {
-      if (op.installmentRates && op.installmentRates.length >= calcInstallments) {
+      if (op.installmentRates && op.installmentRates.length > 0) {
         const found = op.installmentRates.find(r => r.installment === calcInstallments);
         if (found) {
           rate = found.rate;
@@ -515,17 +576,71 @@ export const CardOperatorsView: React.FC = () => {
                           {op.creditSightRate.toFixed(2)}%
                         </span>
                       </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-[#f4f5f6]">
-                        <span className="text-[#707174]">Crédito Parcelado (2x a 6x)</span>
-                        <span className="font-mono font-bold text-[#53383e]">
-                          {op.creditInstallments2to6Rate.toFixed(2)}%
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-[#f4f5f6]">
-                        <span className="text-[#707174]">Crédito Parcelado (7x a 12x)</span>
-                        <span className="font-mono font-bold text-[#53383e]">
-                          {op.creditInstallments7to12Rate.toFixed(2)}%
-                        </span>
+
+                      {/* Parcelamento Customizado com Expansão */}
+                      <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200/80">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-bold text-[#53383e] text-[11px] flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5 text-amber-700" />
+                            Parcelamento ({op.installmentRates?.length || 0} parcelas)
+                          </span>
+                          {op.installmentRates && op.installmentRates.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedOperatorRatesId(expandedOperatorRatesId === op.id ? null : op.id)}
+                              className="text-[10px] text-[#53383e] hover:underline font-bold cursor-pointer"
+                            >
+                              {expandedOperatorRatesId === op.id ? 'Recolher' : 'Ver Todas'}
+                            </button>
+                          )}
+                        </div>
+
+                        {op.installmentRates && op.installmentRates.length > 0 ? (
+                          <>
+                            <div className="flex flex-wrap gap-1">
+                              {op.installmentRates.slice(0, 6).map(r => (
+                                <span 
+                                  key={r.installment} 
+                                  className={`text-[10px] px-1.5 py-0.5 rounded border font-mono ${
+                                    r.absorptionMode === 'repassar' 
+                                      ? 'bg-white border-amber-300 text-amber-900' 
+                                      : 'bg-blue-50 border-blue-200 text-blue-900'
+                                  }`}
+                                  title={`${r.installment}x com taxa de ${r.rate.toFixed(2)}% (${r.absorptionMode === 'repassar' ? 'Cliente Paga Juros' : 'Empresa Assume'})`}
+                                >
+                                  {r.installment}x: <strong>{r.rate.toFixed(2)}%</strong>
+                                </span>
+                              ))}
+                              {op.installmentRates.length > 6 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
+                                  +{op.installmentRates.length - 6}x
+                                </span>
+                              )}
+                            </div>
+
+                            {expandedOperatorRatesId === op.id && (
+                              <div className="mt-2 pt-2 border-t border-amber-200/70 grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                                {op.installmentRates.map(r => (
+                                  <div key={r.installment} className="p-1.5 bg-white rounded border border-slate-200 flex items-center justify-between text-[10px]">
+                                    <div className="flex items-center gap-1 font-bold">
+                                      <span className="text-slate-800">{r.installment}x</span>
+                                      <span className="font-mono text-[#53383e]">{r.rate.toFixed(2)}%</span>
+                                    </div>
+                                    <span className={`text-[8.5px] px-1 rounded font-semibold ${
+                                      r.absorptionMode === 'repassar' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {r.absorptionMode === 'repassar' ? 'Repassa' : 'Assume'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-[10px] text-amber-800/80">
+                            2x a 6x: {op.creditInstallments2to6Rate.toFixed(2)}% · 7x a 12x: {op.creditInstallments7to12Rate.toFixed(2)}%
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -836,12 +951,21 @@ export const CardOperatorsView: React.FC = () => {
                     onChange={(e) => setSimInstallments(Number(e.target.value))}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
                   >
-                    <option value={1}>1x à Vista ({pagbankOp.creditSightRate.toFixed(2)}%)</option>
-                    <option value={2}>2x Parcelado ({pagbankOp.creditInstallments2to6Rate.toFixed(2)}%)</option>
-                    <option value={3}>3x Parcelado ({pagbankOp.creditInstallments2to6Rate.toFixed(2)}%)</option>
-                    <option value={6}>6x Parcelado ({pagbankOp.creditInstallments2to6Rate.toFixed(2)}%)</option>
-                    <option value={10}>10x Parcelado ({pagbankOp.creditInstallments7to12Rate.toFixed(2)}%)</option>
-                    <option value={12}>12x Parcelado ({pagbankOp.creditInstallments7to12Rate.toFixed(2)}%)</option>
+                    {(pagbankOp.installmentRates && pagbankOp.installmentRates.length > 0 
+                      ? pagbankOp.installmentRates 
+                      : [
+                          { installment: 1, rate: pagbankOp.creditSightRate, absorptionMode: 'assumir' },
+                          { installment: 2, rate: pagbankOp.creditInstallments2to6Rate, absorptionMode: 'repassar' },
+                          { installment: 3, rate: pagbankOp.creditInstallments2to6Rate, absorptionMode: 'repassar' },
+                          { installment: 6, rate: pagbankOp.creditInstallments2to6Rate, absorptionMode: 'repassar' },
+                          { installment: 10, rate: pagbankOp.creditInstallments7to12Rate, absorptionMode: 'repassar' },
+                          { installment: 12, rate: pagbankOp.creditInstallments7to12Rate, absorptionMode: 'repassar' }
+                        ]
+                    ).map(instItem => (
+                      <option key={instItem.installment} value={instItem.installment}>
+                        {instItem.installment}x {instItem.installment === 1 ? 'à Vista' : 'Parcelado'} ({instItem.rate.toFixed(2)}%)
+                      </option>
+                    ))}
                   </select>
                 </div>
               ) : (
@@ -869,11 +993,16 @@ export const CardOperatorsView: React.FC = () => {
               if (simMethod === 'pix') feeRate = pagbankOp.pixRate;
               else if (simMethod === 'cartao_debito') feeRate = pagbankOp.debitRate;
               else if (simMethod === 'cartao_credito') {
-                feeRate = simInstallments === 1 
-                  ? pagbankOp.creditSightRate 
-                  : simInstallments <= 6 
-                  ? pagbankOp.creditInstallments2to6Rate 
-                  : pagbankOp.creditInstallments7to12Rate;
+                const foundInst = pagbankOp.installmentRates?.find(r => r.installment === simInstallments);
+                if (foundInst) {
+                  feeRate = foundInst.rate;
+                } else {
+                  feeRate = simInstallments === 1 
+                    ? pagbankOp.creditSightRate 
+                    : simInstallments <= 6 
+                    ? pagbankOp.creditInstallments2to6Rate 
+                    : pagbankOp.creditInstallments7to12Rate;
+                }
               }
               const feeVal = simAmount * (feeRate / 100);
               const netVal = simAmount - feeVal;
@@ -1028,26 +1157,37 @@ export const CardOperatorsView: React.FC = () => {
                 </select>
               </div>
 
-              {calcMethod === 'credito_parcelado' && (
-                <div>
-                  <label className="block text-[#363739] font-semibold mb-1">
-                    Número de Parcelas
-                  </label>
-                  <select
-                    value={calcInstallments}
-                    onChange={(e) => setCalcInstallments(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-white border border-[#d8d8d8] rounded-lg text-xs font-semibold text-[#363739]"
-                  >
-                    <option value={2}>2x</option>
-                    <option value={3}>3x</option>
-                    <option value={4}>4x</option>
-                    <option value={5}>5x</option>
-                    <option value={6}>6x</option>
-                    <option value={10}>10x</option>
-                    <option value={12}>12x</option>
-                  </select>
-                </div>
-              )}
+              {calcMethod === 'credito_parcelado' && (() => {
+                const uniqueInstallments = Array.from(
+                  new Set(
+                    cardOperators.flatMap(op => 
+                      op.installmentRates && op.installmentRates.length > 0
+                        ? op.installmentRates.filter(r => r.installment > 1).map(r => r.installment)
+                        : [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+                    )
+                  )
+                ).sort((a, b) => a - b);
+                const displayInstallments = uniqueInstallments.length > 0 ? uniqueInstallments : [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+                return (
+                  <div>
+                    <label className="block text-[#363739] font-semibold mb-1">
+                      Número de Parcelas
+                    </label>
+                    <select
+                      value={calcInstallments}
+                      onChange={(e) => setCalcInstallments(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-white border border-[#d8d8d8] rounded-lg text-xs font-semibold text-[#363739]"
+                    >
+                      {displayInstallments.map((instNum) => (
+                        <option key={instNum} value={instNum}>
+                          {instNum}x Parcelado
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Resultado do Comparativo */}
@@ -1102,11 +1242,11 @@ export const CardOperatorsView: React.FC = () => {
       {/* MODAL CADASTRO / EDIÇÃO DE OPERADORA */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-6 border border-slate-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-6 border border-slate-200 max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-slate-200">
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-[#53383e]" />
-                {editingOperator ? 'Editar Operadora & Taxas' : 'Cadastrar Nova Operadora de Cartão'}
+                {editingOperator ? 'Editar Operadora & Taxas de Parcelamento' : 'Cadastrar Nova Adquirente / Operadora de Cartão'}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -1119,22 +1259,22 @@ export const CardOperatorsView: React.FC = () => {
             <form onSubmit={handleSaveOperator} className="space-y-4 text-xs mt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Nome da Operadora *</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Nome da Operadora / Adquirente *</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ex: PagBank, Cielo, Stone, Rede"
+                    placeholder="Ex: PagBank, Cielo, Stone, Rede, Mercado Pago"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Identificador de Código</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Identificador de Código (Sistema)</label>
                   <input
                     type="text"
                     required
-                    placeholder="ex: pagbank, cielo, stone"
+                    placeholder="ex: pagbank, cielo, stone, rede"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toLowerCase().replace(/\s+/g, ''))}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
@@ -1154,96 +1294,301 @@ export const CardOperatorsView: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Prazo Repasse (Dias)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={settlementTermDays}
-                    onChange={(e) => setSettlementTermDays(Number(e.target.value))}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
-                  />
+                  <label className="block text-slate-700 font-semibold mb-1">Prazo de Repasse Líquido</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={0}
+                      value={settlementTermDays}
+                      onChange={(e) => setSettlementTermDays(Number(e.target.value))}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold"
+                    />
+                    <span className="text-slate-500 font-semibold whitespace-nowrap">dias (D+{settlementTermDays})</span>
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Status</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Status da Operadora</label>
                   <select
                     value={active ? 'true' : 'false'}
                     onChange={(e) => setActive(e.target.value === 'true')}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-semibold"
                   >
-                    <option value="true">Ativa</option>
-                    <option value="false">Inativa</option>
+                    <option value="true">Ativa no ERP</option>
+                    <option value="false">Inativa / Oculta</option>
                   </select>
                 </div>
               </div>
 
-              {/* Bloco de Taxas */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <div className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                  Alíquotas de Taxas (%)
+              {/* Bloco de Taxas Básicas (Pix, Débito e Antecipação) */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <div className="font-bold text-slate-800 text-[11px] uppercase tracking-wider flex items-center justify-between">
+                  <span>Taxas Básicas & À Vista</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Débito, Pix e Antecipação</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-600 mb-0.5">Taxa Pix (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={pixRate}
-                      onChange={(e) => setPixRate(Number(e.target.value))}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono font-bold"
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={pixRate}
+                        onChange={(e) => setPixRate(Number(e.target.value))}
+                        className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono font-bold text-emerald-700"
+                      />
+                      <span className="font-bold text-slate-500">%</span>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-slate-600 mb-0.5">Taxa Débito (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={debitRate}
-                      onChange={(e) => setDebitRate(Number(e.target.value))}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono font-bold"
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={debitRate}
+                        onChange={(e) => setDebitRate(Number(e.target.value))}
+                        className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono font-bold text-slate-800"
+                      />
+                      <span className="font-bold text-slate-500">%</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-slate-600 mb-0.5">Crédito à Vista 1x (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={creditSightRate}
-                      onChange={(e) => setCreditSightRate(Number(e.target.value))}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 mb-0.5">Crédito 2x a 6x (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={creditInstallments2to6Rate}
-                      onChange={(e) => setCreditInstallments2to6Rate(Number(e.target.value))}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 mb-0.5">Crédito 7x a 12x (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={creditInstallments7to12Rate}
-                      onChange={(e) => setCreditInstallments7to12Rate(Number(e.target.value))}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 mb-0.5">Antecipação (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={anticipationRate}
-                      onChange={(e) => setAnticipationRate(Number(e.target.value))}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono"
-                    />
+                    <label className="block text-slate-600 mb-0.5">Taxa de Antecipação (%)</label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={anticipationRate}
+                        onChange={(e) => setAnticipationRate(Number(e.target.value))}
+                        className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-slate-700"
+                      />
+                      <span className="font-bold text-slate-500">%</span>
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              {/* BLOCO DE PARCELAS DINÂMICAS: CRIAR QUANTAS PRECISAR COM SUA RESPECTIVA TAXA */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-[#53383e]" />
+                      Taxas de Parcelamento no Crédito (Customizável)
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold">
+                        {installmentRates.length} {installmentRates.length === 1 ? 'parcela configurada' : 'parcelas configuradas'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Você pode criar quantas parcelas precisar (1x, 2x, 3x, 6x, 10x, 12x, 18x, 24x...), estipular a taxa de cada uma e escolher se o encargo é repassado ao cliente ou assumido pela empresa.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddInstallment}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-xs cursor-pointer transition-colors shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Adicionar Parcela</span>
+                  </button>
+                </div>
+
+                {/* Barra de Ações Rápidas */}
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-white p-2.5 rounded-lg border border-slate-200">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-slate-500 font-semibold">Preenchimento rápido:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleGeneratePreset(12)}
+                      className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      1x a 12x
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleGeneratePreset(18)}
+                      className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      1x a 18x
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleGeneratePreset(24)}
+                      className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      1x a 24x
+                    </button>
+                    {installmentRates.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAllInstallments}
+                        className="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium cursor-pointer"
+                      >
+                        Limpar Todas
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-slate-500 font-semibold">Regra de Cobrança:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSetAllAbsorptionMode('repassar')}
+                      className="px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 font-medium border border-amber-200 cursor-pointer"
+                      title="Repassar a taxa da maquininha ao cliente em todas as parcelas"
+                    >
+                      Repassar Todas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetAllAbsorptionMode('assumir')}
+                      className="px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-800 font-medium border border-blue-200 cursor-pointer"
+                      title="A empresa assume a taxa da maquininha em todas as parcelas"
+                    >
+                      Assumir Todas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSetStandardAbsorption}
+                      className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                      title="1x à vista assume pela empresa, parceladas 2x+ repassa ao cliente"
+                    >
+                      1x Assume / Demais Repassa
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista / Tabela Editável de Parcelas */}
+                {installmentRates.length === 0 ? (
+                  <div className="p-6 text-center bg-white rounded-lg border border-dashed border-slate-300 text-slate-500 space-y-2">
+                    <Layers className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="text-xs font-semibold text-slate-700">
+                      Nenhuma parcela configurada para esta operadora.
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Clique em <strong>+ Adicionar Parcela</strong> para criar parcelas avulsas ou use os botões rápidos (1x a 12x, 18x ou 24x).
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleAddInstallment}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Adicionar Primeira Parcela</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-lg overflow-hidden bg-white max-h-72 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 sticky top-0 z-10 font-semibold">
+                        <tr>
+                          <th className="py-2 px-3 w-28">Nº Parcela</th>
+                          <th className="py-2 px-3 w-36">Taxa Operadora (%)</th>
+                          <th className="py-2 px-3">Quem Paga o Encargo?</th>
+                          <th className="py-2 px-3 text-right">Simulação (R$ 1.000)</th>
+                          <th className="py-2 px-2 text-center w-12">Excluir</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {installmentRates.map((item, idx) => {
+                          const rateVal = Number(item.rate) || 0;
+                          const isRepassar = item.absorptionMode === 'repassar';
+                          // Simulação em R$ 1.000
+                          let clientCharged = 1000;
+                          let netReceived = 1000;
+                          if (isRepassar) {
+                            clientCharged = rateVal < 100 ? 1000 / (1 - rateVal / 100) : 1000;
+                            netReceived = 1000;
+                          } else {
+                            clientCharged = 1000;
+                            netReceived = 1000 * (1 - rateVal / 100);
+                          }
+                          const parcelVal = clientCharged / item.installment;
+
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={99}
+                                    value={item.installment}
+                                    onChange={(e) => handleUpdateInstallmentNumber(idx, Number(e.target.value))}
+                                    className="w-16 p-1.5 bg-slate-50 border border-slate-300 rounded font-bold font-mono text-center text-slate-900 focus:bg-white"
+                                  />
+                                  <span className="font-bold text-slate-700">x</span>
+                                </div>
+                              </td>
+
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    max={100}
+                                    value={item.rate}
+                                    onChange={(e) => handleUpdateInstallmentRateByIndex(idx, Number(e.target.value))}
+                                    className="w-24 p-1.5 bg-slate-50 border border-slate-300 rounded font-bold font-mono text-slate-900 focus:bg-white text-right"
+                                  />
+                                  <span className="font-bold text-slate-500">%</span>
+                                </div>
+                              </td>
+
+                              <td className="py-2 px-3">
+                                <select
+                                  value={item.absorptionMode}
+                                  onChange={(e) => handleUpdateInstallmentAbsorptionByIndex(idx, e.target.value as FeeAbsorptionMode)}
+                                  className={`p-1.5 rounded font-semibold text-xs border cursor-pointer ${
+                                    isRepassar 
+                                      ? 'bg-amber-50 border-amber-300 text-amber-900' 
+                                      : 'bg-blue-50 border-blue-300 text-blue-900'
+                                  }`}
+                                >
+                                  <option value="repassar">Repassar ao Cliente (Juros)</option>
+                                  <option value="assumir">Empresa Assume (Sem Juros)</option>
+                                </select>
+                              </td>
+
+                              <td className="py-2 px-3 text-right font-mono text-[11px]">
+                                {isRepassar ? (
+                                  <div>
+                                    <span className="text-slate-500">Cliente: </span>
+                                    <strong className="text-slate-900">{formatBRL(clientCharged)}</strong>
+                                    <span className="text-slate-400 block text-[10px]">({item.installment}x de {formatBRL(parcelVal)}) · Líquido R$ 1.000</span>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <span className="text-slate-500">Líquido Empresa: </span>
+                                    <strong className="text-emerald-700">{formatBRL(netReceived)}</strong>
+                                    <span className="text-slate-400 block text-[10px]">({item.installment}x de {formatBRL(parcelVal)}) · Desconto {rateVal.toFixed(2)}%</span>
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-2 px-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveInstallment(idx)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                                  title={`Remover parcela ${item.installment}x`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               {/* Integração API & Baixa Automática */}

@@ -122,20 +122,46 @@ export const AccountingClosingView: React.FC = () => {
       {/* Main Printable Accounting Document */}
       <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs space-y-6 text-xs text-slate-800">
         {/* Header Letterhead */}
-        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
-          <div>
-            <div className="text-lg font-black tracking-tight text-slate-900">
-              GESTAOPRO SERVIÇOS & EQUIPAMENTOS LTDA
-            </div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              CNPJ: 45.123.890/0001-77 · Inscrição Municipal (ISS): 8.921.340-0 · Inscrição Estadual (ICMS): 110.234.567.890
-            </div>
-            <div className="text-[11px] text-slate-500">
-              Enquadramento: Simples Nacional · Atividade: Manutenção Industrial & Comércio Varejista/Atacadista
+        <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-900 pb-4 gap-4">
+          <div className="flex items-start gap-4">
+            {companySettings.logoUrl && (
+              <img
+                src={companySettings.logoUrl}
+                alt={companySettings.tradeName || companySettings.companyName || 'Logo'}
+                className="w-16 h-16 object-contain rounded-lg border border-slate-200 bg-white p-1 shrink-0"
+              />
+            )}
+            <div>
+              <div className="text-lg font-black tracking-tight text-slate-900 uppercase">
+                {companySettings.companyName || companySettings.tradeName || 'EMPRESA NÃO CADASTRADA'}
+              </div>
+              {companySettings.tradeName && companySettings.tradeName !== companySettings.companyName && (
+                <div className="text-xs font-semibold text-slate-700">
+                  Nome Fantasia: {companySettings.tradeName}
+                </div>
+              )}
+              <div className="text-[11px] text-slate-600 mt-0.5">
+                CNPJ: <strong className="font-mono">{companySettings.cnpj || 'Não informado'}</strong>
+                {companySettings.im ? <span> · Inscrição Municipal (ISS): <strong className="font-mono">{companySettings.im}</strong></span> : ''}
+                {companySettings.ie ? <span> · Inscrição Estadual (ICMS): <strong className="font-mono">{companySettings.ie}</strong></span> : ''}
+              </div>
+              <div className="text-[11px] text-slate-600">
+                Enquadramento: <strong>{companySettings.taxRegime === 'simples_nacional' ? 'Simples Nacional' : companySettings.taxRegime === 'lucro_presumido' ? 'Lucro Presumido' : companySettings.taxRegime === 'lucro_real' ? 'Lucro Real' : companySettings.taxRegime === 'mei' ? 'Microempreendedor Individual (MEI)' : 'Simples Nacional'}</strong>
+                {companySettings.street ? (
+                  <span> · {companySettings.street}, {companySettings.number || 'S/N'}{companySettings.neighborhood ? ` - ${companySettings.neighborhood}` : ''}, {companySettings.city || ''}/{companySettings.state || ''}</span>
+                ) : ''}
+              </div>
+              {(companySettings.phone || companySettings.email) && (
+                <div className="text-[11px] text-slate-500">
+                  {companySettings.phone ? <span>Telefone: {companySettings.phone}</span> : ''}
+                  {companySettings.phone && companySettings.email ? ' · ' : ''}
+                  {companySettings.email ? <span>E-mail: {companySettings.email}</span> : ''}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="text-right">
+          <div className="text-right shrink-0">
             <div className="text-base font-bold font-mono text-blue-700">
               FECHAMENTO CONTÁBIL
             </div>
@@ -274,9 +300,11 @@ export const AccountingClosingView: React.FC = () => {
         <div className="pt-10 grid grid-cols-2 gap-10 border-t border-slate-200 text-center text-xs">
           <div>
             <div className="border-t border-slate-400 pt-2 font-bold text-slate-900">
-              GestãoPro Serviços & Equipamentos Ltda
+              {companySettings.companyName || companySettings.tradeName || 'Administração da Empresa'}
             </div>
-            <div className="text-[10px] text-slate-400">Responsável pela Administração</div>
+            <div className="text-[10px] text-slate-500">
+              Responsável pela Administração {companySettings.cnpj ? `· CNPJ: ${companySettings.cnpj}` : ''}
+            </div>
           </div>
 
           <div>
