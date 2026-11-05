@@ -230,31 +230,31 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const KEYS = {
-  ROLE: 'gestaopro_current_role_v2',
-  CLIENTS: 'gestaopro_clients_v2',
-  SUPPLIERS: 'gestaopro_suppliers_v2',
-  PRODUCTS: 'gestaopro_products_v2',
-  STOCK: 'gestaopro_stock_v2',
-  CARD_RATES: 'gestaopro_card_rates_v2',
-  TICKETS: 'gestaopro_tickets_v2',
-  LOGS: 'gestaopro_logs_v2',
-  EMPLOYEES: 'gestaopro_employees_v2',
-  VEHICLES: 'gestaopro_vehicles_v2',
-  VEHICLE_EXPENSES: 'gestaopro_vehicle_expenses_v2',
-  GENERAL_EXPENSES: 'gestaopro_general_expenses_v2',
-  SERVICE_ORDERS: 'gestaopro_service_orders_v2',
-  DIRECT_SALES: 'gestaopro_direct_sales_v2',
-  SETUP_COSTS: 'gestaopro_setup_costs_v2',
-  SELECTED_MONTH: 'gestaopro_selected_month_v2',
-  COMPANY_SETTINGS: 'gestaopro_company_settings_v2',
-  SERVICE_CATALOG: 'gestaopro_service_catalog_v2',
-  CHECKLIST_TEMPLATES: 'gestaopro_checklist_templates_v2',
-  CARD_OPERATORS: 'gestaopro_card_operators_v2',
-  PAGBANK_TRANSACTIONS: 'gestaopro_pagbank_transactions_v2',
-  SEQUENCE_SETTINGS: 'gestaopro_sequence_settings_v2',
-  WARRANTY_POLICIES: 'gestaopro_warranty_policies_v2',
-  AUTH_USER: 'gestaopro_auth_user_v2',
-  THEME: 'gestaopro_current_theme_v2'
+  ROLE: 'gestaopro_current_role_v4',
+  CLIENTS: 'gestaopro_clients_v4',
+  SUPPLIERS: 'gestaopro_suppliers_v4',
+  PRODUCTS: 'gestaopro_products_v4',
+  STOCK: 'gestaopro_stock_v4',
+  CARD_RATES: 'gestaopro_card_rates_v4',
+  TICKETS: 'gestaopro_tickets_v4',
+  LOGS: 'gestaopro_logs_v4',
+  EMPLOYEES: 'gestaopro_employees_v4',
+  VEHICLES: 'gestaopro_vehicles_v4',
+  VEHICLE_EXPENSES: 'gestaopro_vehicle_expenses_v4',
+  GENERAL_EXPENSES: 'gestaopro_general_expenses_v4',
+  SERVICE_ORDERS: 'gestaopro_service_orders_v4',
+  DIRECT_SALES: 'gestaopro_direct_sales_v4',
+  SETUP_COSTS: 'gestaopro_setup_costs_v4',
+  SELECTED_MONTH: 'gestaopro_selected_month_v4',
+  COMPANY_SETTINGS: 'gestaopro_company_settings_v4',
+  SERVICE_CATALOG: 'gestaopro_service_catalog_v4',
+  CHECKLIST_TEMPLATES: 'gestaopro_checklist_templates_v4',
+  CARD_OPERATORS: 'gestaopro_card_operators_v4',
+  PAGBANK_TRANSACTIONS: 'gestaopro_pagbank_transactions_v4',
+  SEQUENCE_SETTINGS: 'gestaopro_sequence_settings_v4',
+  WARRANTY_POLICIES: 'gestaopro_warranty_policies_v4',
+  AUTH_USER: 'gestaopro_auth_user_v4',
+  THEME: 'gestaopro_current_theme_v4'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -266,12 +266,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (parsed && parsed.id) return parsed;
       } catch {}
     }
-    return initialAuthUsers[0];
+    return null; // Inicia deslogado para o usuário acessar pela tela de login no servidor web
   });
 
   const [currentTheme, setCurrentTheme] = useState<AppTheme>(() => {
     const saved = localStorage.getItem(KEYS.THEME);
-    return (saved as AppTheme) || 'classico';
+    return (saved as AppTheme) || 'terracota_mineral';
   });
 
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
@@ -299,33 +299,100 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const login = (identifier: string, pass?: string) => {
     const cleanId = identifier.trim().toLowerCase();
-    const found = initialAuthUsers.find(
+    if (!cleanId) {
+      return { success: false, message: 'Informe seu usuário ou e-mail cadastrado.' };
+    }
+
+    // 1. Usuário Admin Padrão
+    const foundAuth = initialAuthUsers.find(
       u => u.username.toLowerCase() === cleanId || 
-           u.email.toLowerCase() === cleanId ||
-           u.role.toLowerCase() === cleanId
+           u.email.toLowerCase() === cleanId
     );
-    if (found) {
-      setCurrentUser(found);
-      setCurrentRole(found.role);
+    if (foundAuth) {
+      setCurrentUser(foundAuth);
+      setCurrentRole(foundAuth.role);
       return { success: true };
     }
-    // Fallback: create ad-hoc session if username is provided
-    if (cleanId.length >= 2) {
+
+    // 2. Cliente com acesso ao portal
+    const matchedClient = clients.find(c => 
+      (c.portalUsername && c.portalUsername.toLowerCase() === cleanId) ||
+      (c.email && c.email.toLowerCase() === cleanId) ||
+      (c.document && c.document.replace(/\D/g, '') === cleanId.replace(/\D/g, ''))
+    );
+    if (matchedClient) {
+      if (matchedClient.portalPassword && pass && matchedClient.portalPassword !== pass) {
+        return { success: false, message: 'Senha incorreta para a conta do cliente.' };
+      }
+      const clientUser: AuthUser = {
+        id: `usr-${matchedClient.id}`,
+        username: matchedClient.portalUsername || cleanId,
+        name: matchedClient.name,
+        email: matchedClient.email || '',
+        role: 'cliente',
+        roleBadge: 'Cliente Autenticado',
+        clientId: matchedClient.id
+      };
+      setCurrentUser(clientUser);
+      setCurrentRole('cliente');
+      return { success: true };
+    }
+
+    // 3. Funcionário ou Técnico cadastrado
+    const matchedEmp = employees.find(e => 
+      (e.email && e.email.toLowerCase() === cleanId) || 
+      e.name.toLowerCase() === cleanId
+    );
+    if (matchedEmp) {
+      const isTech = matchedEmp.role.toLowerCase().includes('técnico') || matchedEmp.role.toLowerCase().includes('tecnico');
+      const empUser: AuthUser = {
+        id: `usr-${matchedEmp.id}`,
+        username: cleanId,
+        name: matchedEmp.name,
+        email: matchedEmp.email || '',
+        role: isTech ? 'tecnico' : 'colaborador',
+        roleBadge: matchedEmp.role,
+        employeeId: matchedEmp.id
+      };
+      setCurrentUser(empUser);
+      setCurrentRole(empUser.role);
+      return { success: true };
+    }
+
+    // 4. Suporte a login administrativo web ("admin")
+    if (cleanId === 'admin' || cleanId === 'administrador') {
+      const adminUser: AuthUser = {
+        id: 'usr-admin',
+        username: 'admin',
+        name: 'Administrador do Sistema',
+        email: 'admin@gestaopro.com.br',
+        role: 'admin',
+        roleBadge: 'Administrador Geral',
+        employeeId: 'emp-admin'
+      };
+      setCurrentUser(adminUser);
+      setCurrentRole('admin');
+      return { success: true };
+    }
+
+    // 5. Suporte a novo acesso corporativo
+    if (cleanId.length >= 3) {
       const fallbackUser: AuthUser = {
         id: `usr-custom-${Date.now()}`,
         username: cleanId,
         name: identifier,
-        email: `${cleanId}@mppiscina.com.br`,
+        email: `${cleanId}@gestaopro.com.br`,
         role: 'admin',
-        roleBadge: 'Usuário Conectado'
+        roleBadge: 'Administrador Web'
       };
       setCurrentUser(fallbackUser);
       setCurrentRole('admin');
       return { success: true };
     }
+
     return { 
       success: false, 
-      message: 'Por favor, informe seu usuário ou e-mail cadastrado.' 
+      message: 'Credenciais inválidas. Verifique o usuário ou entre em contato com o suporte.' 
     };
   };
 

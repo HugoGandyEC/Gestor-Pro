@@ -567,7 +567,7 @@ export interface ChecklistTemplate {
   items: { id: string; label: string; category: ChecklistItem['category']; required: boolean }[];
 }
 
-export type AppTheme = 'classico' | 'terra_oliva' | 'claro_ouro';
+export type AppTheme = 'classico' | 'terra_oliva' | 'claro_ouro' | 'terracota_mineral' | 'solar_vivido';
 
 export interface ThemeDefinition {
   id: AppTheme;

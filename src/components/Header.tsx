@@ -212,7 +212,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {isThemeMenuOpen && (
               <div 
-                className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-[#d8d8d8] p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
+                className="absolute right-0 mt-2 w-80 max-h-[82vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-[#d8d8d8] p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#d8d8d8]">

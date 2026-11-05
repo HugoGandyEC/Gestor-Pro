@@ -249,11 +249,15 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
               onChange={(e) => setAdminSimulatedTechId(e.target.value)}
               className="w-full text-xs font-bold text-slate-900 bg-white rounded-lg p-2 cursor-pointer shadow-xs focus:ring-2 focus:ring-amber-500"
             >
-              {technicianEmployees.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.role})
-                </option>
-              ))}
+              {technicianEmployees.length === 0 ? (
+                <option value="">Nenhum técnico cadastrado na equipe</option>
+              ) : (
+                technicianEmployees.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.role})
+                  </option>
+                ))
+              )}
             </select>
             {techVehicle && (
               <div className="text-[10px] text-slate-300 flex items-center gap-1 pt-1">

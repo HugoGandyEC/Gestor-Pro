@@ -487,6 +487,23 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           ],
           tips: 'Recomendamos salvar um backup semanalmente para garantir total tranquilidade na operação.',
           targetTab: 'configuracoes'
+        },
+        {
+          id: 'themes_system',
+          moduleCode: 'MOD-4.5',
+          title: 'Temas & Identidade Visual (Paletas Personalizadas)',
+          icon: Palette,
+          badge: 'Personalização Visual',
+          objective: 'Alternar entre as identidades visuais do sistema: Clássico, Terra & Oliva, Claro Ouro, Terracota Mineral e Solar Alegre.',
+          summary: 'Permite selecionar a paleta visual ideal com 1 clique diretamente pelo menu superior ou nas configurações.',
+          howToUse: [
+            'Clique no botão de paleta "Tema" no canto superior direito do cabeçalho.',
+            'Ou acesse "Configurações" e clique na aba "Temas & Cores".',
+            'Escolha entre o Clássico, as paletas minerais terrosas (#615F6D/#A67153/#594A3C/#26241E/#F2E6D8) ou o tema Solar Cobalto vívido e alegre.',
+            'O sistema atualiza instantaneamente todo o layout sem necessidade de recarregar.'
+          ],
+          tips: 'Sua escolha de tema fica salva automaticamente no navegador para os próximos acessos.',
+          targetTab: 'configuracoes'
         }
       ]
     },

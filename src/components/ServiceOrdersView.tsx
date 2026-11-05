@@ -943,36 +943,6 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   </div>
                 </th>
 
-                {/* 4. Garantia (Abreviado de Garantia / S/N) */}
-                <th 
-                  className="py-3 px-3 cursor-help group relative"
-                  title="Garantia: Termo de garantia legal/fabricante e número de série (S/N) do equipamento"
-                >
-                  <div className="inline-flex items-center gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
-                    <span>Garantia</span>
-                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
-                  </div>
-                  <div className="hidden group-hover:block absolute left-3 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none">
-                    <p className="font-semibold text-blue-300">Garantia / Número de Série (S/N)</p>
-                    <p className="text-slate-300 text-[10px]">Identificador do produto vendido e prazo de vigência</p>
-                  </div>
-                </th>
-
-                {/* 5. Taxa (Abreviado de Taxa Visita) */}
-                <th 
-                  className="py-3 px-3 text-right cursor-help group relative"
-                  title="Taxa: Taxa de visita técnica e deslocamento cobrada na OS"
-                >
-                  <div className="inline-flex items-center justify-end gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
-                    <span>Taxa</span>
-                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
-                  </div>
-                  <div className="hidden group-hover:block absolute right-3 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none text-left">
-                    <p className="font-semibold text-blue-300">Taxa de Visita Técnica</p>
-                    <p className="text-slate-300 text-[10px]">Valor de deslocamento e avaliação diagnóstica em campo</p>
-                  </div>
-                </th>
-
                 {currentRole === 'tecnico' ? (
                   <>
                     <th className="py-3 px-3">Serviços a Realizar</th>
@@ -991,7 +961,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
             <tbody className="divide-y divide-slate-100 font-sans">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={currentRole === 'tecnico' ? 8 : 9} className="py-8 text-center text-slate-400">
+                  <td colSpan={currentRole === 'tecnico' ? 6 : 7} className="py-8 text-center text-slate-400">
                     Nenhuma Ordem de Serviço encontrada com os filtros selecionados.
                   </td>
                 </tr>
@@ -1009,6 +979,15 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
                   const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
 
+                  const todayIso = new Date().toISOString().split('T')[0];
+                  const isUnderWarranty = Boolean(
+                    os.warrantyExpiresAt && 
+                    os.warrantyExpiresAt >= todayIso && 
+                    Number(os.warrantyPeriodDays) > 0
+                  );
+                  const diffMs = os.warrantyExpiresAt ? new Date(os.warrantyExpiresAt).getTime() - new Date(todayIso).getTime() : 0;
+                  const warrantyDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+
                   return (
                     <tr key={os.id} className="hover:bg-slate-50 transition-colors">
                       {/* Código */}
@@ -1020,18 +999,76 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                         <div className="mt-1">{getStatusBadge(os.status)}</div>
                       </td>
 
-                      {/* Cliente */}
+                      {/* Cliente com alta visibilidade e Card de Garantia Condicional */}
                       <td 
-                        className="py-3 px-4"
-                        title={`Cliente: ${os.clientName} | Fone: ${os.clientPhone}\nEndereço: ${os.clientAddress}\nEquipamento: ${os.equipmentType || 'N/A'}\nDefeito: ${os.description}`}
+                        className="py-3.5 px-4"
+                        title={`Cliente: ${os.clientName} | Fone: ${os.clientPhone || 'N/A'}\nEndereço: ${os.clientAddress || 'N/A'}\nEquipamento: ${os.equipmentType || 'N/A'}\nDefeito: ${os.description || 'N/A'}`}
                       >
-                        <div className="font-semibold text-slate-900">{os.clientName}</div>
-                        {os.equipmentType && (
-                          <div className="text-[11px] text-slate-500 font-medium truncate max-w-xs">
-                            {os.equipmentType}
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-900 font-bold flex items-center justify-center shrink-0 text-xs border border-blue-200 mt-0.5">
+                            {os.clientName ? os.clientName.charAt(0).toUpperCase() : 'C'}
                           </div>
-                        )}
-                        <div className="text-[10px] text-slate-400 truncate max-w-xs">{os.description}</div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-950 text-sm tracking-tight">{os.clientName}</span>
+                              {os.clientDocument && (
+                                <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                  {os.clientDocument}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs text-slate-600 mt-1 flex-wrap">
+                              {os.clientPhone && (
+                                <span className="inline-flex items-center gap-1 font-mono text-[11px] text-blue-700 font-semibold bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200/60">
+                                  <Smartphone className="w-3 h-3 text-blue-600" />
+                                  {os.clientPhone}
+                                </span>
+                              )}
+                              {os.clientAddress && (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-slate-600 truncate max-w-xs" title={os.clientAddress}>
+                                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate">{os.clientAddress}</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {os.equipmentType && (
+                              <div className="mt-1.5 text-xs text-slate-800 font-medium bg-slate-100/90 rounded-md px-2 py-1 inline-flex items-center gap-1.5 border border-slate-200/80">
+                                <span className="text-slate-500 font-semibold text-[10px] uppercase tracking-wider">Aparelho:</span>
+                                <span>{os.equipmentType}</span>
+                              </div>
+                            )}
+
+                            {os.description && (
+                              <div className="text-[11px] text-slate-500 mt-1 line-clamp-1 italic">
+                                Defeito relatado: "{os.description}"
+                              </div>
+                            )}
+
+                            {/* CARD DE GARANTIA ATIVA (Aparece SOMENTE quando em garantia; quando fora da garantia NÃO aparece) */}
+                            {isUnderWarranty ? (
+                              <div className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-950 text-xs shadow-2xs">
+                                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-emerald-900">Em Garantia</span>
+                                  <span className="text-emerald-400">·</span>
+                                  <span className="bg-emerald-200/80 text-emerald-950 px-1.5 py-0.5 rounded text-[11px] font-bold">
+                                    {warrantyDaysRemaining} {warrantyDaysRemaining === 1 ? 'dia restante' : 'dias restantes'}
+                                  </span>
+                                  <span className="text-emerald-700 text-[11px]">
+                                    (válida até {formatDateBR(os.warrantyExpiresAt!)})
+                                  </span>
+                                  {os.equipmentSerial && (
+                                    <span className="font-mono text-[10px] font-bold bg-white text-emerald-900 border border-emerald-300 px-1.5 py-0.5 rounded">
+                                      S/N: {os.equipmentSerial}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Técnico */}
@@ -1043,31 +1080,6 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                         <div className="text-[11px] text-slate-400 font-mono">
                           {veh ? `${veh.plate} (${os.kmDriven} km)` : 'Sem veículo'}
                         </div>
-                      </td>
-
-                      {/* Garantia */}
-                      <td 
-                        className="py-3 px-3 font-mono text-slate-600"
-                        title={os.equipmentSerial ? `Equipamento S/N: ${os.equipmentSerial}\nPrazo de Garantia: ${os.warrantyPeriodDays} dias\nExpira em: ${os.warrantyExpiresAt ? formatDateBR(os.warrantyExpiresAt) : 'Calculada'}` : 'Nenhum número de série cadastrado nesta OS'}
-                      >
-                        {os.equipmentSerial ? (
-                          <div>
-                            <span className="font-bold text-slate-800">{os.equipmentSerial}</span>
-                            <div className="text-[10px] text-emerald-700 font-sans font-semibold">
-                              {os.warrantyPeriodDays} dias gar.
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">-</span>
-                        )}
-                      </td>
-
-                      {/* Taxa */}
-                      <td 
-                        className="py-3 px-3 text-right font-mono text-slate-600"
-                        title={`Taxa de visita técnica: ${formatBRL(os.visitFee || 0)}`}
-                      >
-                        {formatBRL(os.visitFee || 0)}
                       </td>
 
                       {currentRole === 'tecnico' ? (
@@ -1334,17 +1346,21 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                 <h4 className="font-bold text-slate-800 uppercase tracking-wider mb-2">1. Dados do Cliente e Técnico</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-slate-600 mb-1 font-medium">Cliente *</label>
+                    <label className="block text-slate-700 mb-1 font-bold">Cliente *</label>
                     <select
                       value={clientId}
                       onChange={(e) => setClientId(e.target.value)}
-                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-semibold"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 text-sm shadow-2xs focus:ring-2 focus:ring-blue-500"
                     >
-                      {clients.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.document})
-                        </option>
-                      ))}
+                      {clients.length === 0 ? (
+                        <option value="">Nenhum cliente cadastrado (Cadastre em Clientes)</option>
+                      ) : (
+                        clients.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.document})
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -1392,6 +1408,45 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                     </div>
                   </div>
                 </div>
+
+                {/* Painel com Dados Claros e Visíveis do Cliente Selecionado */}
+                {(() => {
+                  const currentSelectedClient = clients.find(c => c.id === clientId) || clients[0];
+                  if (!currentSelectedClient) return null;
+                  return (
+                    <div className="mt-3 p-3.5 bg-gradient-to-r from-blue-50 via-slate-50 to-indigo-50/40 border border-blue-200/80 rounded-xl space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-blue-700" />
+                          <span className="font-bold text-sm text-slate-950">{currentSelectedClient.name}</span>
+                          <span className="text-[10px] font-semibold text-blue-800 bg-blue-100/80 px-2 py-0.5 rounded-full">
+                            Cliente Selecionado
+                          </span>
+                        </div>
+                        <span className="text-xs font-mono font-bold bg-white text-slate-800 border border-slate-300 px-2.5 py-0.5 rounded shadow-2xs">
+                          Doc: {currentSelectedClient.document || 'Não informado'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-slate-700">
+                        <div className="flex items-center gap-1.5">
+                          <Smartphone className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="text-slate-500">Contato:</span>
+                          <span className="font-semibold text-slate-900">{currentSelectedClient.phone || 'Não informado'}</span>
+                        </div>
+                        <div className="truncate">
+                          <span className="text-slate-500">E-mail:</span>{' '}
+                          <span className="font-semibold text-slate-900">{currentSelectedClient.email || 'Não informado'}</span>
+                        </div>
+                        <div className="truncate">
+                          <span className="text-slate-500">Endereço:</span>{' '}
+                          <span className="font-semibold text-slate-900" title={`${currentSelectedClient.street}, ${currentSelectedClient.number} - ${currentSelectedClient.city}`}>
+                            {currentSelectedClient.street ? `${currentSelectedClient.street}, ${currentSelectedClient.number}` : 'Endereço padrão'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Local de Atendimento / Endereço com Título de Referência */}
                 {(() => {

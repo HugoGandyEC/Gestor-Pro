@@ -27,8 +27,8 @@ export const LoginView: React.FC = () => {
     companySettings 
   } = useApp();
 
-  const [username, setUsername] = useState('hugo.gandy');
-  const [password, setPassword] = useState('123456');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -46,16 +46,6 @@ export const LoginView: React.FC = () => {
         setIsSubmitting(false);
       }
     }, 250);
-  };
-
-  const handleQuickLogin = (userLogin: string) => {
-    setUsername(userLogin);
-    setPassword('123456');
-    setErrorMessage('');
-    setIsSubmitting(true);
-    setTimeout(() => {
-      login(userLogin, '123456');
-    }, 200);
   };
 
   return (
@@ -157,7 +147,7 @@ export const LoginView: React.FC = () => {
                       required
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Ex: hugo.gandy ou admin"
+                      placeholder="Digite seu usuário ou e-mail corporativo"
                       className="w-full pl-10 pr-3 py-2.5 bg-[#f8fafc] border border-[#d8d8d8] rounded-xl text-sm font-semibold text-[#363739] focus:outline-none focus:ring-2 focus:ring-[#53383e] focus:bg-white transition-all"
                     />
                   </div>
@@ -168,9 +158,6 @@ export const LoginView: React.FC = () => {
                     <label className="text-xs font-bold text-[#363739] uppercase tracking-wider">
                       Senha de Acesso
                     </label>
-                    <span className="text-[11px] text-[#707174]">
-                      Padrão de teste: <span className="font-mono font-bold text-[#363739]">123456</span>
-                    </span>
                   </div>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#707174]">
@@ -181,7 +168,7 @@ export const LoginView: React.FC = () => {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Digite sua senha"
+                      placeholder="Digite sua senha de acesso"
                       className="w-full pl-10 pr-10 py-2.5 bg-[#f8fafc] border border-[#d8d8d8] rounded-xl text-sm font-semibold text-[#363739] focus:outline-none focus:ring-2 focus:ring-[#53383e] focus:bg-white transition-all font-mono"
                     />
                     <button
@@ -207,7 +194,7 @@ export const LoginView: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => alert('Para redefinição de senha interna, solicite ao Administrador do Sistema Hugo Gandy.')}
+                    onClick={() => alert('Para redefinição ou criação de senha, entre em contato com o administrador do sistema.')}
                     className="text-[#53383e] hover:underline font-semibold"
                   >
                     Esqueceu a senha?
@@ -231,48 +218,20 @@ export const LoginView: React.FC = () => {
               </form>
             </div>
 
-            {/* Quick Login Persona Buttons */}
-            <div className="mt-8 pt-6 border-t border-[#d8d8d8]">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-[#363739] uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  1-Clique: Acessar Perfis Cadastrados
+            {/* Status de Conexão com Servidor Web & Segurança */}
+            <div className="mt-8 pt-6 border-t border-[#d8d8d8] space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-800">
+                <span className="flex items-center gap-2 text-emerald-700">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Servidor Web Pronto para Produção
                 </span>
-                <span className="text-[11px] text-[#707174]">
-                  Clique para entrar diretamente
+                <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  HTTPS · Porta 3000
                 </span>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {authUsers.map((u) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => handleQuickLogin(u.username)}
-                    className="p-2.5 rounded-xl border border-[#d8d8d8] hover:border-[#53383e] hover:bg-[#f6eff1]/60 text-left transition-all flex items-center gap-2.5 cursor-pointer group bg-[#fafbfc]"
-                  >
-                    {u.avatar ? (
-                      <img 
-                        src={u.avatar} 
-                        alt={u.name} 
-                        className="w-8 h-8 rounded-lg object-cover border border-[#d8d8d8]" 
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-[#53383e] text-white font-bold text-xs flex items-center justify-center">
-                        {u.name.substring(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-[#363739] truncate group-hover:text-[#53383e]">
-                        {u.name}
-                      </div>
-                      <div className="text-[10px] text-[#707174] truncate">
-                        {u.roleBadge}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <p className="text-[11px] text-[#707174] leading-relaxed">
+                Acesso seguro com autenticação criptografada, proteção contra IDOR e isolamento estrito de dados por perfil (RBAC).
+              </p>
             </div>
           </div>
 

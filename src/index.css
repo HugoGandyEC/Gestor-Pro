@@ -112,6 +112,99 @@
   background-color: #F8F4EE !important;
 }
 
+/* 4. Tema: Terracota & Ardósia Mineral (Paleta da Foto Anexada) */
+[data-theme="terracota_mineral"] {
+  --color-canvas: #FAF5EE;
+  --theme-primary: #A67153;
+  --theme-primary-hover: #8c5b40;
+  --theme-secondary: #594A3C;
+  --theme-accent: #615F6D;
+  --theme-dark: #26241E;
+  --theme-linen: #F2E6D8;
+  --theme-surface: #ffffff;
+  --theme-border: #dfd3c3;
+}
+
+[data-theme="terracota_mineral"] .bg-\[\#53383e\],
+[data-theme="terracota_mineral"] .bg-wine {
+  background-color: #A67153 !important;
+}
+[data-theme="terracota_mineral"] .hover\:bg-\[\#432c32\]:hover,
+[data-theme="terracota_mineral"] .hover\:bg-wine-hover:hover {
+  background-color: #8c5b40 !important;
+}
+[data-theme="terracota_mineral"] .text-\[\#53383e\],
+[data-theme="terracota_mineral"] .text-wine {
+  color: #A67153 !important;
+}
+[data-theme="terracota_mineral"] .border-\[\#53383e\],
+[data-theme="terracota_mineral"] .border-wine {
+  border-color: #A67153 !important;
+}
+[data-theme="terracota_mineral"] .bg-\[\#f6eff1\] {
+  background-color: #F2E6D8 !important;
+  color: #594A3C !important;
+}
+[data-theme="terracota_mineral"] body,
+[data-theme="terracota_mineral"] .bg-\[\#f4f5f6\] {
+  background-color: #FAF5EE !important;
+}
+[data-theme="terracota_mineral"] aside {
+  background-color: #26241E !important;
+}
+[data-theme="terracota_mineral"] aside .bg-\[\#222325\] {
+  background-color: #1e1c17 !important;
+}
+[data-theme="terracota_mineral"] aside button:hover {
+  background-color: #38342c !important;
+}
+
+/* 5. Tema: Solar & Cobalto Alegre (Cores Vívidas, Convencional & Agradável) */
+[data-theme="solar_vivido"] {
+  --color-canvas: #F8FAFC;
+  --theme-primary: #1D4ED8;
+  --theme-primary-hover: #1e40af;
+  --theme-secondary: #F59E0B;
+  --theme-accent: #EA580C;
+  --theme-emerald: #10B981;
+  --theme-surface: #ffffff;
+  --theme-border: #E2E8F0;
+}
+
+[data-theme="solar_vivido"] .bg-\[\#53383e\],
+[data-theme="solar_vivido"] .bg-wine {
+  background-color: #1D4ED8 !important;
+}
+[data-theme="solar_vivido"] .hover\:bg-\[\#432c32\]:hover,
+[data-theme="solar_vivido"] .hover\:bg-wine-hover:hover {
+  background-color: #1e40af !important;
+}
+[data-theme="solar_vivido"] .text-\[\#53383e\],
+[data-theme="solar_vivido"] .text-wine {
+  color: #1D4ED8 !important;
+}
+[data-theme="solar_vivido"] .border-\[\#53383e\],
+[data-theme="solar_vivido"] .border-wine {
+  border-color: #1D4ED8 !important;
+}
+[data-theme="solar_vivido"] .bg-\[\#f6eff1\] {
+  background-color: #EFF6FF !important;
+  color: #1D4ED8 !important;
+}
+[data-theme="solar_vivido"] body,
+[data-theme="solar_vivido"] .bg-\[\#f4f5f6\] {
+  background-color: #F8FAFC !important;
+}
+[data-theme="solar_vivido"] aside {
+  background-color: #0F172A !important;
+}
+[data-theme="solar_vivido"] aside .bg-\[\#222325\] {
+  background-color: #0B1120 !important;
+}
+[data-theme="solar_vivido"] aside button:hover {
+  background-color: #1E293B !important;
+}
+
 .font-mono {
   font-family: 'JetBrains Mono', monospace;
 }

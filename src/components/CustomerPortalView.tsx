@@ -62,12 +62,12 @@ export const CustomerPortalView: React.FC = () => {
   const tenantClientId = getTenantClientId(currentUser);
 
   const [adminSimulatedClientId, setAdminSimulatedClientId] = useState<string>(
-    clients[0]?.id || 'cli-maria-gorete'
+    clients[0]?.id || ''
   );
 
   const effectiveClientId = isRealClientSession 
-    ? (tenantClientId || clients.find(c => c.name.toLowerCase().includes(currentUser?.name.toLowerCase() || ''))?.id || 'cli-maria-gorete')
-    : adminSimulatedClientId;
+    ? (tenantClientId || (currentUser?.name ? clients.find(c => c.name.toLowerCase().includes(currentUser.name.toLowerCase()))?.id : '') || clients[0]?.id || '')
+    : (adminSimulatedClientId || clients[0]?.id || '');
 
   const currentClient = clients.find(c => c.id === effectiveClientId) || clients[0];
 
@@ -445,11 +445,15 @@ export const CustomerPortalView: React.FC = () => {
               onChange={(e) => setAdminSimulatedClientId(e.target.value)}
               className="w-full text-xs font-bold text-slate-900 bg-white rounded-lg p-2 cursor-pointer shadow-xs focus:ring-2 focus:ring-amber-400 outline-hidden"
             >
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.document})
-                </option>
-              ))}
+              {clients.length === 0 ? (
+                <option value="">Nenhum cliente cadastrado no sistema</option>
+              ) : (
+                clients.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.document})
+                  </option>
+                ))
+              )}
             </select>
           </div>
         )}
