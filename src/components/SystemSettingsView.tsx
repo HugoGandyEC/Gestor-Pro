@@ -1486,7 +1486,7 @@ export const SystemSettingsView: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Export box */}
             <div className="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3 flex flex-col justify-between">
               <div>
@@ -1502,9 +1502,9 @@ export const SystemSettingsView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleDownloadBackup}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
-                <Download className="w-4 h-4" /> Baixar Arquivo de Backup Completo
+                <Download className="w-4 h-4" /> Baixar Dados em JSON
               </button>
             </div>
 
@@ -1532,6 +1532,27 @@ export const SystemSettingsView: React.FC = () => {
                   />
                 </label>
               </div>
+            </div>
+
+            {/* ZIP Full codebase box */}
+            <div className="p-5 border border-emerald-200 rounded-xl bg-emerald-50/40 space-y-3 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 font-bold text-emerald-950 text-sm mb-1">
+                  <Download className="w-4 h-4 text-emerald-600" />
+                  <span>Código-Fonte & Arquivos (.ZIP)</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Baixe o pacote ZIP compactado (~592 KB) contendo todos os arquivos do sistema (React, TypeScript, Tailwind, configurações e dados) pronto para seu computador ou hospedagem.
+                </p>
+              </div>
+
+              <a
+                href="/gestaopro-sistema-completo.zip"
+                download="gestaopro-sistema-completo.zip"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+              >
+                <Download className="w-4 h-4" /> Baixar ZIP do Sistema Completo
+              </a>
             </div>
           </div>
 

@@ -9,11 +9,18 @@ import {
   Percent, 
   ShieldCheck, 
   Layers,
-  FileCheck
+  FileCheck,
+  HardDrive,
+  CheckCircle2
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
+import { getAccessToken, googleSignIn } from '../services/googleAuthService';
+import { uploadTextToDrive } from '../services/googleDriveService';
 
 export const AccountingClosingView: React.FC = () => {
+  const [driveLoading, setDriveLoading] = React.useState(false);
+  const [driveFeedback, setDriveFeedback] = React.useState<string | null>(null);
+
   const { 
     selectedMonthYear, 
     setSelectedMonthYear, 
@@ -68,6 +75,57 @@ export const AccountingClosingView: React.FC = () => {
   const estimatedTaxGoods = totalGoodsRevenue * 0.04;
   const totalEstimatedTaxes = estimatedTaxServices + estimatedTaxGoods;
 
+  const handleSaveToDrive = async () => {
+    setDriveLoading(true);
+    setDriveFeedback(null);
+    try {
+      let token = await getAccessToken();
+      if (!token) {
+        const authRes = await googleSignIn();
+        token = authRes?.accessToken || null;
+      }
+      if (!token) throw new Error('Conexão com Google Drive necessária.');
+
+      const content = `
+========================================================================
+FECHAMENTO CONTÁBIL & FISCAL - ${companySettings.companyName || companySettings.tradeName || 'EMPRESA'}
+========================================================================
+CNPJ: ${companySettings.cnpj || 'Não informado'}
+Competência: ${selectedMonthYear}
+Emissão: ${new Date().toLocaleString('pt-BR')}
+------------------------------------------------------------------------
+1. SEGREGAÇÃO DO FATURAMENTO BRUTO
+- Serviços Prestados (NFS-e / ISS): ${formatBRL(grossServicesRevenue)}
+- Venda de Peças e Mercadorias (NF-e / ICMS): ${formatBRL(totalGoodsRevenue)}
+- FATURAMENTO BRUTO TOTAL: ${formatBRL(totalGrossBilling)}
+
+2. QUANTIDADE DE OPERAÇÕES NO MÊS
+- Ordens de Serviço Faturadas: ${monthOrders.length}
+- Vendas Diretas de Balcão: ${monthSales.length}
+
+3. TRIBUTOS ESTIMADOS (DAS - SIMPLES NACIONAL)
+- Serviços (Anexo III ~6%): ${formatBRL(estimatedTaxServices)}
+- Comércio (Anexo I ~4%): ${formatBRL(estimatedTaxGoods)}
+- TOTAL ESTIMADO: ${formatBRL(totalEstimatedTaxes)}
+
+4. TAXAS DE CARTÃO DEDUZIDAS: ${formatBRL(totalCardFees)}
+5. COMPRAS DE FORNECEDORES (XML): ${formatBRL(totalPurchasesCost)}
+========================================================================
+Salvo automaticamente via Google Drive pelo ERP GestãoPro.
+`;
+
+      const fileName = `Fechamento_Contabil_${selectedMonthYear}_${(companySettings.tradeName || 'Empresa').replace(/\s+/g, '_')}.txt`;
+      await uploadTextToDrive(token, fileName, content, 'text/plain');
+      setDriveFeedback(`Salvo com sucesso no Google Drive: ${fileName}`);
+      setTimeout(() => setDriveFeedback(null), 5000);
+    } catch (err: any) {
+      console.error('Erro ao salvar no Drive:', err);
+      alert(err.message || 'Falha ao salvar no Google Drive.');
+    } finally {
+      setDriveLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -95,7 +153,7 @@ export const AccountingClosingView: React.FC = () => {
           </div>
         </div>
 
-        <div className="no-print flex items-center gap-2.5">
+        <div className="no-print flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-xs">
             <Calendar className="w-4 h-4 text-slate-400" />
             <select
@@ -110,14 +168,31 @@ export const AccountingClosingView: React.FC = () => {
           </div>
 
           <button
+            onClick={handleSaveToDrive}
+            disabled={driveLoading}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
+            title="Salvar espelho fiscal diretamente no Google Drive"
+          >
+            <HardDrive className="w-3.5 h-3.5 text-blue-600" />
+            <span>{driveLoading ? 'Salvando...' : 'Salvar no Google Drive'}</span>
+          </button>
+
+          <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Imprimir / Exportar PDF Contábil</span>
           </button>
         </div>
       </div>
+
+      {driveFeedback && (
+        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{driveFeedback}</span>
+        </div>
+      )}
 
       {/* Main Printable Accounting Document */}
       <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs space-y-6 text-xs text-slate-800">

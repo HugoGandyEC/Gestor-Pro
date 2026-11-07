@@ -18,6 +18,7 @@ import { SuppliersView } from './components/SuppliersView';
 import { AccountingClosingView } from './components/AccountingClosingView';
 import { MasterRegistrationsView } from './components/MasterRegistrationsView';
 import { CardOperatorsView } from './components/CardOperatorsView';
+import { GoogleDriveView } from './components/GoogleDriveView';
 import { SystemSettingsView } from './components/SystemSettingsView';
 import { SystemDocumentationModal } from './components/SystemDocumentationModal';
 import { AuditLogsModal } from './components/AuditLogsModal';
@@ -67,6 +68,8 @@ const MainLayout: React.FC = () => {
         return <MasterRegistrationsView />;
       case 'cardOperators':
         return <CardOperatorsView />;
+      case 'googleDrive':
+        return <GoogleDriveView />;
       case 'configuracoes':
         return <SystemSettingsView />;
       case 'products':

@@ -44,7 +44,8 @@ import {
   Building,
   KeyRound,
   Eye,
-  Sliders
+  Sliders,
+  HardDrive
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 
@@ -504,6 +505,23 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           ],
           tips: 'Sua escolha de tema fica salva automaticamente no navegador para os próximos acessos.',
           targetTab: 'configuracoes'
+        },
+        {
+          id: 'google_drive_integration',
+          moduleCode: 'MOD-4.6',
+          title: 'Google Drive & Backup em Nuvem',
+          icon: HardDrive,
+          badge: 'Google Workspace',
+          objective: 'Conectar com sua conta Google Drive para armazenar comprovantes, exportar relatórios fiscais e manter backups do ERP na nuvem.',
+          summary: 'Navegação por pastas, upload de arquivos, exportação direta de relatórios contábeis e backup do sistema.',
+          howToUse: [
+            'Acesse a tela "Google Drive" no menu lateral.',
+            'Clique no botão "Conectar com Google Drive" e autorize com sua conta Google.',
+            'Crie pastas corporativas para organizar Ordens de Serviço e Relatórios Fiscais.',
+            'Use os botões de ação rápida para exportar cópias de segurança em JSON diretamente para seu Drive.'
+          ],
+          tips: 'Qualquer exclusão de arquivo exige confirmação explícita na tela por segurança.',
+          targetTab: 'googleDrive'
         }
       ]
     },

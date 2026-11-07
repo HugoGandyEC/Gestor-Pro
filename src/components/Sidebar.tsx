@@ -17,6 +17,7 @@ import {
   Settings,
   FolderOpen,
   CreditCard,
+  HardDrive,
   ChevronLeft,
   ChevronRight,
   Menu,
@@ -42,6 +43,7 @@ export type ActiveTab =
   | 'employees'
   | 'cadastros'
   | 'cardOperators'
+  | 'googleDrive'
   | 'configuracoes'
   | 'documentation';
 
@@ -243,6 +245,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       category: 'SISTEMA',
       items: [
+        {
+          id: 'googleDrive' as ActiveTab,
+          label: 'Google Drive',
+          icon: HardDrive,
+          badge: 'Nuvem',
+          highlight: true,
+          roles: ['admin', 'colaborador', 'contador']
+        },
         {
           id: 'configuracoes' as ActiveTab,
           label: 'Configurações',
