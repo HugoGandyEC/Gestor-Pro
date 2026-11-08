@@ -8,6 +8,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { SYSTEM_VERSION, SYSTEM_BUILD, SYSTEM_AUTHOR } from '../constants/version';
 
 export const LoginView: React.FC = () => {
   const { login, companySettings } = useApp();
@@ -161,10 +162,16 @@ export const LoginView: React.FC = () => {
         </div>
       </div>
 
-      {/* Rodapé Limpo com Informativo do Criador do Sistema "HUGO GANDY" */}
-      <footer className="w-full py-5 text-center text-xs text-slate-500 space-y-1 px-4">
-        <div className="font-semibold text-slate-700 text-xs">
-          Sistema desenvolvido por <span className="font-extrabold text-slate-900 tracking-wider">HUGO GANDY</span>
+      {/* Rodapé Limpo com Informativo do Criador do Sistema "HUGO GANDY" e Versionamento */}
+      <footer className="w-full py-5 text-center text-xs text-slate-500 space-y-1.5 px-4">
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          <span className="font-semibold text-slate-700 text-xs">
+            Sistema desenvolvido por <span className="font-extrabold text-slate-900 tracking-wider">{SYSTEM_AUTHOR}</span>
+          </span>
+          <span className="text-slate-300">·</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-slate-200/90 text-slate-700 border border-slate-300 shadow-2xs">
+            {SYSTEM_VERSION} (Build {SYSTEM_BUILD})
+          </span>
         </div>
         <div className="text-[11px] text-slate-400">
           {companySettings.tradeName || companySettings.companyName || 'GestãoPro ERP'} · Todos os direitos reservados

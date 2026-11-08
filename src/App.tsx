@@ -25,6 +25,7 @@ import { AuditLogsModal } from './components/AuditLogsModal';
 import { SystemHelpModal } from './components/SystemHelpModal';
 import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
 import { LoginView } from './components/LoginView';
+import { SystemFooter } from './components/SystemFooter';
 
 const MainLayout: React.FC = () => {
   const { currentRole } = useApp();
@@ -132,8 +133,12 @@ const MainLayout: React.FC = () => {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 min-w-0 overflow-y-auto">
-          {renderCurrentView()}
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 min-w-0 overflow-y-auto flex flex-col justify-between">
+          <div className="flex-1">
+            {renderCurrentView()}
+          </div>
+          {/* Rodapé das telas do sistema com versionamento */}
+          <SystemFooter onOpenDoc={() => setIsDocModalOpen(true)} />
         </main>
       </div>
 

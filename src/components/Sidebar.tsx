@@ -26,6 +26,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { SYSTEM_VERSION } from '../constants/version';
 
 export type ActiveTab = 
   | 'dashboard' 
@@ -483,7 +484,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
             <div className="text-[10px] text-[#8e9094] flex items-center justify-between">
-              <span>MP PISCINA ERP</span>
+              <span>MP PISCINA ERP · <strong className="text-slate-300 font-mono">{SYSTEM_VERSION}</strong></span>
               <span className="text-emerald-400 font-mono">● Online</span>
             </div>
           </div>
