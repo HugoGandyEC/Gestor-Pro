@@ -145,7 +145,7 @@ export interface Client {
   personType?: 'PF' | 'PJ';
   name: string;
   tradeName?: string;
-  document: string; // CPF ou CNPJ
+  document: string; // CPF ou CNPJ (Opcional - pode ser vazio "")
   rg?: string; // Campo RG para Pessoa Física
   stateRegistration?: string; // Inscrição Estadual para Pessoa Jurídica
   contactPerson?: string; // Nome de contato / Responsável
@@ -383,7 +383,7 @@ export interface ServiceOrder {
   code: string; // Ex: OS-2026-104
   clientId: string;
   clientName: string;
-  clientDocument: string;
+  clientDocument?: string;
   clientPhone: string;
   clientAddress: string;
   employeeId: string; // Técnico / Responsável

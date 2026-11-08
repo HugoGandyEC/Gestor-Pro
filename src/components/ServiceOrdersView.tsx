@@ -1626,7 +1626,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                       ) : (
                         clients.map(c => (
                           <option key={c.id} value={c.id}>
-                            {c.name} ({c.document})
+                            {c.name}{c.document ? ` (${c.document})` : ''}
                           </option>
                         ))
                       )}

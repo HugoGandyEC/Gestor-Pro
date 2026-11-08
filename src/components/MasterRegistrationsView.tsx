@@ -468,7 +468,9 @@ export const MasterRegistrationsView: React.FC = () => {
                           <div className="text-[11px] text-slate-500">{client.tradeName}</div>
                         )}
                       </td>
-                      <td className="p-3 font-mono text-slate-700">{client.document}</td>
+                      <td className="p-3 font-mono text-slate-700">
+                        {client.document || <span className="text-slate-400 font-sans italic text-xs">Sem documento</span>}
+                      </td>
                       <td className="p-3 text-slate-600">
                         <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-slate-400" /> {client.phone}</div>
                         {client.email && (
@@ -1108,13 +1110,12 @@ export const MasterRegistrationsView: React.FC = () => {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-medium text-slate-700">CPF / CNPJ *</label>
-                    <span className="text-[10px] text-blue-600">Busca auto na Receita</span>
+                    <label className="text-xs font-medium text-slate-700">CPF / CNPJ (Opcional)</label>
+                    <span className="text-[10px] text-blue-600">Busca auto se informado</span>
                   </div>
                   <input
                     type="text"
-                    required
-                    placeholder="00.000.000/0000-00"
+                    placeholder="00.000.000/0000-00 (Opcional)"
                     value={clientForm.document}
                     onChange={(e) => {
                       const val = e.target.value;

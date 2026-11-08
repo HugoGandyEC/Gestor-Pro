@@ -1222,7 +1222,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const newCli: Client = {
             id: `cli-csv-${Date.now()}-${idx}`,
             name: parts[0].replace(/"/g, '').trim(),
-            document: parts[1]?.replace(/"/g, '').trim() || '00.000.000/0001-00',
+            document: parts[1]?.replace(/"/g, '').trim() || '',
             phone: parts[2]?.replace(/"/g, '').trim() || '(11) 99999-9999',
             email: parts[3]?.replace(/"/g, '').trim() || 'contato@cliente.com.br',
             cep: parts[4]?.replace(/"/g, '').trim() || '01001-000',

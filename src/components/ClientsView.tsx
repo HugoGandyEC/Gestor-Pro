@@ -372,7 +372,7 @@ export const ClientsView: React.FC = () => {
 
   const handleSaveClient = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cName.trim() || !cDocument.trim()) return;
+    if (!cName.trim()) return;
 
     // Pick default address or first address
     const defaultAddr = addresses.find(a => a.isDefault) || addresses[0] || {
@@ -713,7 +713,7 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                           </span>
 
                           <div className="font-mono text-slate-900 font-semibold text-[11px] mt-0.5">
-                            {client.document}
+                            {client.document || <span className="text-slate-400 font-sans italic text-[10px]">Sem documento</span>}
                           </div>
 
                           {/* RG para Pessoa Física */}
@@ -960,11 +960,10 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
                       <div className="sm:col-span-2">
-                        <label className="block text-slate-700 mb-1 font-semibold">CNPJ da Empresa *</label>
+                        <label className="block text-slate-700 mb-1 font-semibold">CNPJ da Empresa (Opcional)</label>
                         <input
                           type="text"
-                          required
-                          placeholder="Ex: 12.345.678/0001-90"
+                          placeholder="Ex: 12.345.678/0001-90 (Opcional)"
                           value={cDocument}
                           onChange={(e) => setCDocument(e.target.value)}
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500"
@@ -1043,11 +1042,10 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-slate-700 mb-1 font-semibold">CPF do Cliente *</label>
+                        <label className="block text-slate-700 mb-1 font-semibold">CPF do Cliente (Opcional)</label>
                         <input
                           type="text"
-                          required
-                          placeholder="Ex: 123.456.789-00"
+                          placeholder="Ex: 123.456.789-00 (Opcional)"
                           value={cDocument}
                           onChange={(e) => setCDocument(e.target.value)}
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500"
@@ -1055,11 +1053,11 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                       </div>
                       <div>
                         <label className="block text-slate-700 mb-1 font-semibold">
-                          RG (Registro Geral) *
+                          RG (Registro Geral - Opcional)
                         </label>
                         <input
                           type="text"
-                          placeholder="Ex: 28.910.345-X SSP/SP"
+                          placeholder="Ex: 28.910.345-X SSP/SP (Opcional)"
                           value={cRg}
                           onChange={(e) => setCRg(e.target.value)}
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500"

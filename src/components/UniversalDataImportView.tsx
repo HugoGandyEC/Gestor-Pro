@@ -65,7 +65,7 @@ const ENTITIES_CONFIG: EntityDefinition[] = [
     description: 'Cadastro de clientes físicos e jurídicos, contatos e endereços.',
     fields: [
       { key: 'name', label: 'Nome / Razão Social', required: true, sample: 'Hotel Fazenda das Águas Ltda' },
-      { key: 'document', label: 'CPF / CNPJ', required: true, sample: '12.345.678/0001-90' },
+      { key: 'document', label: 'CPF / CNPJ', required: false, sample: '12.345.678/0001-90' },
       { key: 'phone', label: 'Telefone / WhatsApp', required: true, sample: '(11) 98765-4321' },
       { key: 'email', label: 'E-mail', required: false, sample: 'contato@aguas.com.br' },
       { key: 'city', label: 'Cidade', required: false, sample: 'Campinas' },
@@ -981,7 +981,7 @@ export const UniversalDataImportView: React.FC = () => {
         const mappedClients = parsedRows.map(row => ({
           name: String(row[columnMapping['name']] || '').trim() || 'Cliente Importado',
           tradeName: String(row[columnMapping['tradeName']] || '').trim() || undefined,
-          document: String(row[columnMapping['document']] || '').trim() || '000.000.000-00',
+          document: String(row[columnMapping['document']] || '').trim(),
           phone: String(row[columnMapping['phone']] || '').trim() || '(11) 90000-0000',
           email: String(row[columnMapping['email']] || '').trim() || 'cliente@gestaopro.com',
           city: String(row[columnMapping['city']] || '').trim() || 'Cidade',
