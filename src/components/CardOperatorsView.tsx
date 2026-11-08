@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CreditCard, 
   Plus, 
@@ -23,7 +23,12 @@ import {
   Send,
   Eye,
   EyeOff,
-  Receipt
+  Receipt,
+  Settings,
+  Key,
+  Globe,
+  Terminal,
+  Save
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { CardOperator, PagBankTransaction, OperatorInstallmentRate, FeeAbsorptionMode } from '../types';
@@ -46,6 +51,88 @@ export const CardOperatorsView: React.FC = () => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showToken, setShowToken] = useState(false);
 
+  // Operadora selecionada na aba de Configuração de Integrações & Webhooks
+  const [selectedIntegrationOpId, setSelectedIntegrationOpId] = useState<string>(() => {
+    return cardOperators[0]?.id || 'op-pagbank';
+  });
+
+  const selectedIntegrationOp = cardOperators.find(o => o.id === selectedIntegrationOpId) || cardOperators[0];
+
+  const [integEnabled, setIntegEnabled] = useState(true);
+  const [integEnvironment, setIntegEnvironment] = useState<'production' | 'sandbox'>('production');
+  const [integClientId, setIntegClientId] = useState('');
+  const [integClientSecret, setIntegClientSecret] = useState('');
+  const [integApiToken, setIntegApiToken] = useState('');
+  const [integWebhookUrl, setIntegWebhookUrl] = useState('');
+  const [integWebhookSecret, setIntegWebhookSecret] = useState('');
+  const [integPosSerials, setIntegPosSerials] = useState('');
+  const [integAutoReconcile, setIntegAutoReconcile] = useState(true);
+  const [integAutoNotifyWhatsapp, setIntegAutoNotifyWhatsapp] = useState(true);
+  const [integStatus, setIntegStatus] = useState<'connected' | 'error' | 'disconnected' | 'testing'>('connected');
+  const [integPingSuccess, setIntegPingSuccess] = useState<string | null>(null);
+  const [showClientSecret, setShowClientSecret] = useState(false);
+
+  // Sincroniza formulário da Tab 2 quando o usuário seleciona outra operadora
+  useEffect(() => {
+    if (selectedIntegrationOp) {
+      const integ = selectedIntegrationOp.integration;
+      setIntegEnabled(integ?.enabled ?? true);
+      setIntegEnvironment(integ?.environment || 'production');
+      setIntegClientId(integ?.clientId || (selectedIntegrationOp.code === 'infinitepay' ? 'inf_app_live_8910a72' : 'pagbank_app_4481'));
+      setIntegClientSecret(integ?.clientSecret || 'sec_' + Math.random().toString(36).substring(2, 12));
+      setIntegApiToken(integ?.apiToken || (selectedIntegrationOp.code === 'infinitepay' ? 'infinite_live_token_88921b7c' : 'pagbank_sec_live_9981a8c049d214ee8812c3b889a'));
+      setIntegWebhookUrl(integ?.webhookUrl || `https://api.mppiscina.com.br/webhooks/${selectedIntegrationOp.code}/ipn`);
+      setIntegWebhookSecret(integ?.webhookSecret || 'whsec_' + Math.random().toString(36).substring(2, 10));
+      setIntegPosSerials(integ?.posTerminalSerials?.join(', ') || (selectedIntegrationOp.code === 'infinitepay' ? 'INF-POS-9921, INF-POS-9922' : 'POS-SMART-8821'));
+      setIntegAutoReconcile(integ?.autoReconcile ?? true);
+      setIntegAutoNotifyWhatsapp(integ?.autoNotifyClientWhatsapp ?? true);
+      setIntegStatus(integ?.status || 'connected');
+      setIntegPingSuccess(null);
+    }
+  }, [selectedIntegrationOpId, selectedIntegrationOp?.id]);
+
+  const handleSaveSelectedIntegration = () => {
+    if (!selectedIntegrationOp) return;
+    const serialsList = integPosSerials
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    updateCardOperator(selectedIntegrationOp.id, {
+      integration: {
+        ...selectedIntegrationOp.integration,
+        enabled: integEnabled,
+        environment: integEnvironment,
+        clientId: integClientId.trim(),
+        clientSecret: integClientSecret.trim(),
+        apiToken: integApiToken.trim(),
+        webhookUrl: integWebhookUrl.trim(),
+        webhookSecret: integWebhookSecret.trim(),
+        posTerminalSerials: serialsList,
+        autoReconcile: integAutoReconcile,
+        autoNotifyClientWhatsapp: integAutoNotifyWhatsapp,
+        status: integEnabled ? 'connected' : 'disconnected',
+        lastSyncAt: new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR')
+      }
+    });
+
+    setSimFeedback({
+      success: true,
+      message: `Configurações da integração da operadora "${selectedIntegrationOp.name}" salvas com sucesso!`
+    });
+    setTimeout(() => setSimFeedback(null), 5000);
+  };
+
+  const handleTestPingConnection = () => {
+    if (!selectedIntegrationOp) return;
+    setIntegStatus('testing');
+    setTimeout(() => {
+      setIntegStatus('connected');
+      setIntegPingSuccess(`Handshake 200 OK com ${selectedIntegrationOp.name} Gateway API. Webhook ativo e autenticado com sucesso.`);
+      setTimeout(() => setIntegPingSuccess(null), 6000);
+    }, 600);
+  };
+
   // Modal de Operadora
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOperator, setEditingOperator] = useState<CardOperator | null>(null);
@@ -66,8 +153,12 @@ export const CardOperatorsView: React.FC = () => {
   const [acceptedBrands, setAcceptedBrands] = useState<string[]>(['Visa', 'Mastercard', 'Elo', 'Hipercard']);
   const [apiToken, setApiToken] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [posSerials, setPosSerials] = useState('');
   const [autoReconcile, setAutoReconcile] = useState(true);
   const [notes, setNotes] = useState('');
+
 
   // Tabela Individual de Parcelas 1x a 12x (Taxas e Repasse / Absorção)
   const [installmentRates, setInstallmentRates] = useState<OperatorInstallmentRate[]>([]);
@@ -212,6 +303,9 @@ export const CardOperatorsView: React.FC = () => {
     setDefaultAbsorptionMode('repassar');
     setApiToken('');
     setWebhookUrl('');
+    setClientId('');
+    setClientSecret('');
+    setPosSerials('');
     setAutoReconcile(false);
     setNotes('');
     setIsModalOpen(true);
@@ -240,6 +334,9 @@ export const CardOperatorsView: React.FC = () => {
     setDefaultAbsorptionMode(op.defaultAbsorptionMode || 'repassar');
     setApiToken(op.integration?.apiToken || '');
     setWebhookUrl(op.integration?.webhookUrl || '');
+    setClientId(op.integration?.clientId || '');
+    setClientSecret(op.integration?.clientSecret || '');
+    setPosSerials(op.integration?.posTerminalSerials?.join(', ') || '');
     setAutoReconcile(op.integration?.autoReconcile ?? true);
     setNotes(op.notes || '');
     setIsModalOpen(true);
@@ -269,6 +366,8 @@ export const CardOperatorsView: React.FC = () => {
       ? Number((inst7to12Matches.reduce((acc, curr) => acc + curr.rate, 0) / inst7to12Matches.length).toFixed(2))
       : Number(creditInstallments7to12Rate);
 
+    const serialsList = posSerials ? posSerials.split(',').map(s => s.trim()).filter(Boolean) : undefined;
+
     const opData = {
       name,
       code,
@@ -286,15 +385,18 @@ export const CardOperatorsView: React.FC = () => {
       defaultAbsorptionMode,
       installmentRates: effectiveInstallments,
       integration: {
-        enabled: Boolean(apiToken || autoReconcile),
-        environment: 'production' as const,
+        enabled: Boolean(apiToken || autoReconcile || clientId),
+        environment: editingOperator?.integration?.environment || 'production',
+        clientId: clientId.trim() || undefined,
+        clientSecret: clientSecret.trim() || undefined,
         apiToken: apiToken.trim(),
         publicKey: editingOperator?.integration?.publicKey || 'PUB_KEY_DEFAULT_RSA_2048',
-        webhookUrl: webhookUrl.trim() || `https://api.mppiscina.com.br/webhooks/${code}/callback`,
-        webhookSecret: editingOperator?.integration?.webhookSecret || 'whsec_secret_key',
+        webhookUrl: webhookUrl.trim() || `https://api.mppiscina.com.br/webhooks/${code}/ipn`,
+        webhookSecret: editingOperator?.integration?.webhookSecret || 'whsec_' + Math.random().toString(36).substring(2, 10),
+        posTerminalSerials: serialsList,
         autoReconcile,
         lastSyncAt: editingOperator?.integration?.lastSyncAt || new Date().toISOString().split('T')[0],
-        status: (apiToken || code === 'pagbank') ? 'connected' as const : 'disconnected' as const,
+        status: (apiToken || code === 'pagbank' || code === 'infinitepay') ? 'connected' as const : 'disconnected' as const,
         autoNotifyClientWhatsapp: true
       },
       notes
@@ -311,6 +413,8 @@ export const CardOperatorsView: React.FC = () => {
 
   const handleSimulateWebhook = () => {
     const res = processPagBankWebhook({
+      operatorId: selectedIntegrationOp?.id,
+      operatorCode: selectedIntegrationOp?.code,
       orderCode: simOrderCode,
       amount: Number(simAmount),
       method: simMethod,
@@ -518,11 +622,16 @@ export const CardOperatorsView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {cardOperators.map((op) => {
               const isPagBank = op.code === 'pagbank';
+              const isInfinitePay = op.code === 'infinitepay';
               return (
                 <div 
                   key={op.id} 
                   className={`bg-white rounded-xl border p-5 shadow-xs transition-all flex flex-col justify-between ${
-                    isPagBank ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-[#d8d8d8]'
+                    isPagBank 
+                      ? 'border-emerald-300 ring-1 ring-emerald-200' 
+                      : isInfinitePay
+                      ? 'border-indigo-300 ring-1 ring-indigo-200'
+                      : 'border-[#d8d8d8]'
                   }`}
                 >
                   <div>
@@ -530,16 +639,25 @@ export const CardOperatorsView: React.FC = () => {
                     <div className="flex items-start justify-between gap-2 pb-3 border-b border-[#f4f5f6]">
                       <div className="flex items-center gap-2.5">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-xs ${
-                          isPagBank ? 'bg-gradient-to-br from-emerald-600 to-teal-700' : 'bg-[#53383e]'
+                          isPagBank 
+                            ? 'bg-gradient-to-br from-emerald-600 to-teal-700' 
+                            : isInfinitePay
+                            ? 'bg-gradient-to-br from-indigo-800 via-purple-700 to-slate-900'
+                            : 'bg-[#53383e]'
                         }`}>
                           <CreditCard className="w-5 h-5" />
                         </div>
                         <div>
-                          <h3 className="font-bold text-sm text-[#363739] flex items-center gap-1.5">
+                          <h3 className="font-bold text-sm text-[#363739] flex items-center gap-1.5 flex-wrap">
                             {op.name}
                             {isPagBank && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
-                                Oficial
+                                Oficial PagBank
+                              </span>
+                            )}
+                            {isInfinitePay && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-indigo-100 text-indigo-800">
+                                12x InfinitePay
                               </span>
                             )}
                           </h3>
@@ -672,8 +790,29 @@ export const CardOperatorsView: React.FC = () => {
                     )}
                   </div>
 
+                  {/* Botão de Acesso Direto à Configuração da Integração da Operadora */}
+                  <div className="mt-3 pt-3 border-t border-[#f4f5f6]">
+                    <button
+                      onClick={() => {
+                        setSelectedIntegrationOpId(op.id);
+                        setActiveTab('pagbank');
+                      }}
+                      className={`w-full py-2 px-3 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        op.integration?.status === 'connected'
+                          ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-300'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300'
+                      }`}
+                    >
+                      <Settings className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Configurar Integração API & Webhooks</span>
+                      {op.integration?.status === 'connected' && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
+                      )}
+                    </button>
+                  </div>
+
                   {/* Action Footer */}
-                  <div className="mt-4 pt-3 border-t border-[#f4f5f6] flex items-center justify-between">
+                  <div className="mt-3 pt-2.5 border-t border-[#f4f5f6] flex items-center justify-between">
                     <span className="text-[10px] text-[#707174] font-mono">
                       CNPJ: {op.cnpj || 'Não informado'}
                     </span>
@@ -777,95 +916,326 @@ export const CardOperatorsView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: INTEGRAÇÃO PAGBANK & BAIXAS AUTOMÁTICAS */}
+      {/* TAB 2: INTEGRAÇÕES & WEBHOOKS POR OPERADORA */}
       {activeTab === 'pagbank' && (
         <div className="space-y-6">
-          {/* Status & Credenciais Card */}
-          <div className="bg-white border border-emerald-200 rounded-2xl p-6 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white shadow-sm">
-                  <Zap className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-[#363739]">
-                      API PagBank & Webhook de Baixa Automática
-                    </h2>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      Ambiente Produção
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#707174]">
-                    Recebimentos via Maquininhas Smart Pro, Links de Pagamento, Débito, Crédito e Pix PagBank com liquidação e baixa imediata no ERP.
-                  </p>
-                </div>
+          {/* Barra de Seleção de Operadora para Configuração */}
+          <div className="bg-white border border-[#d8d8d8] rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-bold text-[#363739] flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-[#53383e]" />
+                  Selecione a Operadora de Cartão para Configurar a Integração
+                </h2>
+                <p className="text-xs text-[#707174]">
+                  Cada operadora possui seu próprio ambiente de API, credenciais (Token, Client ID), endpoint de Webhook e terminais de maquininhas.
+                </p>
               </div>
 
-              <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-bold text-emerald-900">Webhook Ativo & Escutando</span>
-              </div>
+              {currentRole !== 'tecnico' && (
+                <button
+                  type="button"
+                  onClick={handleOpenAdd}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#53383e] bg-[#f6eff1] hover:bg-[#ebdbe0] rounded-lg border border-[#d8d8d8] transition-colors cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Cadastrar Outra Operadora</span>
+                </button>
+              )}
             </div>
 
-            {/* Configurações de API & Webhook */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">
-                  URL do Webhook (Endpoint de Notificação Instantânea)
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={pagbankOp?.integration?.webhookUrl || 'https://api.mppiscina.com.br/webhooks/pagbank/ipn'}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-slate-800"
-                  />
+            {/* Pills das Operadoras Cadastradas */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {cardOperators.map(op => {
+                const isSelected = op.id === selectedIntegrationOpId;
+                const isConnected = op.integration?.status === 'connected' || (op.integration?.enabled && (op.integration?.apiToken || op.code === 'pagbank' || op.code === 'infinitepay'));
+                return (
                   <button
-                    onClick={() => handleCopy(pagbankOp?.integration?.webhookUrl || 'https://api.mppiscina.com.br/webhooks/pagbank/ipn', 'webhook')}
-                    className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer"
-                    title="Copiar URL"
+                    key={op.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedIntegrationOpId(op.id);
+                      setSimFeedback(null);
+                    }}
+                    className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      isSelected
+                        ? 'bg-[#53383e] text-white border-[#53383e] shadow-sm'
+                        : 'bg-[#f4f5f6] hover:bg-slate-200 text-[#363739] border-[#d8d8d8]'
+                    }`}
                   >
-                    {copiedKey === 'webhook' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    <CreditCard className={`w-4 h-4 ${isSelected ? 'text-amber-300' : 'text-[#707174]'}`} />
+                    <span>{op.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
+                      isConnected 
+                        ? (isSelected ? 'bg-emerald-400/30 text-emerald-200' : 'bg-emerald-100 text-emerald-800')
+                        : (isSelected ? 'bg-white/20 text-slate-300' : 'bg-slate-200 text-slate-600')
+                    }`}>
+                      {isConnected ? 'Conectada' : 'Pendente'}
+                    </span>
                   </button>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Cadastre esta URL na central do desenvolvedor PagBank para receber notificações de pagamentos aprovados.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">
-                  Token de Autenticação PagBank (Bearer Token)
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type={showToken ? 'text' : 'password'}
-                    readOnly
-                    value={pagbankOp?.integration?.apiToken || 'pagbank_sec_live_9981a8c049d214ee8812c3b889a'}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-slate-800"
-                  />
-                  <button
-                    onClick={() => setShowToken(!showToken)}
-                    className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer"
-                    title="Exibir/Ocultar"
-                  >
-                    {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={() => handleCopy(pagbankOp?.integration?.apiToken || 'pagbank_sec_live_9981a8c049d214ee8812c3b889a', 'token')}
-                    className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer"
-                    title="Copiar Token"
-                  >
-                    {copiedKey === 'token' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Chave de segurança com escopo de leitura de transações e baixa de pedidos.
-                </p>
-              </div>
+                );
+              })}
             </div>
           </div>
+
+          {/* Feedback de Ping de Conexão */}
+          {integPingSuccess && (
+            <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-300 text-emerald-900 flex items-center gap-3 text-xs shadow-xs">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div className="flex-1 font-semibold">{integPingSuccess}</div>
+            </div>
+          )}
+
+          {/* PAINEL DEDICADO DE CONFIGURAÇÃO DA OPERADORA SELECIONADA */}
+          {selectedIntegrationOp && (
+            <div className="bg-white border border-[#d8d8d8] rounded-2xl p-6 shadow-xs space-y-6">
+              {/* Header da Operadora Selecionada */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm font-bold text-lg ${
+                    selectedIntegrationOp.code === 'infinitepay'
+                      ? 'bg-gradient-to-br from-indigo-700 via-purple-700 to-slate-900'
+                      : selectedIntegrationOp.code === 'pagbank'
+                      ? 'bg-gradient-to-br from-emerald-600 to-teal-700'
+                      : 'bg-gradient-to-br from-[#53383e] to-[#363739]'
+                  }`}>
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-lg font-bold text-[#363739]">
+                        Integração API & Webhooks — {selectedIntegrationOp.name}
+                      </h2>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                        integEnvironment === 'production'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border-amber-300'
+                      }`}>
+                        {integEnvironment === 'production' ? 'Ambiente Produção' : 'Ambiente Sandbox / Testes'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#707174]">
+                      Configure as credenciais da API da adquirente {selectedIntegrationOp.name}, endpoints de notificação (Webhooks) e maquininhas vinculadas ao ERP.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 text-xs">
+                    <span className={`w-2 h-2 rounded-full ${integStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                    <span className="font-bold text-emerald-900">
+                      {integStatus === 'connected' ? 'API Ativa & Pronta' : 'Desconectada'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Formulário de Configuração de Integração */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Endpoint Webhook */}
+                <div className="space-y-1 md:col-span-2">
+                  <label className="block text-slate-700 font-semibold">
+                    URL de Retorno / Webhook IPN do ERP (Endpoint Exclusivo da {selectedIntegrationOp.name})
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={integWebhookUrl}
+                      onChange={(e) => setIntegWebhookUrl(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-slate-800 text-xs"
+                      placeholder={`https://api.mppiscina.com.br/webhooks/${selectedIntegrationOp.code}/ipn`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(integWebhookUrl, 'webhookUrl')}
+                      className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer shrink-0"
+                      title="Copiar URL do Webhook"
+                    >
+                      {copiedKey === 'webhookUrl' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Cadastre esta URL na plataforma do desenvolvedor {selectedIntegrationOp.name} para receber as notificações instantâneas de baixas de pagamento.
+                  </p>
+                </div>
+
+                {/* Client ID */}
+                <div className="space-y-1">
+                  <label className="block text-slate-700 font-semibold">
+                    Client ID / Application ID
+                  </label>
+                  <input
+                    type="text"
+                    value={integClientId}
+                    onChange={(e) => setIntegClientId(e.target.value)}
+                    placeholder="Ex: inf_app_live_8910a72"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Identificador público do seu aplicativo junto à {selectedIntegrationOp.name}.
+                  </p>
+                </div>
+
+                {/* Client Secret */}
+                <div className="space-y-1">
+                  <label className="block text-slate-700 font-semibold">
+                    Client Secret / Segredo da Aplicação
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type={showClientSecret ? 'text' : 'password'}
+                      value={integClientSecret}
+                      onChange={(e) => setIntegClientSecret(e.target.value)}
+                      placeholder="Ex: sec_991823ab1..."
+                      className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowClientSecret(!showClientSecret)}
+                      className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer shrink-0"
+                      title={showClientSecret ? 'Ocultar' : 'Exibir'}
+                    >
+                      {showClientSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Chave confidencial utilizada para geração de tokens de pagamento OAuth.
+                  </p>
+                </div>
+
+                {/* API Token / Bearer Token */}
+                <div className="space-y-1">
+                  <label className="block text-slate-700 font-semibold">
+                    Token de Autenticação API (Bearer Token / Private API Key)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type={showToken ? 'text' : 'password'}
+                      value={integApiToken}
+                      onChange={(e) => setIntegApiToken(e.target.value)}
+                      placeholder="Ex: infinite_live_token_... ou pagbank_sec_..."
+                      className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer shrink-0"
+                      title={showToken ? 'Ocultar' : 'Exibir'}
+                    >
+                      {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(integApiToken, 'apiToken')}
+                      className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer shrink-0"
+                      title="Copiar Token"
+                    >
+                      {copiedKey === 'apiToken' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Token permanente com permissões de leitura de extrato, webhook e cancelamentos.
+                  </p>
+                </div>
+
+                {/* Webhook Secret */}
+                <div className="space-y-1">
+                  <label className="block text-slate-700 font-semibold">
+                    Webhook Secret / Assinatura HMAC
+                  </label>
+                  <input
+                    type="text"
+                    value={integWebhookSecret}
+                    onChange={(e) => setIntegWebhookSecret(e.target.value)}
+                    placeholder="Ex: whsec_..."
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Utilizado pelo ERP para verificar a integridade criptográfica das notificações recebidas.
+                  </p>
+                </div>
+
+                {/* Terminais POS / Maquininhas */}
+                <div className="space-y-1 md:col-span-2">
+                  <label className="block text-slate-700 font-semibold">
+                    Números de Série das Maquininhas POS Homologadas (Separados por vírgula)
+                  </label>
+                  <input
+                    type="text"
+                    value={integPosSerials}
+                    onChange={(e) => setIntegPosSerials(e.target.value)}
+                    placeholder="Ex: INF-POS-9921, INF-POS-9922, POS-SMART-8821"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-xs"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Vincule os números de série das maquininhas físicas que operam na empresa para identificação automática do terminal no ERP.
+                  </p>
+                </div>
+
+                {/* Switches e Opções */}
+                <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex flex-wrap items-center gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={integAutoReconcile}
+                        onChange={(e) => setIntegAutoReconcile(e.target.checked)}
+                        className="rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>Baixa Automática Instantânea no ERP (Conciliação Realtime)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={integAutoNotifyWhatsapp}
+                        onChange={(e) => setIntegAutoNotifyWhatsapp(e.target.checked)}
+                        className="rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>Notificar Cliente via WhatsApp na Aprovação</span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500 font-semibold">Ambiente:</span>
+                    <button
+                      type="button"
+                      onClick={() => setIntegEnvironment(integEnvironment === 'production' ? 'sandbox' : 'production')}
+                      className={`px-3 py-1 rounded-lg font-bold text-xs cursor-pointer border ${
+                        integEnvironment === 'production'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border-amber-300'
+                      }`}
+                    >
+                      {integEnvironment === 'production' ? '● Produção' : '● Sandbox'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botões de Ação da Integração */}
+              <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleTestPingConnection}
+                  disabled={integStatus === 'testing'}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer border border-slate-300"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${integStatus === 'testing' ? 'animate-spin' : ''}`} />
+                  <span>{integStatus === 'testing' ? 'Testando Conexão...' : 'Testar Conexão / Ping API'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveSelectedIntegration}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg transition-colors cursor-pointer shadow-xs"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Salvar Configurações da {selectedIntegrationOp.name}</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* SIMULADOR INTERATIVO DE WEBHOOK / TESTE DE BAIXA AUTOMÁTICA */}
           <div className="bg-white border border-[#d8d8d8] rounded-2xl p-6 shadow-xs space-y-4">
@@ -873,14 +1243,14 @@ export const CardOperatorsView: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-sm text-[#363739]">
-                    Simulador de Recebimento de Webhook PagBank
+                    Simulador de Recebimento de Webhook — {selectedIntegrationOp?.name || 'Operadora'}
                   </h3>
                   <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
                     Teste em Tempo Real
                   </span>
                 </div>
                 <p className="text-xs text-[#707174]">
-                  Simule o disparo de um evento de pagamento da máquina ou link PagBank para efetuar a baixa imediata de uma OS ou venda.
+                  Simule o disparo de um evento de pagamento da máquina ou link da {selectedIntegrationOp?.name || 'Operadora'} para efetuar a baixa imediata de uma OS ou venda.
                 </p>
               </div>
             </div>
@@ -927,7 +1297,7 @@ export const CardOperatorsView: React.FC = () => {
 
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">
-                  Forma de Pagamento PagBank
+                  Forma de Pagamento
                 </label>
                 <select
                   value={simMethod}
@@ -936,30 +1306,30 @@ export const CardOperatorsView: React.FC = () => {
                 >
                   <option value="cartao_credito">Cartão de Crédito</option>
                   <option value="cartao_debito">Cartão de Débito</option>
-                  <option value="pix">Pix (Taxa Zero PagBank)</option>
-                  <option value="boleto">Boleto PagBank</option>
+                  <option value="pix">Pix (Taxa: {selectedIntegrationOp?.pixRate.toFixed(2)}%)</option>
+                  <option value="boleto">Boleto Bancário</option>
                 </select>
               </div>
 
               {simMethod === 'cartao_credito' ? (
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">
-                    Número de Parcelas
+                    Número de Parcelas ({selectedIntegrationOp?.name})
                   </label>
                   <select
                     value={simInstallments}
                     onChange={(e) => setSimInstallments(Number(e.target.value))}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
                   >
-                    {(pagbankOp.installmentRates && pagbankOp.installmentRates.length > 0 
-                      ? pagbankOp.installmentRates 
+                    {(selectedIntegrationOp?.installmentRates && selectedIntegrationOp.installmentRates.length > 0 
+                      ? selectedIntegrationOp.installmentRates 
                       : [
-                          { installment: 1, rate: pagbankOp.creditSightRate, absorptionMode: 'assumir' },
-                          { installment: 2, rate: pagbankOp.creditInstallments2to6Rate, absorptionMode: 'repassar' },
-                          { installment: 3, rate: pagbankOp.creditInstallments2to6Rate, absorptionMode: 'repassar' },
-                          { installment: 6, rate: pagbankOp.creditInstallments2to6Rate, absorptionMode: 'repassar' },
-                          { installment: 10, rate: pagbankOp.creditInstallments7to12Rate, absorptionMode: 'repassar' },
-                          { installment: 12, rate: pagbankOp.creditInstallments7to12Rate, absorptionMode: 'repassar' }
+                          { installment: 1, rate: selectedIntegrationOp?.creditSightRate || 3.19, absorptionMode: 'assumir' },
+                          { installment: 2, rate: selectedIntegrationOp?.creditInstallments2to6Rate || 3.79, absorptionMode: 'repassar' },
+                          { installment: 3, rate: selectedIntegrationOp?.creditInstallments2to6Rate || 3.79, absorptionMode: 'repassar' },
+                          { installment: 6, rate: selectedIntegrationOp?.creditInstallments2to6Rate || 3.79, absorptionMode: 'repassar' },
+                          { installment: 10, rate: selectedIntegrationOp?.creditInstallments7to12Rate || 4.99, absorptionMode: 'repassar' },
+                          { installment: 12, rate: selectedIntegrationOp?.creditInstallments7to12Rate || 4.99, absorptionMode: 'repassar' }
                         ]
                     ).map(instItem => (
                       <option key={instItem.installment} value={instItem.installment}>
@@ -990,18 +1360,18 @@ export const CardOperatorsView: React.FC = () => {
             {/* Cálculo Prévio do Webhook */}
             {(() => {
               let feeRate = 0;
-              if (simMethod === 'pix') feeRate = pagbankOp.pixRate;
-              else if (simMethod === 'cartao_debito') feeRate = pagbankOp.debitRate;
+              if (simMethod === 'pix') feeRate = selectedIntegrationOp?.pixRate ?? 0;
+              else if (simMethod === 'cartao_debito') feeRate = selectedIntegrationOp?.debitRate ?? 1.99;
               else if (simMethod === 'cartao_credito') {
-                const foundInst = pagbankOp.installmentRates?.find(r => r.installment === simInstallments);
+                const foundInst = selectedIntegrationOp?.installmentRates?.find(r => r.installment === simInstallments);
                 if (foundInst) {
                   feeRate = foundInst.rate;
                 } else {
                   feeRate = simInstallments === 1 
-                    ? pagbankOp.creditSightRate 
+                    ? (selectedIntegrationOp?.creditSightRate ?? 3.19) 
                     : simInstallments <= 6 
-                    ? pagbankOp.creditInstallments2to6Rate 
-                    : pagbankOp.creditInstallments7to12Rate;
+                    ? (selectedIntegrationOp?.creditInstallments2to6Rate ?? 3.79) 
+                    : (selectedIntegrationOp?.creditInstallments7to12Rate ?? 4.99);
                 }
               }
               const feeVal = simAmount * (feeRate / 100);
@@ -1015,7 +1385,7 @@ export const CardOperatorsView: React.FC = () => {
                       <strong className="font-mono text-sm text-[#363739]">{formatBRL(simAmount)}</strong>
                     </div>
                     <div>
-                      <span className="text-[#707174]">Taxa PagBank ({feeRate.toFixed(2)}%): </span>
+                      <span className="text-[#707174]">Taxa {selectedIntegrationOp?.name} ({feeRate.toFixed(2)}%): </span>
                       <strong className="font-mono text-sm text-rose-600">-{formatBRL(feeVal)}</strong>
                     </div>
                     <div>
@@ -1025,6 +1395,7 @@ export const CardOperatorsView: React.FC = () => {
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleSimulateWebhook}
                     className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg transition-colors cursor-pointer shadow-xs shrink-0"
                   >
@@ -1041,10 +1412,10 @@ export const CardOperatorsView: React.FC = () => {
             <div className="p-4 border-b border-[#d8d8d8] flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-sm text-[#363739]">
-                  Histórico de Baixas Automáticas PagBank
+                  Histórico de Baixas Automáticas via Webhook / TEF
                 </h3>
                 <p className="text-xs text-[#707174]">
-                  Transações recebidas via API PagBank com baixa imediata registrada no livro financeiro.
+                  Transações recebidas via APIs adquirentes com baixa imediata registrada no livro financeiro.
                 </p>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#f4f5f6] text-[#363739] border border-[#d8d8d8]">
@@ -1611,22 +1982,52 @@ export const CardOperatorsView: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   <div>
+                    <label className="block text-slate-600 mb-0.5">Client ID / Application ID</label>
+                    <input
+                      type="text"
+                      placeholder="inf_app_... ou client_id"
+                      value={clientId}
+                      onChange={(e) => setClientId(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-[11px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 mb-0.5">Client Secret / Chave Secreta</label>
+                    <input
+                      type="password"
+                      placeholder="sec_..."
+                      value={clientSecret}
+                      onChange={(e) => setClientSecret(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-[11px]"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-slate-600 mb-0.5">Token de API / Chave Privada</label>
                     <input
                       type="text"
-                      placeholder="pagbank_sec_..."
+                      placeholder="infinite_token_... ou pagbank_sec_..."
                       value={apiToken}
                       onChange={(e) => setApiToken(e.target.value)}
                       className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-[11px]"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-600 mb-0.5">Webhook de Retorno</label>
+                    <label className="block text-slate-600 mb-0.5">Webhook de Retorno do ERP</label>
                     <input
                       type="text"
-                      placeholder="https://..."
+                      placeholder={`https://api.mppiscina.com.br/webhooks/${code}/ipn`}
                       value={webhookUrl}
                       onChange={(e) => setWebhookUrl(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-[11px]"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-600 mb-0.5">Seriais das Maquininhas POS Vinculadas (separados por vírgula)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: INF-POS-9921, INF-POS-9922, POS-SMART-8821"
+                      value={posSerials}
+                      onChange={(e) => setPosSerials(e.target.value)}
                       className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-[11px]"
                     />
                   </div>

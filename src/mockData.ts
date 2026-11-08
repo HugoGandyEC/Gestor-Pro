@@ -35,6 +35,63 @@ export const initialSuppliers: Supplier[] = [];
 
 export const initialProducts: Product[] = [];
 
+export const initialProductCategories: string[] = [
+  'Reservatórios Térmicos',
+  'Bombas e Motores',
+  'Tubulações e Conexões',
+  'Insumos Elétricos',
+  'Peças Gerais',
+  'Aquecedores Solares',
+  'Filtros e Acessórios',
+  'Iluminação & Automação'
+];
+
+export const initialProductSubcategories: string[] = [
+  'Alta Pressão',
+  'Baixa Pressão',
+  'Inox 304',
+  'Inox 316',
+  'Bombas Centrífugas',
+  'Bombas Autoescorvantes',
+  'Bombas de Calor',
+  'Conexões PVC',
+  'Tubos CPVC',
+  'Resistências Elétricas',
+  'Termostatos',
+  'Válvulas e Registros',
+  'Química e Tratamento'
+];
+
+export const initialProductBrands: string[] = [
+  'TermoMax',
+  'Sollarium',
+  'Komeco',
+  'Dancor',
+  'Jacuzzi',
+  'Tigre',
+  'Schneider',
+  'Amanco',
+  'Tholz',
+  'Nautilus',
+  'Inbramaq',
+  'Genco'
+];
+
+export const initialProductTags: string[] = [
+  'aquecedor',
+  'solar',
+  'boiler',
+  'piscina',
+  'bomba',
+  'inox',
+  'resistencia',
+  'valvula',
+  'filtro',
+  'alta-pressao',
+  'termostato',
+  'comando-eletrico'
+];
+
 export const initialStockMovements: StockMovement[] = [];
 
 export const initialCardRates: CardMachineRate[] = [
@@ -86,6 +143,48 @@ export const initialCardOperators: CardOperator[] = [
       autoNotifyClientWhatsapp: true
     },
     notes: 'Configuração padrão de operadora de pagamentos com baixa automática para maquininhas e link de pagamento.',
+    createdAt: new Date().toISOString().split('T')[0]
+  },
+  {
+    id: 'op-infinitepay',
+    name: 'InfinitePay (CloudWalk)',
+    code: 'infinitepay',
+    cnpj: '32.748.242/0001-04',
+    type: 'maquininha',
+    active: true,
+    settlementTermDays: 1,
+    pixRate: 0.00,
+    debitRate: 1.38,
+    creditSightRate: 3.16,
+    creditInstallments2to6Rate: 5.40,
+    creditInstallments7to12Rate: 9.31,
+    anticipationRate: 0.00,
+    acceptedBrands: ['Visa', 'Mastercard', 'Elo', 'Hipercard'],
+    defaultAbsorptionMode: 'repassar',
+    installmentRates: [
+      { installment: 1, rate: 3.16, absorptionMode: 'assumir' },
+      { installment: 2, rate: 5.40, absorptionMode: 'repassar' },
+      { installment: 3, rate: 6.19, absorptionMode: 'repassar' },
+      { installment: 4, rate: 6.98, absorptionMode: 'repassar' },
+      { installment: 5, rate: 7.76, absorptionMode: 'repassar' },
+      { installment: 6, rate: 8.54, absorptionMode: 'repassar' },
+      { installment: 7, rate: 9.31, absorptionMode: 'repassar' },
+      { installment: 8, rate: 10.08, absorptionMode: 'repassar' },
+      { installment: 9, rate: 10.84, absorptionMode: 'repassar' },
+      { installment: 10, rate: 11.59, absorptionMode: 'repassar' },
+      { installment: 11, rate: 12.34, absorptionMode: 'repassar' },
+      { installment: 12, rate: 13.08, absorptionMode: 'repassar' }
+    ],
+    integration: {
+      enabled: false,
+      environment: 'production',
+      apiToken: '',
+      webhookUrl: 'https://seuservidor.com/api/webhooks/infinitepay',
+      autoReconcile: true,
+      status: 'disconnected',
+      autoNotifyClientWhatsapp: true
+    },
+    notes: 'Operadora InfinitePay (CloudWalk) com taxas competitivas e liquidação em 1 dia útil, configurada com todas as 12 parcelas.',
     createdAt: new Date().toISOString().split('T')[0]
   }
 ];

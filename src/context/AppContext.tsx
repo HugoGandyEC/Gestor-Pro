@@ -53,7 +53,11 @@ import {
   initialSequenceSettings,
   initialWarrantyPolicies,
   themeDefinitions,
-  initialAuthUsers
+  initialAuthUsers,
+  initialProductCategories,
+  initialProductSubcategories,
+  initialProductBrands,
+  initialProductTags
 } from '../mockData';
 import { 
   canModifyClientData, 
@@ -159,11 +163,40 @@ interface AppContextType {
   addStockMovement: (m: Omit<StockMovement, 'id' | 'date'>) => void;
   updateCardRate: (brand: CardMachineRate['brand'], updates: Partial<CardMachineRate>) => void;
 
-  // Operadoras de Cartão & Integração PagBank
+  // Product Taxonomies (Categorias, Subcategorias, Marcas e Tags Editáveis)
+  productCategories: string[];
+  productSubcategories: string[];
+  productBrands: string[];
+  productTags: string[];
+  addProductCategory: (category: string) => void;
+  updateProductCategory: (oldCategory: string, newCategory: string) => void;
+  deleteProductCategory: (category: string) => void;
+  addProductSubcategory: (subcategory: string) => void;
+  updateProductSubcategory: (oldSubcategory: string, newSubcategory: string) => void;
+  deleteProductSubcategory: (subcategory: string) => void;
+  addProductBrand: (brand: string) => void;
+  updateProductBrand: (oldBrand: string, newBrand: string) => void;
+  deleteProductBrand: (brand: string) => void;
+  addProductTag: (tag: string) => void;
+  updateProductTag: (oldTag: string, newTag: string) => void;
+  deleteProductTag: (tag: string) => void;
+
+  // Universal Batch Import for Backups (Clientes, Serviços, OS, Vendas, Compras, Pagamentos, Estoque)
+  batchImportClients: (newClients: Omit<Client, 'id' | 'createdAt'>[], mode: 'append' | 'replace') => number;
+  batchImportServices: (newServices: Omit<ServiceCatalogItem, 'id'>[], mode: 'append' | 'replace') => number;
+  batchImportServiceOrders: (newOrders: Omit<ServiceOrder, 'id'>[], mode: 'append' | 'replace') => number;
+  batchImportDirectSales: (newSales: Omit<DirectSale, 'id'>[], mode: 'append' | 'replace') => number;
+  batchImportSuppliers: (newSuppliers: Omit<Supplier, 'id'>[], mode: 'append' | 'replace') => number;
+  batchImportPayments: (newPayments: Omit<GeneralExpense, 'id'>[], mode: 'append' | 'replace') => number;
+  batchImportProducts: (newProducts: Omit<Product, 'id'>[], mode: 'append' | 'replace') => number;
+
+  // Operadoras de Cartão & Integração PagBank / InfinitePay / Stone / Cielo
   addCardOperator: (op: Omit<CardOperator, 'id' | 'createdAt'>) => void;
   updateCardOperator: (id: string, updates: Partial<CardOperator>) => void;
   deleteCardOperator: (id: string) => void;
   processPagBankWebhook: (payload: {
+    operatorId?: string;
+    operatorCode?: string;
     orderCode?: string;
     saleCode?: string;
     clientName?: string;
@@ -257,7 +290,11 @@ const KEYS = {
   SEQUENCE_SETTINGS: 'gestaopro_sequence_settings_v4',
   WARRANTY_POLICIES: 'gestaopro_warranty_policies_v4',
   AUTH_USER: 'gestaopro_auth_user_v4',
-  THEME: 'gestaopro_current_theme_v4'
+  THEME: 'gestaopro_current_theme_v4',
+  PRODUCT_CATEGORIES: 'gestaopro_product_categories_v4',
+  PRODUCT_SUBCATEGORIES: 'gestaopro_product_subcategories_v4',
+  PRODUCT_BRANDS: 'gestaopro_product_brands_v4',
+  PRODUCT_TAGS: 'gestaopro_product_tags_v4'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -457,6 +494,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : initialProducts;
   });
 
+  // Helper to keep taxonomies alphabetically sorted
+  const sortAlpha = (list: string[]) => {
+    return [...list].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  };
+
+  const [productCategories, setProductCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem(KEYS.PRODUCT_CATEGORIES);
+    return sortAlpha(saved ? JSON.parse(saved) : initialProductCategories);
+  });
+
+  const [productSubcategories, setProductSubcategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem(KEYS.PRODUCT_SUBCATEGORIES);
+    return sortAlpha(saved ? JSON.parse(saved) : initialProductSubcategories);
+  });
+
+  const [productBrands, setProductBrands] = useState<string[]>(() => {
+    const saved = localStorage.getItem(KEYS.PRODUCT_BRANDS);
+    return sortAlpha(saved ? JSON.parse(saved) : initialProductBrands);
+  });
+
+  const [productTags, setProductTags] = useState<string[]>(() => {
+    const saved = localStorage.getItem(KEYS.PRODUCT_TAGS);
+    return sortAlpha(saved ? JSON.parse(saved) : initialProductTags);
+  });
+
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
     const saved = localStorage.getItem(KEYS.STOCK);
     return saved ? JSON.parse(saved) : initialStockMovements;
@@ -469,7 +531,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [cardOperators, setCardOperators] = useState<CardOperator[]>(() => {
     const saved = localStorage.getItem(KEYS.CARD_OPERATORS);
-    return saved ? JSON.parse(saved) : initialCardOperators;
+    if (!saved) return initialCardOperators;
+    try {
+      const parsed: CardOperator[] = JSON.parse(saved);
+      const hasInfinitePay = parsed.some(op => op.code === 'infinitepay');
+      if (!hasInfinitePay) {
+        const inf = initialCardOperators.find(op => op.code === 'infinitepay');
+        if (inf) return [...parsed, inf];
+      }
+      return parsed;
+    } catch {
+      return initialCardOperators;
+    }
   });
 
   const [pagBankTransactions, setPagBankTransactions] = useState<PagBankTransaction[]>(() => {
@@ -535,6 +608,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem(KEYS.CLIENTS, JSON.stringify(clients)); }, [clients]);
   useEffect(() => { localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify(suppliers)); }, [suppliers]);
   useEffect(() => { localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products)); }, [products]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_CATEGORIES, JSON.stringify(productCategories)); }, [productCategories]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_SUBCATEGORIES, JSON.stringify(productSubcategories)); }, [productSubcategories]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_BRANDS, JSON.stringify(productBrands)); }, [productBrands]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_TAGS, JSON.stringify(productTags)); }, [productTags]);
   useEffect(() => { localStorage.setItem(KEYS.STOCK, JSON.stringify(stockMovements)); }, [stockMovements]);
   useEffect(() => { localStorage.setItem(KEYS.CARD_RATES, JSON.stringify(cardRates)); }, [cardRates]);
   useEffect(() => { localStorage.setItem(KEYS.CARD_OPERATORS, JSON.stringify(cardOperators)); }, [cardOperators]);
@@ -692,8 +769,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clients,
       suppliers,
       products,
+      productCategories,
+      productSubcategories,
+      productBrands,
+      productTags,
       stockMovements,
       cardRates,
+      cardOperators,
       customerTickets,
       auditLogs,
       employees,
@@ -722,8 +804,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.clients) setClients(data.clients);
       if (data.suppliers) setSuppliers(data.suppliers);
       if (data.products) setProducts(data.products);
+      if (data.productCategories) setProductCategories(data.productCategories);
+      if (data.productSubcategories) setProductSubcategories(data.productSubcategories);
+      if (data.productBrands) setProductBrands(data.productBrands);
+      if (data.productTags) setProductTags(data.productTags);
       if (data.stockMovements) setStockMovements(data.stockMovements);
       if (data.cardRates) setCardRates(data.cardRates);
+      if (data.cardOperators) setCardOperators(data.cardOperators);
       if (data.customerTickets) setCustomerTickets(data.customerTickets);
       if (data.auditLogs) setAuditLogs(data.auditLogs);
       if (data.employees) setEmployees(data.employees);
@@ -1210,6 +1297,208 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSuppliers(prev => prev.filter(s => s.id !== id));
   };
 
+  // Product Taxonomies CRUD & Management (Categorias, Subcategorias, Marcas, Tags)
+  const addProductCategory = (category: string) => {
+    const clean = category.trim();
+    if (!clean) return;
+    setProductCategories(prev => sortAlpha(prev.includes(clean) ? prev : [...prev, clean]));
+    addAuditLog('Nova Categoria de Produto', `Categoria "${clean}" adicionada.`);
+  };
+
+  const updateProductCategory = (oldCategory: string, newCategory: string) => {
+    const clean = newCategory.trim();
+    if (!clean || clean === oldCategory) return;
+    setProductCategories(prev => sortAlpha(prev.map(c => c === oldCategory ? clean : c)));
+    setProducts(prev => prev.map(p => p.category === oldCategory ? { ...p, category: clean } : p));
+    addAuditLog('Atualização de Categoria', `Categoria renomeada de "${oldCategory}" para "${clean}".`);
+  };
+
+  const deleteProductCategory = (category: string) => {
+    setProductCategories(prev => sortAlpha(prev.filter(c => c !== category)));
+    addAuditLog('Exclusão de Categoria', `Categoria "${category}" removida da lista.`);
+  };
+
+  const addProductSubcategory = (subcategory: string) => {
+    const clean = subcategory.trim();
+    if (!clean) return;
+    setProductSubcategories(prev => sortAlpha(prev.includes(clean) ? prev : [...prev, clean]));
+    addAuditLog('Nova Subcategoria', `Subcategoria "${clean}" adicionada.`);
+  };
+
+  const updateProductSubcategory = (oldSubcategory: string, newSubcategory: string) => {
+    const clean = newSubcategory.trim();
+    if (!clean || clean === oldSubcategory) return;
+    setProductSubcategories(prev => sortAlpha(prev.map(s => s === oldSubcategory ? clean : s)));
+    setProducts(prev => prev.map(p => p.subcategory === oldSubcategory ? { ...p, subcategory: clean } : p));
+    addAuditLog('Atualização de Subcategoria', `Subcategoria renomeada de "${oldSubcategory}" para "${clean}".`);
+  };
+
+  const deleteProductSubcategory = (subcategory: string) => {
+    setProductSubcategories(prev => sortAlpha(prev.filter(s => s !== subcategory)));
+    addAuditLog('Exclusão de Subcategoria', `Subcategoria "${subcategory}" removida da lista.`);
+  };
+
+  const addProductBrand = (brand: string) => {
+    const clean = brand.trim();
+    if (!clean) return;
+    setProductBrands(prev => sortAlpha(prev.includes(clean) ? prev : [...prev, clean]));
+    addAuditLog('Nova Marca de Produto', `Marca "${clean}" adicionada.`);
+  };
+
+  const updateProductBrand = (oldBrand: string, newBrand: string) => {
+    const clean = newBrand.trim();
+    if (!clean || clean === oldBrand) return;
+    setProductBrands(prev => sortAlpha(prev.map(b => b === oldBrand ? clean : b)));
+    setProducts(prev => prev.map(p => p.brand === oldBrand ? { ...p, brand: clean } : p));
+    addAuditLog('Atualização de Marca', `Marca renomeada de "${oldBrand}" para "${clean}".`);
+  };
+
+  const deleteProductBrand = (brand: string) => {
+    setProductBrands(prev => sortAlpha(prev.filter(b => b !== brand)));
+    addAuditLog('Exclusão de Marca', `Marca "${brand}" removida da lista.`);
+  };
+
+  const addProductTag = (tag: string) => {
+    const clean = tag.replace(/^#/, '').trim().toLowerCase();
+    if (!clean) return;
+    setProductTags(prev => sortAlpha(prev.includes(clean) ? prev : [...prev, clean]));
+    addAuditLog('Nova Tag', `Tag "#${clean}" adicionada.`);
+  };
+
+  const updateProductTag = (oldTag: string, newTag: string) => {
+    const clean = newTag.replace(/^#/, '').trim().toLowerCase();
+    const oldClean = oldTag.replace(/^#/, '').trim().toLowerCase();
+    if (!clean || clean === oldClean) return;
+    setProductTags(prev => sortAlpha(prev.map(t => t.replace(/^#/, '').trim().toLowerCase() === oldClean ? clean : t)));
+    setProducts(prev => prev.map(p => {
+      if (!p.tags) return p;
+      return {
+        ...p,
+        tags: p.tags.map(t => t.replace(/^#/, '').trim().toLowerCase() === oldClean ? clean : t)
+      };
+    }));
+    addAuditLog('Atualização de Tag', `Tag renomeada de "#${oldClean}" para "#${clean}".`);
+  };
+
+  const deleteProductTag = (tag: string) => {
+    const clean = tag.replace(/^#/, '').trim().toLowerCase();
+    setProductTags(prev => sortAlpha(prev.filter(t => t.replace(/^#/, '').trim().toLowerCase() !== clean)));
+    setProducts(prev => prev.map(p => ({
+      ...p,
+      tags: p.tags?.filter(t => t.replace(/^#/, '').trim().toLowerCase() !== clean)
+    })));
+    addAuditLog('Exclusão de Tag', `Tag "#${clean}" removida.`);
+  };
+
+  // Universal Batch Import for Backups (Clientes, Serviços, OS, Vendas, Compras, Pagamentos, Estoque)
+  const batchImportClients = (newClients: Omit<Client, 'id' | 'createdAt'>[], mode: 'append' | 'replace'): number => {
+    const createdClients: Client[] = newClients.map((c, idx) => ({
+      ...c,
+      id: `cli-${Date.now()}-${idx}`,
+      createdAt: new Date().toISOString()
+    }));
+    if (mode === 'replace') {
+      setClients(createdClients);
+    } else {
+      setClients(prev => [...prev, ...createdClients]);
+    }
+    addAuditLog('Importação de Clientes', `${createdClients.length} clientes importados via backup (${mode === 'replace' ? 'substituição' : 'acréscimo'}).`);
+    return createdClients.length;
+  };
+
+  const batchImportServices = (newServices: Omit<ServiceCatalogItem, 'id'>[], mode: 'append' | 'replace'): number => {
+    const createdServices: ServiceCatalogItem[] = newServices.map((s, idx) => ({
+      ...s,
+      id: `srv-${Date.now()}-${idx}`
+    }));
+    if (mode === 'replace') {
+      setServiceCatalog(createdServices);
+    } else {
+      setServiceCatalog(prev => [...prev, ...createdServices]);
+    }
+    addAuditLog('Importação de Serviços', `${createdServices.length} serviços do catálogo importados via backup.`);
+    return createdServices.length;
+  };
+
+  const batchImportServiceOrders = (newOrders: Omit<ServiceOrder, 'id'>[], mode: 'append' | 'replace'): number => {
+    const createdOrders: ServiceOrder[] = newOrders.map((o, idx) => ({
+      ...o,
+      id: `os-${Date.now()}-${idx}`,
+      code: o.code || `OS-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`
+    }));
+    if (mode === 'replace') {
+      setServiceOrders(createdOrders);
+    } else {
+      setServiceOrders(prev => [...prev, ...createdOrders]);
+    }
+    addAuditLog('Importação de Ordens de Serviço', `${createdOrders.length} ordens de serviço importadas via backup.`);
+    return createdOrders.length;
+  };
+
+  const batchImportDirectSales = (newSales: Omit<DirectSale, 'id'>[], mode: 'append' | 'replace'): number => {
+    const createdSales: DirectSale[] = newSales.map((s, idx) => ({
+      ...s,
+      id: `sale-${Date.now()}-${idx}`,
+      code: s.code || `PED-${Date.now().toString().slice(-6)}`
+    }));
+    if (mode === 'replace') {
+      setDirectSales(createdSales);
+    } else {
+      setDirectSales(prev => [...prev, ...createdSales]);
+    }
+    addAuditLog('Importação de Vendas', `${createdSales.length} pedidos de venda importados via backup.`);
+    return createdSales.length;
+  };
+
+  const batchImportSuppliers = (newSuppliers: Omit<Supplier, 'id'>[], mode: 'append' | 'replace'): number => {
+    const createdSuppliers: Supplier[] = newSuppliers.map((s, idx) => ({
+      ...s,
+      id: `sup-${Date.now()}-${idx}`
+    }));
+    if (mode === 'replace') {
+      setSuppliers(createdSuppliers);
+    } else {
+      setSuppliers(prev => [...prev, ...createdSuppliers]);
+    }
+    addAuditLog('Importação de Fornecedores/Compras', `${createdSuppliers.length} fornecedores importados via backup.`);
+    return createdSuppliers.length;
+  };
+
+  const batchImportPayments = (newPayments: Omit<GeneralExpense, 'id'>[], mode: 'append' | 'replace'): number => {
+    const createdPayments: GeneralExpense[] = newPayments.map((p, idx) => ({
+      ...p,
+      id: `exp-${Date.now()}-${idx}`
+    }));
+    if (mode === 'replace') {
+      setGeneralExpenses(createdPayments);
+    } else {
+      setGeneralExpenses(prev => [...prev, ...createdPayments]);
+    }
+    addAuditLog('Importação Financeira/Pagamentos', `${createdPayments.length} pagamentos/despesas importados via backup.`);
+    return createdPayments.length;
+  };
+
+  const batchImportProducts = (newProducts: Omit<Product, 'id'>[], mode: 'append' | 'replace'): number => {
+    const createdProducts: Product[] = newProducts.map((p, idx) => ({
+      ...p,
+      id: `prod-${Date.now()}-${idx}`
+    }));
+    if (mode === 'replace') {
+      setProducts(createdProducts);
+    } else {
+      setProducts(prev => [...prev, ...createdProducts]);
+    }
+    // Auto-adiciona na lista de taxonomias em ordem alfabética
+    newProducts.forEach(p => {
+      if (p.category) addProductCategory(p.category);
+      if (p.subcategory) addProductSubcategory(p.subcategory);
+      if (p.brand) addProductBrand(p.brand);
+      if (p.tags) p.tags.forEach(t => addProductTag(t));
+    });
+    addAuditLog('Importação de Produtos/Estoque', `${createdProducts.length} produtos importados via backup.`);
+    return createdProducts.length;
+  };
+
   // Product CRUD
   const addProduct = (p: Omit<Product, 'id'>) => {
     const newProd: Product = {
@@ -1217,11 +1506,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `prod-${Date.now()}`
     };
     setProducts(prev => [newProd, ...prev]);
+
+    // Auto-adiciona na lista de taxonomias salvas se forem novas
+    if (p.category && !productCategories.includes(p.category)) {
+      setProductCategories(prev => [...prev, p.category]);
+    }
+    if (p.subcategory && !productSubcategories.includes(p.subcategory)) {
+      const subcat = p.subcategory;
+      setProductSubcategories(prev => [...prev, subcat]);
+    }
+    if (p.brand && !productBrands.includes(p.brand)) {
+      const b = p.brand;
+      setProductBrands(prev => [...prev, b]);
+    }
+    if (p.tags && p.tags.length > 0) {
+      setProductTags(prev => Array.from(new Set([...prev, ...p.tags!.map(t => t.trim().toLowerCase())])));
+    }
+
     addAuditLog('Novo Produto', `Produto ${p.name} cadastrado com estoque inicial de ${p.currentStock}.`);
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+
+    // Auto-adiciona na lista de taxonomias salvas
+    if (updates.category && !productCategories.includes(updates.category)) {
+      setProductCategories(prev => [...prev, updates.category!]);
+    }
+    if (updates.subcategory && !productSubcategories.includes(updates.subcategory)) {
+      setProductSubcategories(prev => [...prev, updates.subcategory!]);
+    }
+    if (updates.brand && !productBrands.includes(updates.brand)) {
+      setProductBrands(prev => [...prev, updates.brand!]);
+    }
+    if (updates.tags && updates.tags.length > 0) {
+      setProductTags(prev => Array.from(new Set([...prev, ...updates.tags!.map(t => t.trim().toLowerCase())])));
+    }
   };
 
   const deleteProduct = (id: string) => {
@@ -1272,8 +1592,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('Exclusão de Operadora', `Operadora ID ${id} excluída do cadastro.`);
   };
 
-  // Process PagBank Webhook / Realtime Automatic Reconciliation
+  // Process Card Operator Webhook / Realtime Automatic Reconciliation
   const processPagBankWebhook = (payload: {
+    operatorId?: string;
+    operatorCode?: string;
     orderCode?: string;
     saleCode?: string;
     clientName?: string;
@@ -1283,21 +1605,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     brand?: string;
     nsu?: string;
   }) => {
-    const pagbank = cardOperators.find(o => o.code === 'pagbank') || cardOperators[0];
+    // Localiza a operadora especificada ou PagBank como padrão
+    const operator = (payload.operatorId && cardOperators.find(o => o.id === payload.operatorId)) ||
+      (payload.operatorCode && cardOperators.find(o => o.code === payload.operatorCode)) ||
+      cardOperators.find(o => o.code === 'pagbank') ||
+      cardOperators[0];
+
     const installments = payload.installments || 1;
     let feePct = 0;
 
     if (payload.method === 'pix') {
-      feePct = pagbank ? pagbank.pixRate : 0.00;
+      feePct = operator ? operator.pixRate : 0.00;
     } else if (payload.method === 'cartao_debito') {
-      feePct = pagbank ? pagbank.debitRate : 1.99;
+      feePct = operator ? operator.debitRate : 1.99;
     } else if (payload.method === 'cartao_credito') {
-      if (installments === 1) {
-        feePct = pagbank ? pagbank.creditSightRate : 3.19;
+      // Verifica se a operadora possui taxa configurada exatamente para esse número de parcelas
+      const customInstallment = operator?.installmentRates?.find(ir => ir.installment === installments);
+      if (customInstallment) {
+        feePct = customInstallment.rate;
+      } else if (installments === 1) {
+        feePct = operator ? operator.creditSightRate : 3.19;
       } else if (installments <= 6) {
-        feePct = pagbank ? pagbank.creditInstallments2to6Rate : 3.79;
+        feePct = operator ? operator.creditInstallments2to6Rate : 3.79;
       } else {
-        feePct = pagbank ? pagbank.creditInstallments7to12Rate : 4.99;
+        feePct = operator ? operator.creditInstallments7to12Rate : 4.99;
       }
     } else {
       feePct = 1.99;
@@ -1379,7 +1710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newTrx: PagBankTransaction = {
       id: `pbtx-${Date.now()}`,
       transactionCode: trxCode,
-      operatorId: pagbank?.id || 'op-pagbank',
+      operatorId: operator?.id || 'op-pagbank',
       orderCode: payload.orderCode,
       saleId: payload.saleCode,
       clientName: matchedClient,
@@ -1401,9 +1732,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPagBankTransactions(prev => [newTrx, ...prev]);
     
     // Atualiza data do último sync na operadora
-    if (pagbank) {
+    if (operator) {
       setCardOperators(prev => prev.map(op => {
-        if (op.code === 'pagbank' && op.integration) {
+        if (op.id === operator.id && op.integration) {
           return {
             ...op,
             integration: {
@@ -1417,7 +1748,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     }
 
-    addAuditLog('Baixa Automática PagBank', `Transação ${trxCode} (NSU ${nsu}) aprovada. Valor bruto R$ ${payload.amount.toFixed(2)}, taxa retida R$ ${feeAmount.toFixed(2)}, crédito líquido de R$ ${netAmount.toFixed(2)} baixado para ${payload.orderCode || payload.saleCode || 'Venda'}.`);
+    addAuditLog('Baixa Automática TEF/Gateway', `Transação ${trxCode} (${operator?.name || 'Operadora'}, NSU ${nsu}) aprovada. Valor bruto R$ ${payload.amount.toFixed(2)}, taxa retida R$ ${feeAmount.toFixed(2)}, crédito líquido de R$ ${netAmount.toFixed(2)} baixado para ${payload.orderCode || payload.saleCode || 'Venda'}.`);
 
     return {
       success: true,
@@ -2014,6 +2345,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addProduct,
         updateProduct,
         deleteProduct,
+        productCategories,
+        productSubcategories,
+        productBrands,
+        productTags,
+        addProductCategory,
+        updateProductCategory,
+        deleteProductCategory,
+        addProductSubcategory,
+        updateProductSubcategory,
+        deleteProductSubcategory,
+        addProductBrand,
+        updateProductBrand,
+        deleteProductBrand,
+        addProductTag,
+        updateProductTag,
+        deleteProductTag,
+        batchImportClients,
+        batchImportServices,
+        batchImportServiceOrders,
+        batchImportDirectSales,
+        batchImportSuppliers,
+        batchImportPayments,
+        batchImportProducts,
         addStockMovement,
         updateCardRate,
         addCardOperator,

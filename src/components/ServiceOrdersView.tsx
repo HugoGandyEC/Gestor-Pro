@@ -34,7 +34,14 @@ import {
   MessageSquare,
   Store,
   X,
-  Smartphone
+  Smartphone,
+  Wrench,
+  CheckSquare,
+  Tag,
+  Sparkles,
+  Layers,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { 
@@ -66,6 +73,10 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     clients, 
     products, 
     cardRates,
+    serviceCatalog,
+    checklistTemplates,
+    addServiceCatalogItem,
+    addChecklistTemplate,
     addServiceOrder, 
     updateServiceOrder, 
     deleteServiceOrder,
@@ -154,10 +165,268 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [isMultiSplit, setIsMultiSplit] = useState(false);
   const [pdvSplits, setPdvSplits] = useState<PaymentSplit[]>([]);
 
+  // Catalog & Custom Services in OS State
+  const [serviceAddMode, setServiceAddMode] = useState<'catalogo' | 'avulso' | 'novo_vinculado'>('catalogo');
+  const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
+  const [selectedCatalogServiceId, setSelectedCatalogServiceId] = useState('');
+  const [customServiceName, setCustomServiceName] = useState('');
+  const [customServiceCategory, setCustomServiceCategory] = useState('Serviço Geral');
+  const [customServiceHours, setCustomServiceHours] = useState<number>(1);
+  const [customServicePrice, setCustomServicePrice] = useState<number | ''>('');
+
+  // States for 'novo_vinculado': Criar Serviço e Checklist simultaneamente e vinculá-los
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceCategory, setNewServiceCategory] = useState('Aquecimento Solar & Piscinas');
+  const [newServiceHours, setNewServiceHours] = useState<number>(2);
+  const [newServicePrice, setNewServicePrice] = useState<number | ''>('');
+  const [newChecklistTitle, setNewChecklistTitle] = useState('');
+  const [newChecklistEquipType, setNewChecklistEquipType] = useState('Reservatório Térmico Solar / Boiler');
+  const [newChecklistDraftItems, setNewChecklistDraftItems] = useState<{ label: string; category: ChecklistItem['category'] }[]>([
+    { label: 'Condição das conexões hidráulicas e sem vazamentos', category: 'Hidráulica e Pressão' },
+    { label: 'Teste de isolamento elétrico e fiação', category: 'Elétrica e Comando' }
+  ]);
+  const [newDraftItemText, setNewDraftItemText] = useState('');
+  const [newDraftItemCat, setNewDraftItemCat] = useState<ChecklistItem['category']>('Estrutura e Tanque');
+
+  // Checklist Interactive State
+  const [selectedTemplateToImport, setSelectedTemplateToImport] = useState('');
+  const [newChecklistLabel, setNewChecklistLabel] = useState('');
+  const [newChecklistCategory, setNewChecklistCategory] = useState<ChecklistItem['category']>('Estrutura e Tanque');
+  const [newChecklistServiceTag, setNewChecklistServiceTag] = useState('');
+  const [isAddingManualChecklist, setIsAddingManualChecklist] = useState(false);
+  const [checklistFeedback, setChecklistFeedback] = useState<string | null>(null);
+
+  const handleAddCatalogService = (catalogServiceId: string) => {
+    const item = serviceCatalog.find(s => s.id === catalogServiceId);
+    if (!item) return;
+
+    const newServiceItem: ServiceItem = {
+      id: `srv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      serviceId: item.id,
+      isCustom: false,
+      name: item.name,
+      category: item.category,
+      hours: item.defaultHours || 1,
+      price: item.standardPrice || 0
+    };
+
+    setServices(prev => [...prev.filter(s => s.name.trim() !== ''), newServiceItem]);
+    setSelectedCatalogServiceId('');
+    setCatalogSearchTerm('');
+
+    // Sincroniza / anexa automaticamente os checklists vinculados a este serviço
+    const linkedChecklists = checklistTemplates.filter(t => 
+      t.serviceIds?.includes(item.id) || 
+      (t.title && t.title.toLowerCase().includes(item.name.toLowerCase())) ||
+      (t.equipmentType && item.category && item.category.toLowerCase().includes(t.equipmentType.toLowerCase()))
+    );
+
+    if (linkedChecklists.length > 0) {
+      linkedChecklists.forEach(tmpl => {
+        tmpl.items.forEach(it => {
+          setChecklists(prev => {
+            if (prev.some(c => c.label.toLowerCase() === it.label.toLowerCase() && (c.serviceId === item.id || c.serviceName === item.name))) {
+              return prev;
+            }
+            return [
+              ...prev,
+              {
+                id: `chk-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                label: it.label,
+                category: it.category,
+                status: 'ok',
+                serviceName: item.name,
+                serviceId: item.id
+              }
+            ];
+          });
+        });
+      });
+      setChecklistFeedback(`Serviço "${item.name}" adicionado com checklist(s) vinculado(s) anexado(s) automaticamente!`);
+      setTimeout(() => setChecklistFeedback(null), 4000);
+    } else {
+      setChecklistFeedback(`Serviço "${item.name}" adicionado do catálogo.`);
+      setTimeout(() => setChecklistFeedback(null), 3000);
+    }
+  };
+
+  const handleCreateServiceAndLinkedChecklist = () => {
+    if (!newServiceName.trim()) return;
+
+    const srvId = `srv-${Date.now()}`;
+    const srvCode = `SRV-${Date.now().toString().slice(-4)}`;
+    const finalPrice = Number(newServicePrice) || 0;
+    const finalHours = Number(newServiceHours) || 1;
+
+    // 1. Cadastra o novo serviço no catálogo do sistema
+    addServiceCatalogItem({
+      code: srvCode,
+      name: newServiceName.trim(),
+      category: newServiceCategory.trim() || 'Serviço Geral',
+      defaultHours: finalHours,
+      standardPrice: finalPrice,
+      minPrice: Math.round(finalPrice * 0.8)
+    });
+
+    // 2. Prepara os itens do checklist
+    const itemsToAttach = newChecklistDraftItems.length > 0 
+      ? newChecklistDraftItems 
+      : [{ label: `Inspeção e teste de ${newServiceName.trim()}`, category: 'Estrutura e Tanque' as const }];
+
+    // 3. Cadastra o checklist template no sistema vinculado ao serviço criado
+    const chkTitle = newChecklistTitle.trim() || `Checklist Técnico - ${newServiceName.trim()}`;
+    addChecklistTemplate({
+      title: chkTitle,
+      equipmentType: newChecklistEquipType.trim() || 'Equipamento Geral',
+      serviceIds: [srvId],
+      items: itemsToAttach.map((it, idx) => ({
+        id: `item-${Date.now()}-${idx}`,
+        label: it.label,
+        category: it.category,
+        required: true
+      }))
+    });
+
+    // 4. Adiciona o serviço recém-criado à lista de serviços da OS atual
+    const newServiceItem: ServiceItem = {
+      id: `srv-item-${Date.now()}`,
+      serviceId: srvId,
+      isCustom: false,
+      name: newServiceName.trim(),
+      category: newServiceCategory.trim() || 'Serviço Geral',
+      hours: finalHours,
+      price: finalPrice
+    };
+    setServices(prev => [...prev.filter(s => s.name.trim() !== ''), newServiceItem]);
+
+    // 5. Adiciona os itens do checklist criado diretamente na OS atual
+    const newOSChecklistItems: ChecklistItem[] = itemsToAttach.map((it, idx) => ({
+      id: `chk-os-${Date.now()}-${idx}`,
+      label: it.label,
+      category: it.category,
+      status: 'ok',
+      serviceName: newServiceName.trim(),
+      serviceId: srvId
+    }));
+    setChecklists(prev => [...prev, ...newOSChecklistItems]);
+
+    // Limpa campos
+    setNewServiceName('');
+    setNewServicePrice('');
+    setNewChecklistTitle('');
+    setNewChecklistDraftItems([
+      { label: 'Condição das conexões hidráulicas e sem vazamentos', category: 'Hidráulica e Pressão' },
+      { label: 'Teste de isolamento elétrico e fiação', category: 'Elétrica e Comando' }
+    ]);
+    setServiceAddMode('catalogo');
+
+    setChecklistFeedback(`Serviço "${newServiceItem.name}" e Checklist "${chkTitle}" cadastrados no sistema e vinculados a esta OS!`);
+    setTimeout(() => setChecklistFeedback(null), 5000);
+  };
+
+  const handleAddCustomService = () => {
+    if (!customServiceName.trim()) return;
+
+    const newServiceItem: ServiceItem = {
+      id: `srv-avulso-${Date.now()}`,
+      isCustom: true,
+      name: customServiceName.trim(),
+      category: customServiceCategory || 'Serviço Avulso',
+      hours: Number(customServiceHours) || 1,
+      price: Number(customServicePrice) || 0
+    };
+
+    setServices(prev => [...prev.filter(s => s.name.trim() !== ''), newServiceItem]);
+    setCustomServiceName('');
+    setCustomServicePrice('');
+    setCustomServiceHours(1);
+    setChecklistFeedback(`Serviço avulso "${newServiceItem.name}" adicionado à OS!`);
+    setTimeout(() => setChecklistFeedback(null), 3500);
+  };
+
+  const handleImportChecklistTemplate = (templateId: string) => {
+    const tmpl = checklistTemplates.find(t => t.id === templateId);
+    if (!tmpl) return;
+
+    const newItems: ChecklistItem[] = tmpl.items.map(it => ({
+      id: `chk-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      label: it.label,
+      category: it.category,
+      status: 'ok',
+      serviceName: tmpl.title
+    }));
+
+    setChecklists(prev => [...prev, ...newItems]);
+    setSelectedTemplateToImport('');
+    setChecklistFeedback(`Modelo "${tmpl.title}" anexado com ${newItems.length} itens de inspeção!`);
+    setTimeout(() => setChecklistFeedback(null), 3500);
+  };
+
+  const handleSyncServicesChecklists = () => {
+    let countAdded = 0;
+    services.forEach(srv => {
+      if (srv.serviceId) {
+        const templates = checklistTemplates.filter(t => t.serviceIds?.includes(srv.serviceId!));
+        templates.forEach(t => {
+          t.items.forEach(it => {
+            setChecklists(prev => {
+              if (prev.some(c => c.label.toLowerCase() === it.label.toLowerCase() && (c.serviceId === srv.serviceId || c.serviceName === srv.name))) {
+                return prev;
+              }
+              countAdded++;
+              return [
+                ...prev,
+                {
+                  id: `chk-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                  label: it.label,
+                  category: it.category,
+                  status: 'ok',
+                  serviceName: srv.name,
+                  serviceId: srv.serviceId
+                }
+              ];
+            });
+          });
+        });
+      }
+    });
+
+    setChecklistFeedback(countAdded > 0 ? `${countAdded} itens de checklist sincronizados dos serviços!` : 'Todos os checklists dos serviços da OS já estão inclusos.');
+    setTimeout(() => setChecklistFeedback(null), 3500);
+  };
+
+  const handleAddManualChecklistItem = () => {
+    if (!newChecklistLabel.trim()) return;
+    setChecklists(prev => [
+      ...prev,
+      {
+        id: `chk-manual-${Date.now()}`,
+        label: newChecklistLabel.trim(),
+        category: newChecklistCategory,
+        status: 'ok',
+        serviceName: newChecklistServiceTag || undefined
+      }
+    ]);
+    setNewChecklistLabel('');
+    setIsAddingManualChecklist(false);
+  };
+
+  const handleToggleChecklistStatus = (id: string, newStatus: 'ok' | 'defeito' | 'nao_aplicavel') => {
+    setChecklists(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+  };
+
+  const handleUpdateChecklistNotes = (id: string, notes: string) => {
+    setChecklists(prev => prev.map(c => c.id === id ? { ...c, notes } : c));
+  };
+
+  const handleRemoveChecklistItem = (id: string) => {
+    setChecklists(prev => prev.filter(c => c.id !== id));
+  };
+
   const handleAddService = () => {
     setServices(prev => [
       ...prev,
-      { id: String(Date.now()), name: '', hours: 1, price: 150 }
+      { id: String(Date.now()), name: '', hours: 1, price: 150, isCustom: true }
     ]);
   };
 
@@ -1543,88 +1812,841 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                 </div>
               </div>
 
-              {/* Serviços e Peças */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-slate-700">Mão de Obra</span>
-                    <button type="button" onClick={handleAddService} className="text-blue-600 font-bold">+ Serviço</button>
+              {/* Notificação / Feedback de Checklist e Serviços */}
+              {checklistFeedback && (
+                <div className="flex items-center gap-2 p-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-semibold animate-fadeIn">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{checklistFeedback}</span>
+                </div>
+              )}
+
+              {/* Mão de Obra & Serviços (Buscar Cadastrados + Serviços Avulsos) */}
+              <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                      <Wrench className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Mão de Obra & Serviços</h4>
+                      <p className="text-[11px] text-slate-500">Busque serviços cadastrados no catálogo ou adicione serviços avulsos</p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    {services.map((srv, idx) => (
-                      <div key={srv.id || idx} className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          placeholder="Descrição do serviço"
-                          value={srv.name}
-                          onChange={(e) => {
-                            const up = [...services];
-                            up[idx].name = e.target.value;
-                            setServices(up);
-                          }}
-                          className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                        />
-                        <input
-                          type="number"
-                          placeholder="R$"
-                          value={srv.price}
-                          onChange={(e) => {
-                            const up = [...services];
-                            up[idx].price = Number(e.target.value);
-                            setServices(up);
-                          }}
-                          className="w-24 p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
-                        />
-                      </div>
-                    ))}
+
+                  {/* Mode switcher tabs */}
+                  <div className="flex flex-wrap items-center bg-white p-0.5 rounded-lg border border-slate-200 gap-1 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setServiceAddMode('catalogo')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                        serviceAddMode === 'catalogo'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                      <span>Buscar Cadastrado</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceAddMode('avulso')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                        serviceAddMode === 'avulso'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Serviço Avulso</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceAddMode('novo_vinculado')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                        serviceAddMode === 'novo_vinculado'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Criar Serviço & Checklist Vinculado</span>
+                    </button>
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-slate-700">Peças e Materiais</span>
-                    <button type="button" onClick={handleAddPart} className="text-blue-600 font-bold">+ Peça</button>
+                {/* Sub-form 1: Buscar Serviços Cadastrados */}
+                {serviceAddMode === 'catalogo' && (
+                  <div className="p-3 bg-white rounded-xl border border-blue-100 shadow-2xs space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Search className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Selecione um Serviço do Catálogo</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {serviceCatalog.length} cadastrado(s)
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        value={selectedCatalogServiceId}
+                        onChange={(e) => setSelectedCatalogServiceId(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:bg-white"
+                      >
+                        <option value="">-- Escolha um serviço cadastrado no catálogo --</option>
+                        {serviceCatalog.map((catItem) => {
+                          const linkedChk = checklistTemplates.filter(t => t.serviceIds?.includes(catItem.id));
+                          return (
+                            <option key={catItem.id} value={catItem.id}>
+                              {catItem.name} — {formatBRL(catItem.standardPrice)} ({catItem.defaultHours || 1}h) [{catItem.category}]{linkedChk.length > 0 ? ` 📋 ${linkedChk.length} checklist(s)` : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+
+                      <button
+                        type="button"
+                        disabled={!selectedCatalogServiceId}
+                        onClick={() => handleAddCatalogService(selectedCatalogServiceId)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Incluir Serviço Cadastrado</span>
+                      </button>
+                    </div>
+
+                    {selectedCatalogServiceId && (
+                      <div className="p-2 bg-blue-50/60 rounded-lg text-xs text-blue-900 flex items-center justify-between border border-blue-100">
+                        {(() => {
+                          const item = serviceCatalog.find(s => s.id === selectedCatalogServiceId);
+                          if (!item) return null;
+                          const linked = checklistTemplates.filter(t => t.serviceIds?.includes(item.id));
+                          return (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">{item.name}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-200/70 font-mono text-blue-900">
+                                  {item.category}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span>Estimado: <strong>{item.defaultHours || 1}h</strong></span>
+                                <span>Padrão: <strong>{formatBRL(item.standardPrice)}</strong></span>
+                                {linked.length > 0 && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                                    ✓ {linked.length} checklist(s) vinculado(s)
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    {parts.map((prt, idx) => (
-                      <div key={prt.id || idx} className="flex items-center gap-1.5">
+                )}
+
+                {/* Sub-form 2: Adicionar Serviço Avulso (Fora do Catálogo) */}
+                {serviceAddMode === 'avulso' && (
+                  <div className="p-3 bg-white rounded-xl border border-amber-200/80 shadow-2xs space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Cadastro Rápido de Serviço Avulso (Não Consta no Catálogo)</span>
+                      </label>
+                      <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        Uso exclusivo nesta OS
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                      <div className="sm:col-span-5">
+                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Descrição do Serviço Avulso *</label>
                         <input
                           type="text"
-                          placeholder="Peça aplicada"
+                          placeholder="Ex: Reparo emergencial no cano da piscina..."
+                          value={customServiceName}
+                          onChange={(e) => setCustomServiceName(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Categoria / Área</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Hidráulica"
+                          value={customServiceCategory}
+                          onChange={(e) => setCustomServiceCategory(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Horas (h)</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          value={customServiceHours}
+                          onChange={(e) => setCustomServiceHours(Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-center"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Preço (R$) *</label>
+                        <input
+                          type="number"
+                          placeholder="0,00"
+                          value={customServicePrice}
+                          onChange={(e) => setCustomServicePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        disabled={!customServiceName.trim()}
+                        onClick={handleAddCustomService}
+                        className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Adicionar Serviço Avulso à OS</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-form 3: Criar Novo Serviço & Checklist Vinculado (Salva no Sistema e Anexa à OS) */}
+                {serviceAddMode === 'novo_vinculado' && (
+                  <div className="p-4 bg-linear-to-br from-emerald-50/70 via-white to-teal-50/40 rounded-xl border-2 border-emerald-300 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h5 className="text-xs font-bold text-emerald-950">
+                            Cadastrar Novo Serviço & Criar Checklist Vinculado
+                          </h5>
+                          <p className="text-[11px] text-emerald-700">
+                            Cadastra o serviço no catálogo, cria o checklist padrão vinculado a ele e já inclui ambos nesta OS de uma só vez!
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                        Salva no Catálogo + Anexa à OS
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Lado 1: Cadastro do Serviço */}
+                      <div className="p-3 bg-white rounded-lg border border-emerald-200/80 shadow-2xs space-y-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 border-b border-slate-100 pb-1.5">
+                          <Wrench className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>1. Dados do Novo Serviço</span>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                              Nome / Descrição do Serviço *
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Ex: Instalação de Bomba de Calor Inverter"
+                              value={newServiceName}
+                              onChange={(e) => setNewServiceName(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:bg-white focus:border-emerald-500"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="sm:col-span-1">
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                                Categoria
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Ex: Aquecimento"
+                                value={newServiceCategory}
+                                onChange={(e) => setNewServiceCategory(e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                                Horas Estimadas
+                              </label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0.5"
+                                value={newServiceHours}
+                                onChange={(e) => setNewServiceHours(Number(e.target.value))}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-center font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                                Preço Padrão (R$) *
+                              </label>
+                              <input
+                                type="number"
+                                placeholder="0,00"
+                                value={newServicePrice}
+                                onChange={(e) => setNewServicePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-emerald-300 rounded-lg text-xs font-mono font-bold text-emerald-700"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Lado 2: Criação do Checklist Vinculado */}
+                      <div className="p-3 bg-white rounded-lg border border-teal-200/80 shadow-2xs space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                            <CheckSquare className="w-3.5 h-3.5 text-teal-600" />
+                            <span>2. Checklist Técnico Vinculado</span>
+                          </div>
+                          <span className="text-[10px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded-full">
+                            {newChecklistDraftItems.length} item(ns)
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Título do Checklist</label>
+                            <input
+                              type="text"
+                              placeholder={newServiceName ? `Checklist - ${newServiceName}` : 'Ex: Checklist de Instalação'}
+                              value={newChecklistTitle}
+                              onChange={(e) => setNewChecklistTitle(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Tipo de Equipamento / Alvo</label>
+                            <input
+                              type="text"
+                              placeholder="Ex: Bomba de Calor / Boiler"
+                              value={newChecklistEquipType}
+                              onChange={(e) => setNewChecklistEquipType(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Adicionar item ao checklist */}
+                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-200/70 space-y-1.5">
+                          <div className="text-[10px] font-bold text-slate-600">Adicionar Item de Checagem:</div>
+                          <div className="flex flex-col sm:flex-row gap-1.5">
+                            <input
+                              type="text"
+                              placeholder="Item a inspecionar (ex: Tensão 220V e disjuntor dedicado)"
+                              value={newDraftItemText}
+                              onChange={(e) => setNewDraftItemText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (newDraftItemText.trim()) {
+                                    setNewChecklistDraftItems(prev => [...prev, { label: newDraftItemText.trim(), category: newDraftItemCat }]);
+                                    setNewDraftItemText('');
+                                  }
+                                }
+                              }}
+                              className="flex-1 px-2.5 py-1 bg-white border border-slate-200 rounded text-xs"
+                            />
+                            <select
+                              value={newDraftItemCat}
+                              onChange={(e) => setNewDraftItemCat(e.target.value as ChecklistItem['category'])}
+                              className="px-2 py-1 bg-white border border-slate-200 rounded text-[11px] font-medium text-slate-700"
+                            >
+                              <option value="Estrutura e Tanque">Estrutura & Tanque</option>
+                              <option value="Hidráulica e Pressão">Hidráulica & Pressão</option>
+                              <option value="Elétrica e Comando">Elétrica & Comando</option>
+                              <option value="Sensores e Termostato">Sensores & Termostato</option>
+                              <option value="Geral e Limpeza">Geral & Limpeza</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (newDraftItemText.trim()) {
+                                  setNewChecklistDraftItems(prev => [...prev, { label: newDraftItemText.trim(), category: newDraftItemCat }]);
+                                  setNewDraftItemText('');
+                                }
+                              }}
+                              className="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded text-xs font-bold cursor-pointer shrink-0"
+                            >
+                              + Item
+                            </button>
+                          </div>
+
+                          {/* Itens adicionados no rascunho do checklist */}
+                          <div className="max-h-28 overflow-y-auto space-y-1 pt-1 pr-1">
+                            {newChecklistDraftItems.map((draft, dIdx) => (
+                              <div key={dIdx} className="flex items-center justify-between p-1.5 bg-white rounded border border-slate-200 text-xs">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-semibold shrink-0">
+                                    {draft.category}
+                                  </span>
+                                  <span className="truncate text-slate-700 font-medium">{draft.label}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewChecklistDraftItems(prev => prev.filter((_, idx) => idx !== dIdx))}
+                                  className="text-red-400 hover:text-red-600 p-0.5 ml-1 shrink-0"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1 border-t border-emerald-100">
+                      <div className="text-[11px] text-slate-500">
+                        {newServiceName.trim() ? (
+                          <span>Criará o serviço <strong className="text-emerald-700">"{newServiceName}"</strong> com <strong className="text-teal-700">{newChecklistDraftItems.length} itens</strong> no checklist.</span>
+                        ) : (
+                          <span>Preencha o nome do serviço para habilitar o salvamento integrado.</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!newServiceName.trim()}
+                        onClick={handleCreateServiceAndLinkedChecklist}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>Salvar no Catálogo & Anexar Serviço com Checklist na OS</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de Serviços Adicionados na OS */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <span>Serviços Inclusos na OS ({services.filter(s => s.name.trim() !== '').length}):</span>
+                    <span className="font-mono text-blue-700 font-bold">
+                      Subtotal Serviços: {formatBRL(services.reduce((a, b) => a + Number(b.price || 0), 0))}
+                    </span>
+                  </div>
+
+                  {services.length === 0 || services.every(s => s.name.trim() === '') ? (
+                    <div className="p-3 text-center text-xs text-slate-400 bg-white rounded-lg border border-dashed border-slate-300">
+                      Nenhum serviço adicionado. Use os botões acima para buscar serviços cadastrados ou inserir um serviço avulso.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {services.map((srv, idx) => {
+                        const isCatalog = !srv.isCustom && Boolean(srv.serviceId);
+                        const hasLinkedChecklists = srv.serviceId && checklistTemplates.some(t => t.serviceIds?.includes(srv.serviceId!));
+
+                        return (
+                          <div 
+                            key={srv.id || idx} 
+                            className={`p-2.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-colors ${
+                              isCatalog ? 'bg-white border-blue-200/80 shadow-2xs' : 'bg-amber-50/40 border-amber-200/70'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
+                                isCatalog ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                              }`}>
+                                {isCatalog ? 'Catálogo' : 'Avulso'}
+                              </span>
+
+                              <div className="flex-1 min-w-0">
+                                <input
+                                  type="text"
+                                  placeholder="Descrição do serviço"
+                                  value={srv.name}
+                                  onChange={(e) => {
+                                    const up = [...services];
+                                    up[idx].name = e.target.value;
+                                    setServices(up);
+                                  }}
+                                  className="w-full text-xs font-semibold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-white px-1 py-0.5 rounded"
+                                />
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 px-1">
+                                  {srv.category && <span>{srv.category}</span>}
+                                  {hasLinkedChecklists && (
+                                    <span className="text-emerald-700 font-semibold flex items-center gap-0.5">
+                                      <CheckCircle2 className="w-3 h-3" /> Checklist vinculado
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                              <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0.5"
+                                  title="Horas de execução"
+                                  value={srv.hours || 1}
+                                  onChange={(e) => {
+                                    const up = [...services];
+                                    up[idx].hours = Number(e.target.value);
+                                    setServices(up);
+                                  }}
+                                  className="w-12 text-xs font-mono text-center bg-transparent"
+                                />
+                                <span className="text-[10px] text-slate-500 font-mono">h</span>
+                              </div>
+
+                              <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                <span className="text-[10px] text-slate-500 font-mono">R$</span>
+                                <input
+                                  type="number"
+                                  placeholder="0,00"
+                                  value={srv.price}
+                                  onChange={(e) => {
+                                    const up = [...services];
+                                    up[idx].price = Number(e.target.value);
+                                    setServices(up);
+                                  }}
+                                  className="w-20 text-xs font-mono font-bold text-slate-900 bg-transparent"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setServices(prev => prev.filter((_, i) => i !== idx))}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Remover este serviço"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Peças e Materiais Aplicados */}
+              <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Peças & Materiais Aplicados</h4>
+                      <p className="text-[11px] text-slate-500">Componentes e produtos instalados na manutenção</p>
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={handleAddPart} 
+                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Adicionar Peça
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {parts.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-400 bg-white rounded-lg border border-dashed border-slate-300">
+                      Nenhuma peça vinculada a esta OS. Clique no botão acima para adicionar peças do estoque ou avulsas.
+                    </div>
+                  ) : (
+                    parts.map((prt, idx) => (
+                      <div key={prt.id || idx} className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Nome / Descrição da peça aplicada"
                           value={prt.name}
                           onChange={(e) => {
                             const up = [...parts];
                             up[idx].name = e.target.value;
                             setParts(up);
                           }}
-                          className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                          className="flex-1 p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium"
                         />
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                            <span className="text-[10px] text-slate-400 font-mono">Qtd:</span>
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="1"
+                              value={prt.quantity}
+                              onChange={(e) => {
+                                const up = [...parts];
+                                up[idx].quantity = Number(e.target.value);
+                                setParts(up);
+                              }}
+                              className="w-12 text-xs font-mono font-semibold text-center bg-transparent"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                            <span className="text-[10px] text-slate-400 font-mono">R$:</span>
+                            <input
+                              type="number"
+                              placeholder="0,00"
+                              value={prt.price}
+                              onChange={(e) => {
+                                const up = [...parts];
+                                up[idx].price = Number(e.target.value);
+                                setParts(up);
+                              }}
+                              className="w-20 text-xs font-mono font-bold text-slate-900 bg-transparent"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setParts(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Remover peça"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Checklist Técnico de Inspeção e Qualidade */}
+              <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <CheckSquare className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Checklist Técnico & Inspeção</h4>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                          {checklists.length} itens ({checklists.filter(c => c.status === 'ok').length} OK / {checklists.filter(c => c.status === 'defeito').length} Defeito)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">Checklists anexados aos serviços da OS e inspeções de vistoria técnica</p>
+                    </div>
+                  </div>
+
+                  {/* Checklist Actions Toolbar */}
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    {checklistTemplates.length > 0 && (
+                      <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shadow-2xs">
+                        <select
+                          value={selectedTemplateToImport}
+                          onChange={(e) => setSelectedTemplateToImport(e.target.value)}
+                          className="text-xs bg-transparent border-none text-slate-700 font-medium py-1 px-1.5 focus:ring-0"
+                        >
+                          <option value="">-- Importar Modelo --</option>
+                          {checklistTemplates.map(t => (
+                            <option key={t.id} value={t.id}>
+                              {t.title} ({t.items.length} itens)
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!selectedTemplateToImport}
+                          onClick={() => handleImportChecklistTemplate(selectedTemplateToImport)}
+                          className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          Importar
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleSyncServicesChecklists}
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                      title="Sincronizar checklists dos serviços selecionados"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Sincronizar dos Serviços</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingManualChecklist(!isAddingManualChecklist)}
+                      className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Item Manual</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Form to add manual checklist item */}
+                {isAddingManualChecklist && (
+                  <div className="p-3 bg-white rounded-xl border border-slate-300 shadow-2xs space-y-2.5 animate-fadeIn">
+                    <span className="text-xs font-bold text-slate-800 block">Adicionar Novo Item de Inspeção</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                      <div className="sm:col-span-6">
                         <input
-                          type="number"
-                          placeholder="Qtd"
-                          value={prt.quantity}
-                          onChange={(e) => {
-                            const up = [...parts];
-                            up[idx].quantity = Number(e.target.value);
-                            setParts(up);
-                          }}
-                          className="w-14 p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-center"
+                          type="text"
+                          placeholder="Ex: Teste da válvula redutora de pressão 2.5 bar..."
+                          value={newChecklistLabel}
+                          onChange={(e) => setNewChecklistLabel(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                         />
-                        <input
-                          type="number"
-                          placeholder="R$"
-                          value={prt.price}
-                          onChange={(e) => {
-                            const up = [...parts];
-                            up[idx].price = Number(e.target.value);
-                            setParts(up);
-                          }}
-                          className="w-20 p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
-                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <select
+                          value={newChecklistCategory}
+                          onChange={(e) => setNewChecklistCategory(e.target.value as ChecklistItem['category'])}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        >
+                          <option value="Estrutura e Tanque">Estrutura e Tanque</option>
+                          <option value="Elétrica e Comando">Elétrica e Comando</option>
+                          <option value="Hidráulica e Pressão">Hidráulica e Pressão</option>
+                          <option value="Acessórios e Segurança">Acessórios e Segurança</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-3">
+                        <select
+                          value={newChecklistServiceTag}
+                          onChange={(e) => setNewChecklistServiceTag(e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        >
+                          <option value="">Geral (Sem serviço específico)</option>
+                          {services.filter(s => s.name.trim() !== '').map((s, i) => (
+                            <option key={s.id || i} value={s.name}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingManualChecklist(false)}
+                        className="px-3 py-1 text-xs text-slate-600 hover:bg-slate-100 rounded-md"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddManualChecklistItem}
+                        disabled={!newChecklistLabel.trim()}
+                        className="px-3.5 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-md text-xs font-bold"
+                      >
+                        Salvar Item no Checklist
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Checklist Items Table */}
+                {checklists.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
+                    Nenhum checklist de vistoria registrado para esta OS. Use as opções acima para importar um modelo, sincronizar dos serviços ou adicionar itens manuais.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                    {checklists.map((chk, idx) => (
+                      <div 
+                        key={chk.id || idx}
+                        className={`p-2.5 bg-white rounded-xl border transition-all ${
+                          chk.status === 'defeito'
+                            ? 'border-rose-300 bg-rose-50/30'
+                            : chk.status === 'ok'
+                            ? 'border-emerald-200 bg-emerald-50/20'
+                            : 'border-slate-200'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                              <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                {chk.category}
+                              </span>
+                              {chk.serviceName && (
+                                <span className="text-[10px] px-2 py-0.2 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium">
+                                  Vinculado a: {chk.serviceName}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs font-semibold text-slate-900 block leading-tight">
+                              {chk.label}
+                            </span>
+                          </div>
+
+                          {/* Status toggle buttons */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleChecklistStatus(chk.id, 'ok')}
+                                className={`px-2 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                                  chk.status === 'ok'
+                                    ? 'bg-emerald-600 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-emerald-700'
+                                }`}
+                              >
+                                ✓ Conforme (OK)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleChecklistStatus(chk.id, 'defeito')}
+                                className={`px-2 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                                  chk.status === 'defeito'
+                                    ? 'bg-rose-600 text-white shadow-2xs'
+                                    : 'text-slate-600 hover:text-rose-700'
+                                }`}
+                              >
+                                ✗ Defeito
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleChecklistStatus(chk.id, 'nao_aplicavel')}
+                                className={`px-2 py-1 rounded text-[11px] font-medium transition-all cursor-pointer ${
+                                  chk.status === 'nao_aplicavel'
+                                    ? 'bg-slate-600 text-white shadow-2xs'
+                                    : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                              >
+                                N/A
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveChecklistItem(chk.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                              title="Remover item do checklist"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Defect notes or observations */}
+                        {chk.status === 'defeito' && (
+                          <div className="mt-2 pt-1.5 border-t border-rose-200/80">
+                            <input
+                              type="text"
+                              placeholder="Descreva o defeito observado ou peça sugerida para troca..."
+                              value={chk.notes || ''}
+                              onChange={(e) => handleUpdateChecklistNotes(chk.id, e.target.value)}
+                              className="w-full text-xs p-1.5 bg-white border border-rose-300 rounded text-rose-900 placeholder:text-rose-400"
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Desconto Flexível e Múltiplas Formas de Pagamento */}

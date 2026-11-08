@@ -29,7 +29,14 @@ import {
   ScanBarcode,
   ShoppingBag,
   Wrench,
-  DollarSign
+  DollarSign,
+  Globe,
+  Hash,
+  Bookmark,
+  Settings2,
+  SlidersHorizontal,
+  ExternalLink,
+  Link2
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { Product, ParsedXmlNFe } from '../types';
@@ -46,16 +53,41 @@ export const ProductsAndStockView: React.FC = () => {
     importNFeXml,
     currentRole,
     serviceOrders,
-    directSales
+    directSales,
+    productCategories,
+    productSubcategories,
+    productBrands,
+    productTags,
+    addProductCategory,
+    updateProductCategory,
+    deleteProductCategory,
+    addProductSubcategory,
+    updateProductSubcategory,
+    deleteProductSubcategory,
+    addProductBrand,
+    updateProductBrand,
+    deleteProductBrand,
+    addProductTag,
+    updateProductTag,
+    deleteProductTag
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'products' | 'movements' | 'xml'>('products');
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('todas');
+  const [brandFilter, setBrandFilter] = useState('todas');
+  const [subcategoryFilter, setSubcategoryFilter] = useState('todas');
 
   // Staging Modal State for NFe Import with Margin & Price Adjustment
   const [stagingNFe, setStagingNFe] = useState<ParsedXmlNFe | null>(null);
   const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
+
+  // Taxonomy Manager Modal State (Categorias, Subcategorias, Marcas e Tags)
+  const [isTaxonomyModalOpen, setIsTaxonomyModalOpen] = useState(false);
+  const [taxonomyTab, setTaxonomyTab] = useState<'categories' | 'subcategories' | 'brands' | 'tags'>('categories');
+  const [newItemName, setNewItemName] = useState('');
+  const [editingItemOldName, setEditingItemOldName] = useState<string | null>(null);
+  const [editingItemNewName, setEditingItemNewName] = useState('');
 
   // Modal Product State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -65,6 +97,15 @@ export const ProductsAndStockView: React.FC = () => {
   const [barcode, setBarcode] = useState('');
   const [name, setName] = useState('');
   const [model, setModel] = useState('');
+  const [brand, setBrand] = useState('TermoMax');
+  const [subcategory, setSubcategory] = useState('Boilers Inox 316');
+  const [slug, setSlug] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [metaTitle, setMetaTitle] = useState('');
+  const [metaDescription, setMetaDescription] = useState('');
+  const [metaKeywords, setMetaKeywords] = useState('');
+  const [isSeoOpen, setIsSeoOpen] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [serialNumber, setSerialNumber] = useState('');
   const [category, setCategory] = useState('Reservatórios Térmicos');
@@ -80,6 +121,31 @@ export const ProductsAndStockView: React.FC = () => {
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoUrlInput, setPhotoUrlInput] = useState('');
+
+  // Helper para gerar slug amigável
+  const generateSlug = (text: string) => {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
+  const handleAddTag = (tagToAdd?: string) => {
+    const clean = (tagToAdd !== undefined ? tagToAdd : tagInput).trim().toLowerCase();
+    if (!clean) return;
+    if (!tags.includes(clean)) {
+      setTags(prev => [...prev, clean]);
+    }
+    if (tagToAdd === undefined) {
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(prev => prev.filter(t => t !== tagToRemove));
+  };
 
   // Total History Modal State
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -278,7 +344,16 @@ export const ProductsAndStockView: React.FC = () => {
     setModel('');
     setDate(new Date().toISOString().split('T')[0]);
     setSerialNumber('');
-    setCategory('Reservatórios Térmicos');
+    setCategory(productCategories[0] || 'Reservatórios Térmicos');
+    setSubcategory('');
+    setBrand('');
+    setSlug('');
+    setTags([]);
+    setTagInput('');
+    setMetaTitle('');
+    setMetaDescription('');
+    setMetaKeywords('');
+    setIsSeoOpen(false);
     setCostPrice(1000);
     setProfitMarginPercent(60);
     setRetailPrice(1600);
@@ -303,6 +378,15 @@ export const ProductsAndStockView: React.FC = () => {
     setDate(p.date || new Date().toISOString().split('T')[0]);
     setSerialNumber(p.serialNumber || '');
     setCategory(p.category);
+    setSubcategory(p.subcategory || '');
+    setBrand(p.brand || '');
+    setSlug(p.slug || generateSlug(p.name));
+    setTags(p.tags ? [...p.tags] : []);
+    setTagInput('');
+    setMetaTitle(p.metaTitle || p.name);
+    setMetaDescription(p.metaDescription || p.description?.slice(0, 160) || '');
+    setMetaKeywords(p.metaKeywords || (p.tags ? p.tags.join(', ') : ''));
+    setIsSeoOpen(false);
     setCostPrice(p.costPrice);
     const margin = p.profitMarginPercent !== undefined 
       ? p.profitMarginPercent 
@@ -343,6 +427,15 @@ export const ProductsAndStockView: React.FC = () => {
     setDate(new Date().toISOString().split('T')[0]);
     setSerialNumber(p.serialNumber ? `${p.serialNumber}-COP` : '');
     setCategory(p.category);
+    setSubcategory(p.subcategory || '');
+    setBrand(p.brand || '');
+    setSlug(generateSlug(`${p.name} copia`));
+    setTags(p.tags ? [...p.tags] : []);
+    setTagInput('');
+    setMetaTitle(p.metaTitle ? `${p.metaTitle} (Cópia)` : `${p.name} (Cópia)`);
+    setMetaDescription(p.metaDescription || '');
+    setMetaKeywords(p.metaKeywords || '');
+    setIsSeoOpen(false);
     setCostPrice(p.costPrice);
     setProfitMarginPercent(p.profitMarginPercent || 50);
     setRetailPrice(p.retailPrice);
@@ -361,11 +454,23 @@ export const ProductsAndStockView: React.FC = () => {
     e.preventDefault();
     if (!name.trim()) return;
 
+    const finalSlug = slug.trim() || generateSlug(name);
+    const finalMetaTitle = metaTitle.trim() || name;
+    const finalMetaDesc = metaDescription.trim() || description.slice(0, 160);
+    const finalKeywords = metaKeywords.trim() || (tags.length > 0 ? tags.join(', ') : undefined);
+
     const productPayload = {
       code,
       barcode: barcode.trim() || undefined,
       name,
       model: model.trim() || undefined,
+      brand: brand.trim() || undefined,
+      subcategory: subcategory.trim() || undefined,
+      slug: finalSlug,
+      tags: tags.length > 0 ? tags : undefined,
+      metaTitle: finalMetaTitle,
+      metaDescription: finalMetaDesc || undefined,
+      metaKeywords: finalKeywords,
       date,
       serialNumber: serialNumber.trim() || undefined,
       category,
@@ -437,11 +542,20 @@ export const ProductsAndStockView: React.FC = () => {
   };
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.ncm.includes(searchTerm);
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = 
+      p.name.toLowerCase().includes(q) || 
+      p.code.toLowerCase().includes(q) ||
+      p.ncm.includes(searchTerm) ||
+      (p.brand && p.brand.toLowerCase().includes(q)) ||
+      (p.subcategory && p.subcategory.toLowerCase().includes(q)) ||
+      (p.tags && p.tags.some(t => t.toLowerCase().includes(q)));
+
     const matchesCat = categoryFilter === 'todas' || p.category === categoryFilter;
-    return matchesSearch && matchesCat;
+    const matchesBrand = brandFilter === 'todas' || p.brand === brandFilter;
+    const matchesSubcat = subcategoryFilter === 'todas' || p.subcategory === subcategoryFilter;
+
+    return matchesSearch && matchesCat && matchesBrand && matchesSubcat;
   });
 
   return (
@@ -451,24 +565,33 @@ export const ProductsAndStockView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-[#363739] tracking-tight">
-              Catálogo de Produtos, Peças & Importação de XML
+              Catálogo de Produtos, Peças & Taxonomias
             </h1>
             <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
-              Controle de Estoque & NF-e
+              Estoque, Marcas, URLs & SEO
             </span>
           </div>
           <p className="text-xs text-[#707174] mt-1">
-            Gestão de reservatórios térmicos, bombas e peças com preços no atacado/varejo, alíquotas fiscais e entrada automática de compras via XML.
+            Gestão de produtos, reservatórios térmicos, bombas e peças com marcas, URLs amigáveis, tags, meta-tags e listas personalizáveis.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setIsTaxonomyModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs cursor-pointer"
+            title="Gerenciar Categorias, Subcategorias, Marcas e Tags salvas no sistema"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#53383e]" />
+            <span>Gerenciar Categorias & Marcas</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('xml')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs cursor-pointer"
           >
             <Upload className="w-3.5 h-3.5 text-[#53383e]" />
-            <span>Importar XML de NF-e</span>
+            <span>Importar XML NF-e</span>
           </button>
 
           {currentRole !== 'tecnico' && (
@@ -514,36 +637,92 @@ export const ProductsAndStockView: React.FC = () => {
       {activeTab === 'products' && (
         <div className="space-y-4">
           {/* Filter Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Buscar por código, nome do produto ou NCM..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg"
-              />
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Buscar por código, nome, NCM, marca ou tags..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e]"
+                />
+              </div>
+
+              {/* Brand and Subcategory selects */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500">Marca:</span>
+                  <select
+                    value={brandFilter}
+                    onChange={(e) => setBrandFilter(e.target.value)}
+                    className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+                  >
+                    <option value="todas">Todas as Marcas</option>
+                    {productBrands.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500">Subcategoria:</span>
+                  <select
+                    value={subcategoryFilter}
+                    onChange={(e) => setSubcategoryFilter(e.target.value)}
+                    className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+                  >
+                    <option value="todas">Todas Subcategorias</option>
+                    {productSubcategories.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {(categoryFilter !== 'todas' || brandFilter !== 'todas' || subcategoryFilter !== 'todas' || searchTerm) && (
+                  <button
+                    onClick={() => {
+                      setCategoryFilter('todas');
+                      setBrandFilter('todas');
+                      setSubcategoryFilter('todas');
+                      setSearchTerm('');
+                    }}
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold px-2 py-1 rounded hover:bg-rose-50"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-              {[
-                { id: 'todas', label: 'Todas Categorias' },
-                { id: 'Reservatórios Térmicos', label: 'Reservatórios Térmicos' },
-                { id: 'Bombas e Motores', label: 'Bombas e Motores' },
-                { id: 'Tubulações e Conexões', label: 'Tubos & Válvulas' },
-                { id: 'Peças Gerais', label: 'Peças Gerais' }
-              ].map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setCategoryFilter(cat.id)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${
-                    categoryFilter === cat.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
+            {/* Category Pills from dynamic productCategories */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-1 border-t border-slate-100">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+                Categoria:
+              </span>
+              <button
+                onClick={() => setCategoryFilter('todas')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap transition-colors cursor-pointer ${
+                  categoryFilter === 'todas' ? 'bg-[#53383e] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Todas ({products.length})
+              </button>
+              {productCategories.map(cat => {
+                const count = products.filter(p => p.category === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap transition-colors cursor-pointer ${
+                      categoryFilter === cat ? 'bg-[#53383e] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {cat} {count > 0 && <span className="opacity-75 font-normal">({count})</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -590,13 +769,29 @@ export const ProductsAndStockView: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[11px] text-slate-400 font-sans">{p.category}</div>
+                              <div className="text-[11px] text-slate-500 font-sans flex items-center gap-1">
+                                <span>{p.category}</span>
+                                {p.subcategory && (
+                                  <>
+                                    <span className="text-slate-300">/</span>
+                                    <span className="text-slate-400">{p.subcategory}</span>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
 
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900">{p.name}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-slate-900">{p.name}</span>
+                            {p.brand && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {p.brand}
+                              </span>
+                            )}
+                          </div>
+                          
                           <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
                             <span>Unidade: <strong>{p.unit}</strong></span>
                             {p.model && (
@@ -605,7 +800,31 @@ export const ProductsAndStockView: React.FC = () => {
                             {p.serialNumber && (
                               <span>• Série: <strong className="font-mono text-slate-700">{p.serialNumber}</strong></span>
                             )}
+                            {p.slug && (
+                              <span className="text-[10px] text-slate-400 font-mono flex items-center gap-0.5">
+                                <Link2 className="w-2.5 h-2.5 text-slate-400" />
+                                /{p.slug}
+                              </span>
+                            )}
                           </div>
+
+                          {p.tags && p.tags.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap mt-1">
+                              {p.tags.slice(0, 4).map((t, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200"
+                                >
+                                  #{t}
+                                </span>
+                              ))}
+                              {p.tags.length > 4 && (
+                                <span className="text-[9px] text-slate-400 font-mono">
+                                  +{p.tags.length - 4}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3 px-3 font-mono text-slate-600">
@@ -956,20 +1175,89 @@ export const ProductsAndStockView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Taxonomias: Categoria, Subcategoria, Marca e Unidade */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-slate-700 mb-1 font-semibold">Categoria do Produto</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">Categoria *</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaxonomyTab('categories');
+                          setIsTaxonomyModalOpen(true);
+                        }}
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      >
+                        + Editar
+                      </button>
+                    </div>
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-800"
                     >
-                      <option value="Reservatórios Térmicos">Reservatórios Térmicos</option>
-                      <option value="Bombas e Motores">Bombas e Motores</option>
-                      <option value="Tubulações e Conexões">Tubulações e Conexões</option>
-                      <option value="Insumos Elétricos">Insumos Elétricos</option>
-                      <option value="Peças Gerais">Peças Gerais</option>
+                      {productCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
                     </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">Subcategoria</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaxonomyTab('subcategories');
+                          setIsTaxonomyModalOpen(true);
+                        }}
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      >
+                        + Lista
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      list="subcategories-datalist"
+                      placeholder="Ex: Aquecedor Solar..."
+                      value={subcategory}
+                      onChange={(e) => setSubcategory(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-800"
+                    />
+                    <datalist id="subcategories-datalist">
+                      {productSubcategories.map(s => (
+                        <option key={s} value={s} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">Marca / Fabricante</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaxonomyTab('brands');
+                          setIsTaxonomyModalOpen(true);
+                        }}
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      >
+                        + Marcas
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      list="brands-datalist"
+                      placeholder="Ex: TermoMax, Dancor..."
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-800"
+                    />
+                    <datalist id="brands-datalist">
+                      {productBrands.map(b => (
+                        <option key={b} value={b} />
+                      ))}
+                    </datalist>
                   </div>
 
                   <div>
@@ -986,6 +1274,116 @@ export const ProductsAndStockView: React.FC = () => {
                       <option value="KG">KG - Quilograma</option>
                       <option value="L">L - Litro</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* URL Amigável (Slug) */}
+                <div className="bg-white p-3 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-slate-700 font-semibold flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-600" />
+                      URL Amigável (Slug para Catálogo Online & E-commerce)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSlug(generateSlug(name))}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                    >
+                      <Link2 className="w-3 h-3" /> Gerar do Nome do Produto
+                    </button>
+                  </div>
+                  <div className="flex items-center rounded-lg border border-slate-300 bg-slate-50 overflow-hidden focus-within:ring-2 focus-within:ring-[#53383e]">
+                    <span className="px-3 py-2 text-slate-500 font-mono text-[11px] bg-slate-100 border-r border-slate-200 shrink-0">
+                      loja.gestaopro.com/produtos/
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="reservatorio-termico-boiler-600l"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value)}
+                      className="w-full p-2 bg-white font-mono font-medium text-slate-900 border-0 focus:outline-hidden text-xs"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Estrutura indexável para motores de busca e compartilhamento direto com clientes em orçamentos e catálogos.
+                  </p>
+                </div>
+
+                {/* Tags do Produto */}
+                <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-slate-700 font-semibold flex items-center gap-1.5">
+                      <Hash className="w-3.5 h-3.5 text-emerald-600" />
+                      Tags & Palavras-Chave de Busca Interna
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Pressione Enter para adicionar
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 min-h-[34px] p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    {tags.map((t, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#53383e] text-white px-2 py-0.5 rounded-md"
+                      >
+                        #{t}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(t)}
+                          className="hover:bg-white/20 rounded-full p-0.5"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={tags.length === 0 ? "Digite uma tag e pressione Enter..." : "Adicionar tag..."}
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTag(tagInput);
+                        }
+                      }}
+                      className="flex-1 min-w-[120px] bg-transparent text-xs text-slate-800 border-0 focus:outline-hidden p-0.5"
+                    />
+                    {tagInput.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddTag(tagInput)}
+                        className="px-2 py-0.5 bg-slate-800 text-white rounded text-[10px] font-bold"
+                      >
+                        + Adicionar
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sugestões de tags do sistema */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-[10px] font-semibold text-slate-400">Tags salvas:</span>
+                    {productTags.filter(st => !tags.includes(st)).slice(0, 8).map(st => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => handleAddTag(st)}
+                        className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium border border-slate-200 cursor-pointer"
+                      >
+                        +{st}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTaxonomyTab('tags');
+                        setIsTaxonomyModalOpen(true);
+                      }}
+                      className="text-[10px] text-indigo-600 hover:underline font-bold"
+                    >
+                      Gerenciar todas
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1142,7 +1540,106 @@ export const ProductsAndStockView: React.FC = () => {
                 />
               </div>
 
-              {/* SEÇÃO 5: LOCAL PARA INSERIR ATÉ 3 FOTOS */}
+              {/* SEÇÃO 5: SEO, INDEXAÇÃO GOOGLE & META-TAGS */}
+              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-indigo-600" />
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        5. SEO, Meta-Tags & Otimização para Motores de Busca
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Configure títulos e meta-descrições para indexação orgânica no Google e redes sociais.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!metaTitle && name) setMetaTitle(name);
+                      if (!metaDescription && description) setMetaDescription(description.slice(0, 155));
+                      if (!metaKeywords && tags.length > 0) setMetaKeywords(tags.join(', '));
+                    }}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                  >
+                    Auto-Preencher do Produto
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">
+                        Meta Title (Título SEO da Página)
+                      </label>
+                      <span className={`text-[10px] font-mono ${metaTitle.length > 60 ? 'text-amber-600 font-bold' : 'text-slate-400'}`}>
+                        {metaTitle.length}/60 caracteres recomendados
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder={name || "Ex: Reservatório Boiler 600L Inox 316L Alta Pressão | GestãoPro"}
+                      value={metaTitle}
+                      onChange={(e) => setMetaTitle(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">
+                        Meta Description (Resumo na Pesquisa Google)
+                      </label>
+                      <span className={`text-[10px] font-mono ${metaDescription.length > 160 ? 'text-amber-600 font-bold' : 'text-slate-400'}`}>
+                        {metaDescription.length}/160 caracteres recomendados
+                      </span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      placeholder={description?.slice(0, 155) || "Ex: Reservatório térmico para aquecimento solar 600 litros em aço inox 316. Alta durabilidade, isolamento em poliuretano expandido e garantia de fábrica."}
+                      value={metaDescription}
+                      onChange={(e) => setMetaDescription(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-sans leading-relaxed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">
+                      Meta Keywords (Palavras-Chave Separadas por Vírgula)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="boiler solar, reservatorio 600l, aquecedor solar alta pressao, pecas para aquecedor"
+                      value={metaKeywords}
+                      onChange={(e) => setMetaKeywords(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-sans"
+                    />
+                  </div>
+
+                  {/* Google SERP Preview Card */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Pré-visualização do Resultado no Google (SERP Preview)
+                    </span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#202124]">
+                      <div className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600">
+                        G
+                      </div>
+                      <span className="font-medium text-slate-700">loja.gestaopro.com.br</span>
+                      <span className="text-slate-400">› produtos › {slug || 'reservatorio-termico'}</span>
+                    </div>
+                    <div className="text-blue-700 hover:underline font-medium text-sm font-sans cursor-pointer truncate">
+                      {metaTitle || name || 'Título do Produto | Loja GestãoPro'}
+                    </div>
+                    <p className="text-[11px] text-[#4d5156] line-clamp-2 leading-relaxed">
+                      {metaDescription || description || 'Descrição otimizada do produto indexada nos motores de busca com especificações e melhores condições de compra.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* SEÇÃO 6: LOCAL PARA INSERIR ATÉ 3 FOTOS */}
               <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1614,6 +2111,307 @@ export const ProductsAndStockView: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* Modal Gerenciador de Taxonomias do Sistema (Categorias, Subcategorias, Marcas e Tags) */}
+      {isTaxonomyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-900 to-[#53383e] text-white p-4 flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-lg">
+                  <SlidersHorizontal className="w-5 h-5 text-indigo-300" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">
+                    Gerenciador de Listas do Sistema
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    Edite, crie ou exclua Categorias, Subcategorias, Marcas e Tags salvas no catálogo de produtos.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsTaxonomyModalOpen(false);
+                  setEditingItemOldName(null);
+                  setEditingItemNewName('');
+                  setNewItemName('');
+                }}
+                className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex items-center gap-1 p-2 bg-slate-50 border-b border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxonomyTab('categories');
+                  setEditingItemOldName(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  taxonomyTab === 'categories'
+                    ? 'bg-[#53383e] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+                Categorias ({productCategories.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxonomyTab('subcategories');
+                  setEditingItemOldName(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  taxonomyTab === 'subcategories'
+                    ? 'bg-[#53383e] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Subcategorias ({productSubcategories.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxonomyTab('brands');
+                  setEditingItemOldName(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  taxonomyTab === 'brands'
+                    ? 'bg-[#53383e] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Bookmark className="w-3.5 h-3.5" />
+                Marcas ({productBrands.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxonomyTab('tags');
+                  setEditingItemOldName(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  taxonomyTab === 'tags'
+                    ? 'bg-[#53383e] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Hash className="w-3.5 h-3.5" />
+                Tags ({productTags.length})
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Add form */}
+              <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <input
+                  type="text"
+                  placeholder={
+                    taxonomyTab === 'categories'
+                      ? 'Nova categoria (ex: Climatizadores Solar)...'
+                      : taxonomyTab === 'subcategories'
+                      ? 'Nova subcategoria (ex: Aquecedor a Vácuo)...'
+                      : taxonomyTab === 'brands'
+                      ? 'Nova marca (ex: Bosch, Komeco)...'
+                      : 'Nova tag (ex: 220v, inox-316)...'
+                  }
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (!newItemName.trim()) return;
+                      if (taxonomyTab === 'categories') addProductCategory(newItemName);
+                      else if (taxonomyTab === 'subcategories') addProductSubcategory(newItemName);
+                      else if (taxonomyTab === 'brands') addProductBrand(newItemName);
+                      else if (taxonomyTab === 'tags') addProductTag(newItemName);
+                      setNewItemName('');
+                    }
+                  }}
+                  className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newItemName.trim()) return;
+                    if (taxonomyTab === 'categories') addProductCategory(newItemName);
+                    else if (taxonomyTab === 'subcategories') addProductSubcategory(newItemName);
+                    else if (taxonomyTab === 'brands') addProductBrand(newItemName);
+                    else if (taxonomyTab === 'tags') addProductTag(newItemName);
+                    setNewItemName('');
+                  }}
+                  className="px-3.5 py-2 bg-[#53383e] hover:bg-[#432c32] text-white font-bold rounded-lg transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar
+                </button>
+              </div>
+
+              {/* Items List */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                {(() => {
+                  let items: string[] = [];
+                  if (taxonomyTab === 'categories') items = productCategories;
+                  else if (taxonomyTab === 'subcategories') items = productSubcategories;
+                  else if (taxonomyTab === 'brands') items = productBrands;
+                  else if (taxonomyTab === 'tags') items = productTags;
+
+                  // Sempre organiza de forma alfabética
+                  items = [...items].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
+                  if (items.length === 0) {
+                    return (
+                      <div className="p-8 text-center text-slate-400">
+                        Nenhum item cadastrado nesta lista.
+                      </div>
+                    );
+                  }
+
+                  return items.map((item) => {
+                    const isEditing = editingItemOldName === item;
+                    const cleanItemTag = item.replace(/^#/, '');
+                    const linkedProductsCount = products.filter(p => {
+                      if (taxonomyTab === 'categories') return p.category === item;
+                      if (taxonomyTab === 'subcategories') return p.subcategory === item;
+                      if (taxonomyTab === 'brands') return p.brand === item;
+                      if (taxonomyTab === 'tags') return p.tags?.some(t => t.replace(/^#/, '').toLowerCase() === cleanItemTag.toLowerCase());
+                      return false;
+                    }).length;
+
+                    return (
+                      <div
+                        key={item}
+                        className="p-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors gap-3"
+                      >
+                        {isEditing ? (
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="text"
+                              value={editingItemNewName}
+                              onChange={(e) => setEditingItemNewName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (editingItemNewName.trim() && editingItemNewName !== item) {
+                                    if (taxonomyTab === 'categories') updateProductCategory(item, editingItemNewName);
+                                    else if (taxonomyTab === 'subcategories') updateProductSubcategory(item, editingItemNewName);
+                                    else if (taxonomyTab === 'brands') updateProductBrand(item, editingItemNewName);
+                                    else if (taxonomyTab === 'tags') updateProductTag(item, editingItemNewName);
+                                  }
+                                  setEditingItemOldName(null);
+                                }
+                              }}
+                              className="p-1.5 bg-white border border-indigo-400 rounded-lg text-xs flex-1 font-semibold text-slate-800"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (editingItemNewName.trim() && editingItemNewName !== item) {
+                                  if (taxonomyTab === 'categories') updateProductCategory(item, editingItemNewName);
+                                  else if (taxonomyTab === 'subcategories') updateProductSubcategory(item, editingItemNewName);
+                                  else if (taxonomyTab === 'brands') updateProductBrand(item, editingItemNewName);
+                                  else if (taxonomyTab === 'tags') updateProductTag(item, editingItemNewName);
+                                }
+                                setEditingItemOldName(null);
+                              }}
+                              className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors cursor-pointer"
+                              title="Salvar alteração (atualiza produtos vinculados automaticamente)"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingItemOldName(null)}
+                              className="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md transition-colors cursor-pointer"
+                              title="Cancelar"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-800">
+                                {taxonomyTab === 'tags' ? `#${cleanItemTag}` : item}
+                              </span>
+                              {linkedProductsCount > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 font-mono">
+                                  {linkedProductsCount} {linkedProductsCount === 1 ? 'produto' : 'produtos'}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingItemOldName(item);
+                                  setEditingItemNewName(item);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                                title="Editar nome"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Excluir "${taxonomyTab === 'tags' ? '#' + cleanItemTag : item}" da lista do sistema?`)) {
+                                    if (taxonomyTab === 'categories') deleteProductCategory(item);
+                                    else if (taxonomyTab === 'subcategories') deleteProductSubcategory(item);
+                                    else if (taxonomyTab === 'brands') deleteProductBrand(item);
+                                    else if (taxonomyTab === 'tags') deleteProductTag(item);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                title="Excluir da lista"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+              <span className="text-[11px] text-slate-500">
+                As alterações são salvas automaticamente no sistema e propagadas para os produtos.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsTaxonomyModalOpen(false);
+                  setEditingItemOldName(null);
+                  setEditingItemNewName('');
+                  setNewItemName('');
+                }}
+                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-semibold transition-colors"
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Conferência e Precificação da Importação (Varejo, Atacado & Fornecedor) */}
       {isStagingModalOpen && stagingNFe && (

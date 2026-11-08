@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -20,6 +20,7 @@ import {
   HardDrive,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Menu,
   X,
   LogOut
@@ -93,6 +94,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logout,
     openLogoutModal
   } = useApp();
+
+  // Collapsible Submenu Categories state
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('gestaopro_sidebar_collapsed_cats');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleCategory = (cat: string) => {
+    setCollapsedCategories((prev: Record<string, boolean>) => {
+      const next = { ...prev, [cat]: !prev[cat] };
+      try {
+        localStorage.setItem('gestaopro_sidebar_collapsed_cats', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const openOrdersCount = serviceOrders.filter(
     o => o.status === 'orcamento_aberto' || o.status === 'aguardando_aprovacao' || o.status === 'aprovada_em_andamento' || o.status === 'aguardando_pecas'
@@ -183,14 +204,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Calculator,
           badge: null,
           roles: ['admin', 'contador']
-        },
-        {
-          id: 'cardOperators' as ActiveTab,
-          label: 'Operadoras & PagBank',
-          icon: CreditCard,
-          badge: 'Auto',
-          highlight: true,
-          roles: ['admin', 'colaborador', 'contador']
         }
       ]
     },
@@ -337,60 +350,87 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
             if (visibleItems.length === 0) return null;
 
+            const isCategoryCollapsed = Boolean(collapsedCategories[group.category]);
+            const hasActiveItem = visibleItems.some(it => it.id === activeTab);
+
             return (
               <div key={group.category} className="space-y-1">
                 {isCollapsed ? (
                   <div className="my-1.5 border-t border-[#3d3f42]/70 mx-1" title={group.category} />
                 ) : (
-                  <div className="px-3 text-[10px] font-bold text-[#c2bfb0] uppercase tracking-wider">
-                    {group.category}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(group.category)}
+                    className="w-full flex items-center justify-between px-2.5 py-1 text-[10px] font-bold text-[#c2bfb0] hover:text-white uppercase tracking-wider rounded hover:bg-[#383a3d]/60 transition-colors cursor-pointer group select-none"
+                    title={isCategoryCollapsed ? `Expandir submenus de ${group.category}` : `Ocultar submenus de ${group.category}`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>{group.category}</span>
+                      {isCategoryCollapsed && hasActiveItem && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#f2e6d8]" title="Menu ativo nesta categoria" />
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-[#383a3d] text-[#a0a2a6] group-hover:text-white">
+                        {visibleItems.length}
+                      </span>
+                      {isCategoryCollapsed ? (
+                        <ChevronRight className="w-3.5 h-3.5 text-[#a0a2a6] group-hover:text-white transition-transform" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-[#a0a2a6] group-hover:text-white transition-transform" />
+                      )}
+                    </div>
+                  </button>
                 )}
 
-                {visibleItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-                  const itemTitle = `${item.label}${item.badge ? ` (${item.badge})` : ''}`;
+                {(!isCategoryCollapsed || isCollapsed) && (
+                  <div className="space-y-0.5">
+                    {visibleItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      const itemTitle = `${item.label}${item.badge ? ` (${item.badge})` : ''}`;
 
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleSelectTab(item.id)}
-                      title={isCollapsed ? itemTitle : undefined}
-                      className={`w-full flex items-center ${
-                        isCollapsed ? 'justify-center py-2.5 px-0' : 'justify-between px-3 py-2'
-                      } rounded-lg text-xs font-medium transition-all cursor-pointer relative group ${
-                        isActive
-                          ? 'bg-[#53383e] text-white shadow-sm font-semibold'
-                          : 'text-[#d8d8d8] hover:text-white hover:bg-[#383a3d]'
-                      } ${item.highlight && !isActive ? 'text-[#c2bfb0]' : ''}`}
-                    >
-                      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5 truncate'}`}>
-                        <div className="relative">
-                          <Icon className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} shrink-0 ${isActive ? 'text-white' : 'text-[#a0a2a6] group-hover:text-white'}`} />
-                          {isCollapsed && item.badge && (
-                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#53383e] border border-white" />
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleSelectTab(item.id)}
+                          title={isCollapsed ? itemTitle : undefined}
+                          className={`w-full flex items-center ${
+                            isCollapsed ? 'justify-center py-2.5 px-0' : 'justify-between px-3 py-2'
+                          } rounded-lg text-xs font-medium transition-all cursor-pointer relative group ${
+                            isActive
+                              ? 'bg-[#53383e] text-white shadow-sm font-semibold'
+                              : 'text-[#d8d8d8] hover:text-white hover:bg-[#383a3d]'
+                          } ${item.highlight && !isActive ? 'text-[#c2bfb0]' : ''}`}
+                        >
+                          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5 truncate'}`}>
+                            <div className="relative">
+                              <Icon className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} shrink-0 ${isActive ? 'text-white' : 'text-[#a0a2a6] group-hover:text-white'}`} />
+                              {isCollapsed && item.badge && (
+                                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#53383e] border border-white" />
+                              )}
+                            </div>
+                            {!isCollapsed && (
+                              <span className="truncate">{item.label}</span>
+                            )}
+                          </div>
+
+                          {!isCollapsed && item.badge && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap ml-1 ${
+                              isActive
+                                ? 'bg-white/20 text-white'
+                                : item.highlight
+                                ? 'bg-[#c2bfb0]/20 text-[#c2bfb0] border border-[#c2bfb0]/30'
+                                : 'bg-[#383a3d] text-[#c2bfb0] border border-[#484a4e]'
+                            }`}>
+                              {item.badge}
+                            </span>
                           )}
-                        </div>
-                        {!isCollapsed && (
-                          <span className="truncate">{item.label}</span>
-                        )}
-                      </div>
-
-                      {!isCollapsed && item.badge && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap ml-1 ${
-                          isActive
-                            ? 'bg-white/20 text-white'
-                            : item.highlight
-                            ? 'bg-[#c2bfb0]/20 text-[#c2bfb0] border border-[#c2bfb0]/30'
-                            : 'bg-[#383a3d] text-[#c2bfb0] border border-[#484a4e]'
-                        }`}>
-                          {item.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

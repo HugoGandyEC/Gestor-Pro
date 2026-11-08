@@ -22,9 +22,11 @@ import {
   ShieldCheck,
   CheckCircle2,
   Copy,
+  Database,
   X
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
+import { UniversalDataImportView } from './UniversalDataImportView';
 import { 
   Client, 
   Supplier, 
@@ -43,7 +45,8 @@ type RegistrationTab =
   | 'employees' 
   | 'fleet' 
   | 'services' 
-  | 'checklists';
+  | 'checklists'
+  | 'import';
 
 export const MasterRegistrationsView: React.FC = () => {
   const { 
@@ -184,10 +187,12 @@ export const MasterRegistrationsView: React.FC = () => {
   const [checklistForm, setChecklistForm] = useState<{
     title: string;
     equipmentType: string;
+    serviceIds: string[];
     items: { id: string; label: string; category: ChecklistItem['category']; required: boolean }[];
   }>({
     title: '',
     equipmentType: '',
+    serviceIds: [],
     items: [
       { id: '1', label: '', category: 'Estrutura e Tanque', required: true }
     ]
@@ -249,7 +254,8 @@ export const MasterRegistrationsView: React.FC = () => {
     { id: 'employees', label: 'Equipe & Técnicos', icon: UserCheck, count: employees.length },
     { id: 'fleet', label: 'Frota de Veículos', icon: Truck, count: vehicles.length },
     { id: 'services', label: 'Serviços Tabelados', icon: Wrench, count: serviceCatalog.length },
-    { id: 'checklists', label: 'Modelos de Checklist', icon: CheckSquare, count: checklistTemplates.length }
+    { id: 'checklists', label: 'Modelos de Checklist', icon: CheckSquare, count: checklistTemplates.length },
+    { id: 'import', label: 'Importação Geral & Backups', icon: Database, count: '6 Formatos' }
   ];
 
   return (
@@ -365,7 +371,9 @@ export const MasterRegistrationsView: React.FC = () => {
               onClick={() => {
                 setEditingChecklist(null);
                 setChecklistForm({
-                  title: '', equipmentType: 'Aquecedor / Boiler',
+                  title: '', 
+                  equipmentType: 'Aquecedor / Boiler',
+                  serviceIds: [],
                   items: [
                     { id: '1', label: 'Vistoria visual do equipamento', category: 'Estrutura e Tanque', required: true },
                     { id: '2', label: 'Teste de pressão e estanqueidade', category: 'Hidráulica e Pressão', required: true },
@@ -413,21 +421,23 @@ export const MasterRegistrationsView: React.FC = () => {
       </div>
 
       {/* Search and Filters Bar */}
-      <div className="bg-white p-3.5 border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-xs">
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder={`Filtrar ${tabsConfig.find(t => t.id === activeSubTab)?.label.toLowerCase()} por nome, código ou documento...`}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-          />
+      {activeSubTab !== 'import' && (
+        <div className="bg-white p-3.5 border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-xs">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder={`Filtrar ${tabsConfig.find(t => t.id === activeSubTab)?.label.toLowerCase()} por nome, código ou documento...`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            />
+          </div>
+          <div className="text-xs text-slate-500 hidden sm:block">
+            Mostrando registros atualizados do banco de dados
+          </div>
         </div>
-        <div className="text-xs text-slate-500 hidden sm:block">
-          Mostrando registros atualizados do banco de dados
-        </div>
-      </div>
+      )}
 
       {/* SUB-TAB 1: CLIENTES */}
       {activeSubTab === 'clients' && (
@@ -976,6 +986,7 @@ export const MasterRegistrationsView: React.FC = () => {
                           setChecklistForm({
                             title: template.title,
                             equipmentType: template.equipmentType,
+                            serviceIds: template.serviceIds || [],
                             items: [...template.items]
                           });
                           setIsChecklistModalOpen(true);
@@ -1013,6 +1024,25 @@ export const MasterRegistrationsView: React.FC = () => {
                       </div>
                     ))}
                   </div>
+
+                  {/* Attached Services Badges */}
+                  {template.serviceIds && template.serviceIds.length > 0 && (
+                    <div className="mt-3 pt-2.5 border-t border-slate-100">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                        Serviços Vinculados ({template.serviceIds.length}):
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {template.serviceIds.map(srvId => {
+                          const srv = serviceCatalog.find(s => s.id === srvId);
+                          return srv ? (
+                            <span key={srvId} className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium">
+                              {srv.name}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
@@ -1024,6 +1054,11 @@ export const MasterRegistrationsView: React.FC = () => {
               </div>
             ))}
         </div>
+      )}
+
+      {/* SUB-TAB 8: IMPORTAÇÃO GERAL & BACKUPS MULTI-FORMATO */}
+      {activeSubTab === 'import' && (
+        <UniversalDataImportView />
       )}
 
       {/* CLIENT MODAL */}
@@ -1914,6 +1949,61 @@ export const MasterRegistrationsView: React.FC = () => {
                   onChange={(e) => setChecklistForm({ ...checklistForm, equipmentType: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
                 />
+              </div>
+
+              {/* Multiple Services Attachment */}
+              <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <span>Anexar aos Serviços do Catálogo (Múltiplos Serviços)</span>
+                  </label>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                    {checklistForm.serviceIds.length} selecionado(s)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Marque os serviços que utilizam este modelo de checklist. Ao selecionar estes serviços na Ordem de Serviço, o checklist poderá ser anexado automaticamente.
+                </p>
+                
+                {serviceCatalog.length === 0 ? (
+                  <div className="text-xs text-slate-500 italic p-2 bg-white rounded border border-slate-200">
+                    Nenhum serviço cadastrado no catálogo ainda. Cadastre serviços na aba anterior para vinculá-los.
+                  </div>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto border border-indigo-200/60 rounded-lg p-2 bg-white space-y-1.5">
+                    {serviceCatalog.map((service) => {
+                      const isSelected = checklistForm.serviceIds.includes(service.id);
+                      return (
+                        <label
+                          key={service.id}
+                          className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors text-xs ${
+                            isSelected 
+                              ? 'bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold' 
+                              : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              setChecklistForm(prev => ({
+                                ...prev,
+                                serviceIds: isSelected 
+                                  ? prev.serviceIds.filter(id => id !== service.id)
+                                  : [...prev.serviceIds, service.id]
+                              }));
+                            }}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                          <span className="flex-1 truncate">{service.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                            {service.category}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div>

@@ -47,13 +47,16 @@ export interface CardOperator {
   integration?: {
     enabled: boolean;
     environment: 'sandbox' | 'production';
+    clientId?: string;
+    clientSecret?: string;
     apiToken: string;
     publicKey?: string;
     webhookUrl: string;
     webhookSecret?: string;
+    posTerminalSerials?: string[]; // Seriais das maquininhas POS associadas
     autoReconcile: boolean; // Baixa automática
     lastSyncAt?: string;
-    status: 'connected' | 'error' | 'disconnected';
+    status: 'connected' | 'error' | 'disconnected' | 'testing';
     autoNotifyClientWhatsapp?: boolean;
   };
   notes?: string;
@@ -186,10 +189,17 @@ export interface Product {
   sku?: string;
   barcode?: string; // Código de barras (EAN-13 / GTIN)
   name: string;
+  brand?: string; // Marca do produto
+  slug?: string; // URL amigável (slug SEO)
+  tags?: string[]; // Tags / palavras-chave
+  metaTitle?: string; // Meta título para SEO
+  metaDescription?: string; // Meta descrição para SEO
+  metaKeywords?: string; // Meta tags / palavras-chave
   model?: string; // Modelo do produto
   date?: string; // Data de fabricação / aquisição / cadastro
   serialNumber?: string; // Número de série
-  category: string; // 'Reservatórios Térmicos', 'Bombas e Motores', 'Tubulações e Conexões', 'Insumos Elétricos', 'Peças Gerais'
+  category: string; // Categoria do produto
+  subcategory?: string; // Subcategoria do produto
   costPrice: number;
   profitMarginPercent?: number; // Margem de lucro em %
   retailPrice: number; // Venda Varejo
@@ -332,6 +342,10 @@ export interface ServiceItem {
   name: string;
   hours?: number;
   price: number;
+  isCustom?: boolean; // true para serviços avulsos (não cadastrados no catálogo)
+  serviceId?: string; // ID do serviço caso selecionado do catálogo
+  category?: string;
+  checklistTemplateId?: string;
 }
 
 export interface PartItem {
@@ -353,6 +367,8 @@ export interface ChecklistItem {
   photos?: string[];
   suggestedPartName?: string;
   suggestedPartPrice?: number;
+  serviceName?: string; // Serviço vinculado
+  serviceId?: string;
 }
 
 export interface DigitalSignature {
@@ -565,6 +581,7 @@ export interface ChecklistTemplate {
   id: string;
   title: string;
   equipmentType: string;
+  serviceIds?: string[]; // IDs dos múltiplos serviços do catálogo anexados a este modelo
   items: { id: string; label: string; category: ChecklistItem['category']; required: boolean }[];
 }
 
