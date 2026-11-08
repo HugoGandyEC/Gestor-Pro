@@ -24,9 +24,17 @@ import {
   CreditCard,
   Package,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  Copy,
+  Printer,
+  BookOpen,
+  Code2,
+  ExternalLink,
+  ChevronRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useApp, formatBRL } from '../context/AppContext';
 import { Client, ServiceCatalogItem, ServiceOrder, DirectSale, Supplier, GeneralExpense, Product } from '../types';
 
@@ -164,6 +172,467 @@ const ENTITIES_CONFIG: EntityDefinition[] = [
   }
 ];
 
+export type SupportedFormat = 'xlsx' | 'csv' | 'txt' | 'pdf' | 'xml' | 'sql';
+
+export const FORMATS_CONFIG: {
+  id: SupportedFormat;
+  label: string;
+  ext: string;
+  badge: string;
+  icon: React.ElementType;
+  description: string;
+  mime: string;
+}[] = [
+  {
+    id: 'xlsx',
+    label: 'Excel (.xlsx)',
+    ext: '.xlsx',
+    badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    icon: FileSpreadsheet,
+    description: 'Planilha Microsoft Excel com cabeçalhos formatados e 3 linhas de amostra.',
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  },
+  {
+    id: 'csv',
+    label: 'CSV (.csv)',
+    ext: '.csv',
+    badge: 'bg-blue-100 text-blue-800 border-blue-200',
+    icon: FileText,
+    description: 'Arquivo delimitado por ponto e vírgula (;), aspas e codificação UTF-8.',
+    mime: 'text/csv;charset=utf-8;'
+  },
+  {
+    id: 'txt',
+    label: 'Texto Tabulado (.txt)',
+    ext: '.txt',
+    badge: 'bg-slate-100 text-slate-800 border-slate-200',
+    icon: FileText,
+    description: 'Texto puro com colunas separadas por tabulação (TAB) para bloco de notas.',
+    mime: 'text/plain;charset=utf-8;'
+  },
+  {
+    id: 'pdf',
+    label: 'Lista / Relatório PDF (.pdf)',
+    ext: '.pdf',
+    badge: 'bg-rose-100 text-rose-800 border-rose-200',
+    icon: Printer,
+    description: 'Documento PDF com tabela de regras, especificações técnicas e linhas válidas.',
+    mime: 'application/pdf'
+  },
+  {
+    id: 'xml',
+    label: 'XML Estruturado (.xml)',
+    ext: '.xml',
+    badge: 'bg-amber-100 text-amber-800 border-amber-200',
+    icon: FileCode,
+    description: 'Estrutura XML padronizada com nós <registro> e tags correspondentes.',
+    mime: 'application/xml;charset=utf-8;'
+  },
+  {
+    id: 'sql',
+    label: 'Backup SQL (.sql)',
+    ext: '.sql',
+    badge: 'bg-purple-100 text-purple-800 border-purple-200',
+    icon: Database,
+    description: 'Script SQL padrão com comandos INSERT INTO e dados tipados.',
+    mime: 'text/plain;charset=utf-8;'
+  }
+];
+
+export const ENTITY_SAMPLES_MAP: Record<ImportEntity, Record<string, string>[]> = {
+  clients: [
+    {
+      'Nome / Razão Social': 'Hotel Fazenda das Águas Ltda',
+      'CPF / CNPJ': '12.345.678/0001-90',
+      'Telefone / WhatsApp': '(11) 98765-4321',
+      'E-mail': 'contato@aguas.com.br',
+      'Cidade': 'Campinas',
+      'Estado (UF)': 'SP',
+      'Logradouro / Rua': 'Av. das Termas',
+      'Número': '500',
+      'Bairro': 'Solar',
+      'CEP': '13080-000'
+    },
+    {
+      'Nome / Razão Social': 'Carlos Eduardo Mendes',
+      'CPF / CNPJ': '234.567.890-12',
+      'Telefone / WhatsApp': '(19) 99123-4567',
+      'E-mail': 'carlos.mendes@gmail.com',
+      'Cidade': 'Valinhos',
+      'Estado (UF)': 'SP',
+      'Logradouro / Rua': 'Rua dos Ipês',
+      'Número': '142',
+      'Bairro': 'Jardim Primavera',
+      'CEP': '13270-100'
+    },
+    {
+      'Nome / Razão Social': 'Academia Corpo & Vida Eireli',
+      'CPF / CNPJ': '34.567.890/0001-23',
+      'Telefone / WhatsApp': '(19) 3888-9900',
+      'E-mail': 'gerencia@corpovida.com.br',
+      'Cidade': 'Campinas',
+      'Estado (UF)': 'SP',
+      'Logradouro / Rua': 'Rua Coronel Silva',
+      'Número': '850',
+      'Bairro': 'Cambuí',
+      'CEP': '13025-001'
+    }
+  ],
+  services: [
+    {
+      'Nome do Serviço': 'Manutenção Preventiva de Boiler Solar',
+      'Código / SKU': 'SRV-BOILER-01',
+      'Categoria': 'Aquecimento Solar',
+      'Preço Padrão (R$)': '450.00',
+      'Horas Estimadas': '3',
+      'Preço Mínimo (R$)': '380.00'
+    },
+    {
+      'Nome do Serviço': 'Instalação de Bomba de Calor Inverter',
+      'Código / SKU': 'SRV-BOMBA-02',
+      'Categoria': 'Piscinas & Aquecimento',
+      'Preço Padrão (R$)': '850.00',
+      'Horas Estimadas': '4',
+      'Preço Mínimo (R$)': '720.00'
+    },
+    {
+      'Nome do Serviço': 'Limpeza e Sanitização Química de Piscinas',
+      'Código / SKU': 'SRV-LIMPEZA-03',
+      'Categoria': 'Tratamento de Água',
+      'Preço Padrão (R$)': '220.00',
+      'Horas Estimadas': '1.5',
+      'Preço Mínimo (R$)': '180.00'
+    }
+  ],
+  serviceOrders: [
+    {
+      'Número / Código OS': 'OS-2026-101',
+      'Nome do Cliente': 'Condomínio Residencial Alphaville',
+      'Telefone Cliente': '(19) 99881-2233',
+      'Descrição do Problema / Serviço': 'Revisão geral do sistema de aquecimento solar do bloco central',
+      'Status (ex: finalizada, aberta)': 'finalizada',
+      'Data de Abertura': '2026-10-15',
+      'Valor Total (R$)': '1850.00'
+    },
+    {
+      'Número / Código OS': 'OS-2026-102',
+      'Nome do Cliente': 'Hotel Fazenda das Águas Ltda',
+      'Telefone Cliente': '(11) 98765-4321',
+      'Descrição do Problema / Serviço': 'Troca de resistência elétrica e termostato de segurança no boiler',
+      'Status (ex: finalizada, aberta)': 'em_andamento',
+      'Data de Abertura': '2026-10-22',
+      'Valor Total (R$)': '920.00'
+    },
+    {
+      'Número / Código OS': 'OS-2026-103',
+      'Nome do Cliente': 'Carlos Eduardo Mendes',
+      'Telefone Cliente': '(19) 99123-4567',
+      'Descrição do Problema / Serviço': 'Instalação de válvula de alívio e checagem de pressão hidráulica',
+      'Status (ex: finalizada, aberta)': 'aberta',
+      'Data de Abertura': '2026-10-25',
+      'Valor Total (R$)': '480.00'
+    }
+  ],
+  sales: [
+    {
+      'Código do Pedido': 'PED-9012',
+      'Nome do Comprador': 'Clube Campestre de Campo',
+      'Valor Total (R$)': '3450.00',
+      'Data da Venda': '2026-10-20',
+      'Status da Venda': 'aprovado'
+    },
+    {
+      'Código do Pedido': 'PED-9013',
+      'Nome do Comprador': 'Pousada Recanto Verde',
+      'Valor Total (R$)': '1280.00',
+      'Data da Venda': '2026-10-24',
+      'Status da Venda': 'aprovado'
+    },
+    {
+      'Código do Pedido': 'PED-9014',
+      'Nome do Comprador': 'Roberto Alencar ME',
+      'Valor Total (R$)': '790.00',
+      'Data da Venda': '2026-10-28',
+      'Status da Venda': 'faturado'
+    }
+  ],
+  suppliers: [
+    {
+      'Razão Social': 'TermoMax Indústria Solar Ltda',
+      'Nome Fantasia': 'TermoMax Solar',
+      'CNPJ': '98.765.432/0001-10',
+      'Telefone': '(11) 3456-7890',
+      'E-mail Comercial': 'pedidos@termomax.com.br',
+      'Cidade': 'São Paulo',
+      'UF': 'SP'
+    },
+    {
+      'Razão Social': 'Hidráulica Central Peças & Bombas SA',
+      'Nome Fantasia': 'HidroCentral',
+      'CNPJ': '11.222.333/0001-44',
+      'Telefone': '(19) 3234-5678',
+      'E-mail Comercial': 'vendas@hidrocentral.com.br',
+      'Cidade': 'Campinas',
+      'UF': 'SP'
+    },
+    {
+      'Razão Social': 'PiscinaTech Automação e Filtros Ltda',
+      'Nome Fantasia': 'PiscinaTech',
+      'CNPJ': '55.666.777/0001-88',
+      'Telefone': '(11) 4004-9800',
+      'E-mail Comercial': 'contato@piscinatech.ind.br',
+      'Cidade': 'Ribeirão Preto',
+      'UF': 'SP'
+    }
+  ],
+  payments: [
+    {
+      'Descrição da Despesa / Pagamento': 'Compra de tubos e válvulas PPR alta temperatura',
+      'Valor (R$)': '890.50',
+      'Categoria de Custo': 'ferramental',
+      'Fornecedor / Beneficiário': 'Distribuidora Hidráulica SP',
+      'Data de Vencimento': '2026-11-10',
+      'Pago? (sim / nao)': 'sim'
+    },
+    {
+      'Descrição da Despesa / Pagamento': 'Combustível veículo operacional Ford Ranger OS',
+      'Valor (R$)': '350.00',
+      'Categoria de Custo': 'gasolina',
+      'Fornecedor / Beneficiário': 'Posto Estrela da Rodovia',
+      'Data de Vencimento': '2026-11-05',
+      'Pago? (sim / nao)': 'sim'
+    },
+    {
+      'Descrição da Despesa / Pagamento': 'Mensalidade internet fibra óptica e telefonia',
+      'Valor (R$)': '189.90',
+      'Categoria de Custo': 'internet',
+      'Fornecedor / Beneficiário': 'Telecom Brasil Fibra',
+      'Data de Vencimento': '2026-11-15',
+      'Pago? (sim / nao)': 'nao'
+    }
+  ],
+  products: [
+    {
+      'Código SKU': 'PROD-600L',
+      'Nome do Produto': 'Reservatório Boiler 600L Alta Pressão Inox 316',
+      'Marca / Fabricante': 'TermoMax',
+      'Categoria': 'Reservatórios Térmicos',
+      'Subcategoria': 'Alta Pressão',
+      'Preço de Custo (R$)': '2100.00',
+      'Preço Varejo (R$)': '3200.00',
+      'Estoque Atual': '6',
+      'Unidade (UN, PC, MT)': 'UN'
+    },
+    {
+      'Código SKU': 'BOMBA-1CV',
+      'Nome do Produto': 'Bomba Autoaspirante 1.0 CV Monofásica 220V',
+      'Marca / Fabricante': 'Dancor',
+      'Categoria': 'Bombas & Motores',
+      'Subcategoria': 'Autoaspirante',
+      'Preço de Custo (R$)': '620.00',
+      'Preço Varejo (R$)': '980.00',
+      'Estoque Atual': '12',
+      'Unidade (UN, PC, MT)': 'UN'
+    },
+    {
+      'Código SKU': 'VALV-ALIV-34',
+      'Nome do Produto': 'Válvula de Alívio e Segurança 3/4 6 Bar',
+      'Marca / Fabricante': 'Emmeti',
+      'Categoria': 'Hidráulica & Conexões',
+      'Subcategoria': 'Válvulas',
+      'Preço de Custo (R$)': '85.00',
+      'Preço Varejo (R$)': '145.00',
+      'Estoque Atual': '25',
+      'Unidade (UN, PC, MT)': 'PC'
+    }
+  ]
+};
+
+export const getFieldRuleHint = (key: string): string => {
+  switch (key) {
+    case 'name':
+      return 'Texto livre (Razão Social ou Nome Completo)';
+    case 'document':
+      return 'CPF (000.000.000-00) ou CNPJ (00.000.000/0001-00)';
+    case 'phone':
+    case 'clientPhone':
+      return 'Telefone com DDD (ex: (11) 98765-4321)';
+    case 'email':
+      return 'E-mail válido de contato';
+    case 'city':
+      return 'Nome do município';
+    case 'state':
+      return 'Sigla UF com 2 letras (SP, RJ, MG...)';
+    case 'standardPrice':
+    case 'minPrice':
+    case 'costPrice':
+    case 'retailPrice':
+    case 'totalAmount':
+    case 'totalValue':
+    case 'cost':
+      return 'Valor monetário decimal com ponto ou vírgula (ex: 450.00)';
+    case 'currentStock':
+    case 'defaultHours':
+      return 'Número numérico inteiro ou decimal (ex: 10 ou 1.5)';
+    case 'openDate':
+    case 'date':
+    case 'dueDate':
+      return 'Data no formato AAAA-MM-DD ou DD/MM/AAAA';
+    case 'status':
+      return 'Texto do status (ex: aberta, finalizada, aprovado)';
+    case 'isPaid':
+      return 'sim ou nao (true / false)';
+    case 'category':
+    case 'subcategory':
+    case 'brand':
+      return 'Texto identificador da categoria ou marca';
+    default:
+      return 'Texto padrão';
+  }
+};
+
+export const generateCSVText = (entityDef: EntityDefinition): string => {
+  const sampleRows = ENTITY_SAMPLES_MAP[entityDef.id] || [];
+  const headers = entityDef.fields.map(f => `"${f.label}"`).join(';');
+  const rows = sampleRows.map(row => 
+    entityDef.fields.map(f => `"${(row[f.label] || f.sample).replace(/"/g, '""')}"`).join(';')
+  ).join('\n');
+  return `\uFEFF${headers}\n${rows}\n`;
+};
+
+export const generateTXTText = (entityDef: EntityDefinition): string => {
+  const sampleRows = ENTITY_SAMPLES_MAP[entityDef.id] || [];
+  const headers = entityDef.fields.map(f => f.label).join('\t');
+  const rows = sampleRows.map(row => 
+    entityDef.fields.map(f => row[f.label] || f.sample).join('\t')
+  ).join('\n');
+  return `${headers}\n${rows}\n`;
+};
+
+export const generateXMLText = (entityDef: EntityDefinition): string => {
+  const sampleRows = ENTITY_SAMPLES_MAP[entityDef.id] || [];
+  const recordsXml = sampleRows.map((row, idx) => {
+    const fieldsXml = entityDef.fields.map(f => `    <${f.key}>${row[f.label] || f.sample}</${f.key}>`).join('\n');
+    return `  <registro id="${idx + 1}">\n${fieldsXml}\n  </registro>`;
+  }).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!-- ========================================================= -->
+<!-- GESTAOPRO · MODELO OFICIAL DE IMPORTAÇÃO XML               -->
+<!-- Entidade: ${entityDef.label} (${entityDef.singular})       -->
+<!-- ========================================================= -->
+<importacao_sistema entidade="${entityDef.id}" total="${sampleRows.length}">
+  <instrucoes>
+    Preencha os registros mantendo as tags de cada campo correspondente.
+  </instrucoes>
+${recordsXml}
+</importacao_sistema>\n`;
+};
+
+export const generateSQLText = (entityDef: EntityDefinition): string => {
+  const sampleRows = ENTITY_SAMPLES_MAP[entityDef.id] || [];
+  const cols = entityDef.fields.map(f => `\`${f.key}\``).join(', ');
+  const valuesLines = sampleRows.map(row => {
+    const rowVals = entityDef.fields.map(f => {
+      const val = row[f.label] || f.sample;
+      return `'${val.replace(/'/g, "\\'")}'`;
+    }).join(', ');
+    return `  (${rowVals})`;
+  }).join(',\n');
+
+  return `-- =========================================================
+-- GESTAOPRO · BACKUP E MODELO DE IMPORTAÇÃO SQL
+-- Tabela de Destino: \`${entityDef.id}\` (${entityDef.label})
+-- Gerado em: ${new Date().toLocaleDateString('pt-BR')}
+-- =========================================================
+
+INSERT INTO \`${entityDef.id}\` (${cols}) VALUES
+${valuesLines};
+`;
+};
+
+export const generatePDFDocument = (entityDef: EntityDefinition) => {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const sampleRows = ENTITY_SAMPLES_MAP[entityDef.id] || [];
+
+  // Header Banner
+  doc.setFillColor(83, 56, 62);
+  doc.rect(0, 0, 297, 24, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`GESTAOPRO · MODELO OFICIAL DE IMPORTAÇÃO - ${entityDef.label.toUpperCase()}`, 14, 11);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Documento Guia com Especificação Técnica de Colunas, Regras de Preenchimento e Amostras para Migração`, 14, 18);
+
+  // Section 1: Field Rules
+  doc.setTextColor(40, 40, 40);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`1. Dicionário de Colunas e Regras de Preenchimento (${entityDef.fields.length} colunas mapeáveis):`, 14, 31);
+
+  autoTable(doc, {
+    startY: 34,
+    head: [['Nome da Coluna', 'Chave Técnica', 'Obrigatório?', 'Tipo / Regra de Preenchimento', 'Exemplo Válido']],
+    body: entityDef.fields.map(f => [
+      f.label,
+      f.key,
+      f.required ? 'SIM (Obrigatório)' : 'Opcional',
+      getFieldRuleHint(f.key),
+      f.sample
+    ]),
+    headStyles: { fillColor: [83, 56, 62], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 7.5, textColor: [30, 30, 30] },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    theme: 'grid',
+    margin: { left: 14, right: 14 }
+  });
+
+  // Section 2: 3 Sample Records
+  const lastY = (doc as any).lastAutoTable?.finalY || 100;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(40, 40, 40);
+  doc.text(`2. Tabela de Amostra com Registros Válidos (${sampleRows.length} linhas de exemplo para seguir):`, 14, lastY + 9);
+
+  const headCols = entityDef.fields.map(f => f.label);
+  const bodyRows = sampleRows.map(row => entityDef.fields.map(f => row[f.label] || f.sample));
+
+  autoTable(doc, {
+    startY: lastY + 12,
+    head: [headCols],
+    body: bodyRows,
+    headStyles: { fillColor: [24, 76, 120], textColor: 255, fontSize: 7.5, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 7, textColor: [30, 30, 30] },
+    alternateRowStyles: { fillColor: [239, 246, 255] },
+    theme: 'grid',
+    margin: { left: 14, right: 14 }
+  });
+
+  const finalY = (doc as any).lastAutoTable?.finalY || 160;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Dica de Importação: Você pode copiar o texto desta tabela e colar no assistente "Colar Texto / Tabela de PDF" do GestãoPro.`, 14, Math.min(finalY + 8, 200));
+
+  doc.save(`modelo_importacao_${entityDef.id}.pdf`);
+};
+
+export const generateXLSXDocument = (entityDef: EntityDefinition) => {
+  const sampleRows = ENTITY_SAMPLES_MAP[entityDef.id] || [];
+  const ws = XLSX.utils.json_to_sheet(sampleRows);
+
+  const colWidths = entityDef.fields.map(f => ({
+    wch: Math.max(f.label.length, f.sample.length, 14) + 4
+  }));
+  ws['!cols'] = colWidths;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, entityDef.label.slice(0, 31));
+  XLSX.writeFile(wb, `modelo_importacao_${entityDef.id}.xlsx`);
+};
+
 export const UniversalDataImportView: React.FC = () => {
   const {
     batchImportClients,
@@ -191,6 +660,12 @@ export const UniversalDataImportView: React.FC = () => {
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Model & Template Hub states (7 Entidades x 6 Formatos)
+  const [isModelHubOpen, setIsModelHubOpen] = useState(false);
+  const [modelHubEntity, setModelHubEntity] = useState<ImportEntity>('clients');
+  const [modelHubFormat, setModelHubFormat] = useState<SupportedFormat>('xlsx');
+  const [copiedFormatKey, setCopiedFormatKey] = useState<string | null>(null);
 
   const currentEntityConfig = ENTITIES_CONFIG.find(e => e.id === selectedEntity)!;
 
@@ -644,59 +1119,110 @@ export const UniversalDataImportView: React.FC = () => {
     }
   };
 
-  // Download Sample Template for chosen format
-  const handleDownloadSample = (format: 'csv' | 'xlsx' | 'txt' | 'xml' | 'sql') => {
-    const fields = currentEntityConfig.fields;
-    const sampleRow: Record<string, string> = {};
-    fields.forEach(f => {
-      sampleRow[f.label] = f.sample;
+  // Universal Download Sample for any Entity & any Formats
+  const handleDownloadSample = (format: SupportedFormat, entityId: ImportEntity = selectedEntity) => {
+    const entityDef = ENTITIES_CONFIG.find(e => e.id === entityId)!;
+    try {
+      if (format === 'xlsx') {
+        generateXLSXDocument(entityDef);
+      } else if (format === 'pdf') {
+        generatePDFDocument(entityDef);
+      } else if (format === 'csv') {
+        const csvContent = generateCSVText(entityDef);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `modelo_importacao_${entityDef.id}.csv`;
+        a.click();
+      } else if (format === 'txt') {
+        const txtContent = generateTXTText(entityDef);
+        const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `modelo_importacao_${entityDef.id}.txt`;
+        a.click();
+      } else if (format === 'xml') {
+        const xmlContent = generateXMLText(entityDef);
+        const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `modelo_importacao_${entityDef.id}.xml`;
+        a.click();
+      } else if (format === 'sql') {
+        const sqlContent = generateSQLText(entityDef);
+        const blob = new Blob([sqlContent], { type: 'text/plain;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `modelo_backup_${entityDef.id}.sql`;
+        a.click();
+      }
+
+      setFeedbackMessage({
+        type: 'success',
+        text: `Arquivo modelo (${format.toUpperCase()}) para ${entityDef.label} baixado com sucesso!`
+      });
+    } catch (err: any) {
+      setFeedbackMessage({
+        type: 'error',
+        text: `Erro ao gerar modelo (${format.toUpperCase()}): ${err?.message || 'Falha no download'}`
+      });
+    }
+  };
+
+  // Copy Sample Content to Clipboard
+  const handleCopySampleText = (format: SupportedFormat, entityId: ImportEntity = selectedEntity) => {
+    const entityDef = ENTITIES_CONFIG.find(e => e.id === entityId)!;
+    let content = '';
+
+    if (format === 'csv') {
+      content = generateCSVText(entityDef);
+    } else if (format === 'txt') {
+      content = generateTXTText(entityDef);
+    } else if (format === 'xml') {
+      content = generateXMLText(entityDef);
+    } else if (format === 'sql') {
+      content = generateSQLText(entityDef);
+    } else {
+      content = generateTXTText(entityDef);
+    }
+
+    navigator.clipboard.writeText(content);
+    setCopiedFormatKey(`${entityId}-${format}`);
+    setTimeout(() => setCopiedFormatKey(null), 3000);
+
+    setFeedbackMessage({
+      type: 'success',
+      text: `Modelo de exemplo (${format.toUpperCase()}) para ${entityDef.label} copiado para a área de transferência!`
+    });
+  };
+
+  // Instant Test Load: Preload the 3 sample rows directly into the mapper
+  const handleLoadSampleDirectly = (entityId: ImportEntity = selectedEntity, formatName: string = 'exemplo') => {
+    const entityDef = ENTITIES_CONFIG.find(e => e.id === entityId)!;
+    setSelectedEntity(entityId);
+
+    const sampleRows = ENTITY_SAMPLES_MAP[entityId] || [];
+    const headers = entityDef.fields.map(f => f.label);
+
+    setParsedHeaders(headers);
+    setParsedRows(sampleRows);
+    autoMapColumns(headers, entityDef);
+    setFileName(`modelo_oficial_${entityDef.id}.${formatName}`);
+    setIsModelHubOpen(false);
+
+    setFeedbackMessage({
+      type: 'success',
+      text: `Modelo oficial de ${entityDef.label} carregado com ${sampleRows.length} linhas de amostra! Confira o mapeamento abaixo.`
     });
 
-    if (format === 'xlsx') {
-      const ws = XLSX.utils.json_to_sheet([sampleRow, sampleRow]);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, currentEntityConfig.label);
-      XLSX.writeFile(wb, `modelo_importacao_${currentEntityConfig.id}.xlsx`);
-    } else if (format === 'csv') {
-      const headers = fields.map(f => `"${f.label}"`).join(';');
-      const values = fields.map(f => `"${f.sample}"`).join(';');
-      const csvContent = `${headers}\n${values}\n`;
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `modelo_importacao_${currentEntityConfig.id}.csv`;
-      a.click();
-    } else if (format === 'txt') {
-      const headers = fields.map(f => f.label).join('\t');
-      const values = fields.map(f => f.sample).join('\t');
-      const txtContent = `${headers}\n${values}\n`;
-      const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `modelo_importacao_${currentEntityConfig.id}.txt`;
-      a.click();
-    } else if (format === 'xml') {
-      const xmlNodes = fields.map(f => `    <${f.key}>${f.sample}</${f.key}>`).join('\n');
-      const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<${currentEntityConfig.id}>\n  <item>\n${xmlNodes}\n  </item>\n</${currentEntityConfig.id}>\n`;
-      const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `modelo_importacao_${currentEntityConfig.id}.xml`;
-      a.click();
-    } else if (format === 'sql') {
-      const cols = fields.map(f => `\`${f.key}\``).join(', ');
-      const vals = fields.map(f => `'${f.sample}'`).join(', ');
-      const sqlContent = `INSERT INTO \`${currentEntityConfig.id}\` (${cols}) VALUES (${vals});\n`;
-      const blob = new Blob([sqlContent], { type: 'text/plain;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `modelo_backup_${currentEntityConfig.id}.sql`;
-      a.click();
-    }
+    setTimeout(() => {
+      const el = document.getElementById('step-3-mapping');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }, 150);
   };
 
   return (
@@ -719,37 +1245,35 @@ export const UniversalDataImportView: React.FC = () => {
         </div>
 
         {/* Model Downloads Quick Dropdown */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-white/10 p-2.5 rounded-xl border border-white/10">
-          <span className="text-[11px] font-semibold text-slate-200">Modelos de Exemplo:</span>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 bg-white/10 p-2.5 rounded-xl border border-white/15">
+          <button
+            type="button"
+            onClick={() => {
+              setModelHubEntity(selectedEntity);
+              setIsModelHubOpen(true);
+            }}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+          >
+            <BookOpen className="w-4 h-4 text-slate-950" />
+            <span>Central de Modelos (7 Entidades × 6 Formatos)</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-slate-950 text-amber-300 uppercase">
+              Ver Todos
+            </span>
+          </button>
+
           <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={() => handleDownloadSample('xlsx')}
-              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-              title="Baixar modelo em Excel (.xlsx)"
-            >
-              <FileSpreadsheet className="w-3 h-3" /> XLSX
-            </button>
-            <button
-              onClick={() => handleDownloadSample('csv')}
-              className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-              title="Baixar modelo em CSV"
-            >
-              <FileText className="w-3 h-3" /> CSV
-            </button>
-            <button
-              onClick={() => handleDownloadSample('sql')}
-              className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-              title="Baixar modelo em SQL"
-            >
-              <Database className="w-3 h-3" /> SQL
-            </button>
-            <button
-              onClick={() => handleDownloadSample('xml')}
-              className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-              title="Baixar modelo em XML"
-            >
-              <FileCode className="w-3 h-3" /> XML
-            </button>
+            <span className="text-[11px] font-semibold text-slate-200">Baixar {currentEntityConfig.singular}:</span>
+            {FORMATS_CONFIG.map(fmt => (
+              <button
+                key={fmt.id}
+                onClick={() => handleDownloadSample(fmt.id, selectedEntity)}
+                className="px-2 py-1 bg-white/20 hover:bg-white/30 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                title={`Baixar modelo ${fmt.label}`}
+              >
+                <Download className="w-2.5 h-2.5 text-amber-300" />
+                {fmt.id.toUpperCase()}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -810,6 +1334,111 @@ export const UniversalDataImportView: React.FC = () => {
               </button>
             );
           })}
+        </div>
+
+        {/* Modelos e Exemplos Oficiais para Seguir - 6 Formatos */}
+        <div className="mt-4 p-4.5 bg-gradient-to-br from-slate-50 via-white to-amber-50/40 rounded-xl border border-amber-200/80 shadow-2xs space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-800 flex items-center justify-center border border-amber-200">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>Modelos de Exemplo Oficiais para Seguir —</span>
+                  <span className="text-[#53383e] underline decoration-amber-400 font-extrabold">{currentEntityConfig.label}</span>
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Baixe ou copie o modelo exato nos 6 formatos aceitos pelo sistema. Todos contêm as colunas obrigatórias e 3 linhas de amostras válidas.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => handleLoadSampleDirectly(selectedEntity)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                title="Carregar as 3 linhas de amostra diretamente na tabela de mapeamento"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Testar este Modelo Agora</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setModelHubEntity(selectedEntity);
+                  setIsModelHubOpen(true);
+                }}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-amber-300" />
+                <span>Ver Central de Modelos</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Grid dos 6 formatos */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
+            {FORMATS_CONFIG.map(fmt => {
+              const FmtIcon = fmt.icon;
+              const isCopied = copiedFormatKey === `${selectedEntity}-${fmt.id}`;
+
+              return (
+                <div
+                  key={fmt.id}
+                  className="bg-white p-3 rounded-xl border border-slate-200 hover:border-slate-300 shadow-2xs flex flex-col justify-between space-y-2.5 transition-all group"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <FmtIcon className="w-4 h-4 text-slate-700" />
+                        <span className="font-bold text-xs text-slate-900">{fmt.label}</span>
+                      </div>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${fmt.badge}`}>
+                        {fmt.ext}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-snug line-clamp-2">
+                      {fmt.description}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadSample(fmt.id, selectedEntity)}
+                      className="w-full py-1.5 px-2 bg-slate-900 hover:bg-[#53383e] text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Download className="w-3 h-3 text-amber-300" />
+                      <span>Baixar Modelo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopySampleText(fmt.id, selectedEntity)}
+                      className={`w-full py-1 px-2 rounded-lg text-[10px] font-semibold border flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                        isCopied
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-2.5 h-2.5 text-slate-500" />
+                          <span>Copiar Modelo</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -888,7 +1517,7 @@ export const UniversalDataImportView: React.FC = () => {
 
       {/* Step 3: Column Mapping & Data Preview (if file loaded) */}
       {parsedRows.length > 0 && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+        <div id="step-3-mapping" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1046,6 +1675,321 @@ export const UniversalDataImportView: React.FC = () => {
               >
                 Processar e Mapear Colunas
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Central de Modelos de Exemplo e Migração (7 Entidades x 6 Formatos) */}
+      {isModelHubOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-5 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-900 via-[#53383e] to-slate-900 text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center border border-amber-300/30 shrink-0">
+                  <BookOpen className="w-5 h-5 text-amber-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-base sm:text-lg">Central de Modelos de Importação & Backups</h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
+                      7 Entidades × 6 Formatos
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Consulte as regras de preenchimento, copie exemplos válidos ou baixe arquivos pré-formatados para seguir na sua migração.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModelHubOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Entity Selector Bar */}
+            <div className="bg-slate-100 border-b border-slate-200 px-4 py-2 overflow-x-auto shrink-0 flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1 shrink-0">Entidade:</span>
+              {ENTITIES_CONFIG.map(ent => {
+                const Icon = ent.icon;
+                const isSelected = modelHubEntity === ent.id;
+                return (
+                  <button
+                    key={ent.id}
+                    type="button"
+                    onClick={() => setModelHubEntity(ent.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#53383e] text-white shadow-xs'
+                        : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{ent.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Format Selector Bar */}
+            <div className="bg-white border-b border-slate-200 px-4 py-2 shrink-0 flex items-center gap-1.5 overflow-x-auto">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1 shrink-0">Formato:</span>
+              {FORMATS_CONFIG.map(fmt => {
+                const FmtIcon = fmt.icon;
+                const isSelected = modelHubFormat === fmt.id;
+                return (
+                  <button
+                    key={fmt.id}
+                    type="button"
+                    onClick={() => setModelHubFormat(fmt.id)}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                      isSelected
+                        ? 'bg-slate-900 text-white font-bold shadow-xs'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    <FmtIcon className="w-3.5 h-3.5" />
+                    <span>{fmt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Modal Body */}
+            {(() => {
+              const activeEntityDef = ENTITIES_CONFIG.find(e => e.id === modelHubEntity)!;
+              const activeFormatDef = FORMATS_CONFIG.find(f => f.id === modelHubFormat)!;
+              const sampleRows = ENTITY_SAMPLES_MAP[modelHubEntity] || [];
+              const isCopied = copiedFormatKey === `${modelHubEntity}-${modelHubFormat}`;
+
+              // Determine text content for preview
+              let previewText = '';
+              if (modelHubFormat === 'csv') {
+                previewText = generateCSVText(activeEntityDef);
+              } else if (modelHubFormat === 'txt') {
+                previewText = generateTXTText(activeEntityDef);
+              } else if (modelHubFormat === 'xml') {
+                previewText = generateXMLText(activeEntityDef);
+              } else if (modelHubFormat === 'sql') {
+                previewText = generateSQLText(activeEntityDef);
+              }
+
+              return (
+                <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
+                  {/* Action Banner */}
+                  <div className="p-4 bg-gradient-to-r from-slate-50 via-white to-amber-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${activeFormatDef.badge}`}>
+                          {activeFormatDef.ext}
+                        </span>
+                        <h4 className="font-bold text-sm text-slate-900">
+                          Modelo Oficial para {activeEntityDef.label} em {activeFormatDef.label}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {activeFormatDef.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadSample(modelHubFormat, modelHubEntity)}
+                        className="px-3.5 py-2 bg-slate-900 hover:bg-[#53383e] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Baixar Arquivo {activeFormatDef.ext}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCopySampleText(modelHubFormat, modelHubEntity)}
+                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                          isCopied
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
+                        }`}
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Copiar Modelo</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleLoadSampleDirectly(modelHubEntity, modelHubFormat)}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Testar no Importador</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Visualizer / Code Preview */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <Code2 className="w-4 h-4 text-[#53383e]" />
+                        <span>Pré-visualização do Arquivo Modelo:</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        modelo_importacao_{activeEntityDef.id}{activeFormatDef.ext}
+                      </span>
+                    </div>
+
+                    {modelHubFormat === 'xlsx' || modelHubFormat === 'pdf' ? (
+                      /* Table view for binary formats XLSX / PDF */
+                      <div className="bg-slate-900 rounded-xl p-4 text-white space-y-3">
+                        <div className="flex items-center justify-between text-xs border-b border-slate-800 pb-2">
+                          <span className="text-amber-300 font-semibold flex items-center gap-1.5">
+                            {modelHubFormat === 'xlsx' ? <FileSpreadsheet className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
+                            {modelHubFormat === 'xlsx' 
+                              ? 'Planilha Nativa Excel (.xlsx) pronta para download com células e colunas auto-ajustadas.' 
+                              : 'Documento PDF (.pdf) oficial com Guia de Especificação e Tabela de Amostras para impressão.'}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            3 linhas de dados reais
+                          </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="border-b border-slate-700 text-slate-300 text-[11px]">
+                                {activeEntityDef.fields.map(f => (
+                                  <th key={f.key} className="py-2 px-3 whitespace-nowrap bg-slate-800/80 font-bold">
+                                    {f.label} {f.required && <span className="text-rose-400">*</span>}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800 font-mono text-[11px] text-slate-200">
+                              {sampleRows.map((row, rIdx) => (
+                                <tr key={rIdx} className="hover:bg-slate-800/40">
+                                  {activeEntityDef.fields.map(f => (
+                                    <td key={f.key} className="py-2 px-3 whitespace-nowrap">
+                                      {row[f.label] || f.sample}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Syntax code view for CSV, TXT, XML, SQL */
+                      <div className="relative group">
+                        <pre className="p-4 bg-slate-950 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto max-h-64 leading-relaxed border border-slate-800 shadow-inner">
+                          {previewText}
+                        </pre>
+                        <button
+                          type="button"
+                          onClick={() => handleCopySampleText(modelHubFormat, modelHubEntity)}
+                          className="absolute top-3 right-3 px-2.5 py-1 bg-slate-800/90 hover:bg-slate-700 text-white rounded-md text-[11px] font-bold flex items-center gap-1 transition-all opacity-80 group-hover:opacity-100 cursor-pointer shadow-xs"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copiar</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dicionário de Campos e Regras Técnicas */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <Table className="w-4 h-4 text-blue-600" />
+                        <span>Dicionário Oficial de Campos & Regras de Preenchimento ({activeEntityDef.label}):</span>
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {activeEntityDef.fields.filter(f => f.required).length} obrigatórios / {activeEntityDef.fields.length} totais
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-2xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
+                            <th className="py-2.5 px-3">Nome da Coluna</th>
+                            <th className="py-2.5 px-3">Chave Técnica</th>
+                            <th className="py-2.5 px-3">Obrigatoriedade</th>
+                            <th className="py-2.5 px-3">Tipo / Regra Esperada</th>
+                            <th className="py-2.5 px-3">Valor de Exemplo</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {activeEntityDef.fields.map(field => (
+                            <tr key={field.key} className="hover:bg-slate-50/70">
+                              <td className="py-2 px-3 font-semibold text-slate-900">
+                                {field.label}
+                              </td>
+                              <td className="py-2 px-3 font-mono text-[11px] text-slate-500">
+                                {field.key}
+                              </td>
+                              <td className="py-2 px-3">
+                                {field.required ? (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                                    Obrigatório *
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                    Opcional
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-slate-600 text-[11px]">
+                                {getFieldRuleHint(field.key)}
+                              </td>
+                              <td className="py-2 px-3 font-mono text-[11px] text-[#53383e] font-semibold">
+                                {field.sample}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs shrink-0">
+              <span className="text-[11px] text-slate-500">
+                Sistema GestãoPro · Compatível com backups de qualquer ERP ou software anterior.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsModelHubOpen(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-semibold transition-colors cursor-pointer"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLoadSampleDirectly(modelHubEntity, modelHubFormat)}
+                  className="px-5 py-2 bg-[#53383e] hover:bg-[#432c32] text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Carregar este Modelo no Importador</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
