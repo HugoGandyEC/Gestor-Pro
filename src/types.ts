@@ -124,6 +124,13 @@ export type ExpenseCategory =
   | 'software_contabilidade' 
   | 'compra_produtos_xml' 
   | 'impostos' 
+  | 'funcionario_fichado'
+  | 'combustivel'
+  | 'seguro_veiculo'
+  | 'impostos_carro'
+  | 'aluguel_loja'
+  | 'das_mei'
+  | 'divida_empresa'
   | 'outros';
 
 export interface ClientAddress {
@@ -475,15 +482,27 @@ export interface CustomerPortalTicket {
   scheduledDate?: string;
 }
 
+export type CostRecurrenceType = 'recorrente' | 'parcelado' | 'investimento_unico';
+
 export interface InitialSetupCostItem {
   id: string;
   category: string;
   name: string;
   estimatedCost: number;
   actualCost: number;
-  status: 'planejado' | 'adquirido';
+  status: 'planejado' | 'adquirido' | 'em_andamento' | 'quitado';
   date: string;
   notes?: string;
+  // Recorrência & Dívidas
+  costType?: CostRecurrenceType; // 'recorrente' (mensal), 'parcelado' (X parcelas), 'investimento_unico'
+  isRecurring?: boolean;
+  installmentsCount?: number; // total de parcelas (ex: 12)
+  paidInstallments?: number; // parcelas já pagas (ex: 3)
+  installmentValue?: number; // valor de cada parcela
+  dueDate?: string; // data de vencimento da próxima parcela
+  dueDay?: number; // dia fixo do mês (ex: dia 10)
+  creditor?: string; // credor / banco / beneficiário / fornecedor
+  syncWithGeneralExpenses?: boolean; // sincronizado com contas a pagar
 }
 
 export interface AuditLog {

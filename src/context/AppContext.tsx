@@ -4,6 +4,7 @@ import {
   Vehicle, 
   VehicleMaintenance, 
   GeneralExpense, 
+  ExpenseCategory,
   ServiceOrder, 
   DirectSale,
   InitialSetupCostItem,
@@ -236,7 +237,9 @@ interface AppContextType {
   deleteEmployee: (id: string) => void;
 
   addSetupCost: (item: Omit<InitialSetupCostItem, 'id'>) => void;
+  updateSetupCost: (id: string, updates: Partial<InitialSetupCostItem>) => void;
   deleteSetupCost: (id: string) => void;
+  syncSetupCostsToExpenses: () => { count: number };
 
   addAuditLog: (action: string, details: string) => void;
 
@@ -592,7 +595,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [setupCosts, setSetupCosts] = useState<InitialSetupCostItem[]>(() => {
     const saved = localStorage.getItem(KEYS.SETUP_COSTS);
-    return saved ? JSON.parse(saved) : initialSetupCosts;
+    if (!saved) return initialSetupCosts;
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialSetupCosts;
+    } catch {
+      return initialSetupCosts;
+    }
   });
 
   const [selectedMonthYear, setSelectedMonthYear] = useState<string>(() => {
@@ -2064,8 +2073,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSetupCosts(prev => [...prev, newItem]);
   };
 
+  const updateSetupCost = (id: string, updates: Partial<InitialSetupCostItem>) => {
+    setSetupCosts(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
   const deleteSetupCost = (id: string) => {
     setSetupCosts(prev => prev.filter(s => s.id !== id));
+  };
+
+  const syncSetupCostsToExpenses = () => {
+    let syncedCount = 0;
+    const mapCategory = (cat: string): ExpenseCategory => {
+      switch (cat) {
+        case 'aluguel_loja': return 'aluguel';
+        case 'salario_clt': return 'salario';
+        case 'das_mei': return 'das_mei';
+        case 'combustivel': return 'gasolina';
+        case 'internet': return 'internet';
+        case 'alimentacao': return 'alimentacao';
+        case 'seguro_veiculo': return 'seguro';
+        case 'ipva': return 'ipva';
+        case 'impostos_carro': return 'impostos_carro';
+        case 'divida_empresa': return 'divida_empresa';
+        case 'ferramental': return 'ferramental';
+        default: return 'outros';
+      }
+    };
+
+    setGeneralExpenses(prev => {
+      const updated = [...prev];
+      setupCosts.forEach(item => {
+        if (item.syncWithGeneralExpenses === false) return;
+        if (item.status === 'quitado') return;
+
+        const isRecurrent = item.costType === 'recorrente' || item.isRecurring === true;
+        const isInstallment = item.costType === 'parcelado';
+        
+        if (!isRecurrent && !isInstallment) return;
+
+        const cost = isInstallment 
+          ? (item.installmentValue || (item.installmentsCount ? item.actualCost / item.installmentsCount : item.actualCost)) 
+          : (item.installmentValue || item.actualCost || 0);
+        if (cost <= 0) return;
+
+        let dueDate = item.dueDate || `${selectedMonthYear}-${String(item.dueDay || 10).padStart(2, '0')}`;
+        if (!dueDate.startsWith(selectedMonthYear) && item.dueDay) {
+          dueDate = `${selectedMonthYear}-${String(item.dueDay).padStart(2, '0')}`;
+        }
+
+        const expenseDescription = isInstallment 
+          ? `${item.name} (Parc. ${(item.paidInstallments || 0) + 1}/${item.installmentsCount || 1})`
+          : item.name;
+
+        const existingIndex = updated.findIndex(e => 
+          (e.description === expenseDescription || e.description.startsWith(item.name)) && 
+          e.dueDate.startsWith(selectedMonthYear)
+        );
+
+        if (existingIndex >= 0) {
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            cost,
+            dueDate,
+            supplier: item.creditor || updated[existingIndex].supplier,
+            isRecurring: isRecurrent
+          };
+          syncedCount++;
+        } else {
+          updated.push({
+            id: `ge-sync-${item.id}-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+            category: mapCategory(item.category),
+            description: expenseDescription,
+            cost,
+            dueDate,
+            isPaid: false,
+            supplier: item.creditor || 'Contas da Empresa',
+            isRecurring: isRecurrent
+          });
+          syncedCount++;
+        }
+      });
+      return updated;
+    });
+
+    return { count: syncedCount };
   };
 
   const getEmployeeById = (id: string) => employees.find(e => e.id === id);
@@ -2395,7 +2486,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateEmployee,
         deleteEmployee,
         addSetupCost,
+        updateSetupCost,
         deleteSetupCost,
+        syncSetupCostsToExpenses,
         addAuditLog,
         resetToDefaults,
         getEmployeeById,
