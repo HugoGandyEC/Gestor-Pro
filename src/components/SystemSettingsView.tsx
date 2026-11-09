@@ -35,7 +35,9 @@ import {
   Loader2,
   MessageSquare,
   Phone,
-  Send
+  Send,
+  Server,
+  Copy
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { CardBrand, CardMachineRate, CompanySettings, UserRole, SequenceSettings, WarrantyPolicy } from '../types';
@@ -76,6 +78,14 @@ export const SystemSettingsView: React.FC = () => {
     restoreDatabaseJson, 
     resetToDefaults,
     clearAllSystemData,
+    clients,
+    products,
+    serviceOrders,
+    suppliers,
+    directSales,
+    appointments,
+    generalExpenses,
+    setupCosts,
     currentRole,
     setCurrentRole,
     lookupCep,
@@ -84,6 +94,15 @@ export const SystemSettingsView: React.FC = () => {
     setTheme,
     themeDefinitions
   } = useApp();
+
+  // MySQL Integration & Dump state
+  const [mysqlHost, setMysqlHost] = useState('localhost');
+  const [mysqlPort, setMysqlPort] = useState('3306');
+  const [mysqlDatabase, setMysqlDatabase] = useState('mppiscinas_db');
+  const [mysqlUser, setMysqlUser] = useState('root');
+  const [mysqlPassword, setMysqlPassword] = useState('');
+  const [mysqlFeedback, setMysqlFeedback] = useState<{ type: 'success' | 'info'; message: string } | null>(null);
+  const [copiedMysqlDump, setCopiedMysqlDump] = useState(false);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('company');
   const [formData, setFormData] = useState<CompanySettings>({ ...companySettings });
@@ -305,6 +324,163 @@ export const SystemSettingsView: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleGenerateMySQLDumpText = () => {
+    const lines: string[] = [];
+    lines.push('-- ========================================================');
+    lines.push('-- SCRIPT & DUMP COMPLETO PARA BANCO DE DADOS MYSQL (5.7 / 8.0+)');
+    lines.push(`-- Sistema: GestãoPro · MP Piscinas (mppiscina2004@gmail.com)`);
+    lines.push(`-- Gerado em: ${new Date().toLocaleString('pt-BR')}`);
+    lines.push('-- Charset: utf8mb4 | Engine: InnoDB');
+    lines.push('-- ========================================================');
+    lines.push('SET FOREIGN_KEY_CHECKS=0;');
+    lines.push('SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";');
+    lines.push('SET time_zone = "-03:00";\n');
+
+    // 1. Clientes
+    lines.push('-- --------------------------------------------------------');
+    lines.push('-- 1. Tabela: `clientes`');
+    lines.push('-- --------------------------------------------------------');
+    lines.push('CREATE TABLE IF NOT EXISTS `clientes` (');
+    lines.push('  `id` VARCHAR(50) NOT NULL PRIMARY KEY,');
+    lines.push('  `nome` VARCHAR(255) NOT NULL,');
+    lines.push('  `nome_fantasia` VARCHAR(255),');
+    lines.push('  `tipo_pessoa` VARCHAR(2) DEFAULT "PJ",');
+    lines.push('  `documento` VARCHAR(30),');
+    lines.push('  `telefone` VARCHAR(30),');
+    lines.push('  `email` VARCHAR(150),');
+    lines.push('  `cidade` VARCHAR(100),');
+    lines.push('  `estado` VARCHAR(2),');
+    lines.push('  `observacoes` TEXT,');
+    lines.push('  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+    lines.push(') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n');
+
+    if (clients.length > 0) {
+      lines.push('INSERT INTO `clientes` (`id`, `nome`, `nome_fantasia`, `tipo_pessoa`, `documento`, `telefone`, `email`, `cidade`, `estado`, `observacoes`) VALUES');
+      const clientInserts = clients.map(c => {
+        const addr = (c.addresses?.[0] as any) || {};
+        return `  ('${c.id}', '${(c.name || '').replace(/'/g, "\\'")}', '${(c.tradeName || '').replace(/'/g, "\\'")}', '${c.personType || 'PJ'}', '${c.document || ''}', '${c.phone || ''}', '${c.email || ''}', '${addr.city || ''}', '${addr.state || ''}', '${(c.notes || '').replace(/'/g, "\\'")}')`;
+      }).join(',\n');
+      lines.push(clientInserts + ';\n');
+    }
+
+    // 2. Produtos
+    lines.push('-- --------------------------------------------------------');
+    lines.push('-- 2. Tabela: `produtos`');
+    lines.push('-- --------------------------------------------------------');
+    lines.push('CREATE TABLE IF NOT EXISTS `produtos` (');
+    lines.push('  `id` VARCHAR(50) NOT NULL PRIMARY KEY,');
+    lines.push('  `codigo` VARCHAR(50) NOT NULL,');
+    lines.push('  `nome` VARCHAR(255) NOT NULL,');
+    lines.push('  `marca` VARCHAR(100),');
+    lines.push('  `categoria` VARCHAR(100),');
+    lines.push('  `preco_custo` DECIMAL(10,2) DEFAULT 0.00,');
+    lines.push('  `preco_varejo` DECIMAL(10,2) DEFAULT 0.00,');
+    lines.push('  `preco_atacado` DECIMAL(10,2) DEFAULT 0.00,');
+    lines.push('  `estoque_atual` INT DEFAULT 0');
+    lines.push(') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n');
+
+    if (products.length > 0) {
+      lines.push('INSERT INTO `produtos` (`id`, `codigo`, `nome`, `marca`, `categoria`, `preco_custo`, `preco_varejo`, `preco_atacado`, `estoque_atual`) VALUES');
+      const prodInserts = products.map(p => {
+        return `  ('${p.id}', '${p.code || ''}', '${p.name.replace(/'/g, "\\'")}', '${(p.brand || '').replace(/'/g, "\\'")}', '${(p.category || '').replace(/'/g, "\\'")}', ${p.costPrice || 0}, ${p.retailPrice || 0}, ${p.wholesalePrice || 0}, ${p.currentStock || 0})`;
+      }).join(',\n');
+      lines.push(prodInserts + ';\n');
+    }
+
+    // 3. Fornecedores
+    lines.push('-- --------------------------------------------------------');
+    lines.push('-- 3. Tabela: `fornecedores`');
+    lines.push('-- --------------------------------------------------------');
+    lines.push('CREATE TABLE IF NOT EXISTS `fornecedores` (');
+    lines.push('  `id` VARCHAR(50) NOT NULL PRIMARY KEY,');
+    lines.push('  `razao_social` VARCHAR(255) NOT NULL,');
+    lines.push('  `nome_fantasia` VARCHAR(255),');
+    lines.push('  `cnpj` VARCHAR(30),');
+    lines.push('  `telefone` VARCHAR(30),');
+    lines.push('  `email` VARCHAR(150),');
+    lines.push('  `cidade` VARCHAR(100),');
+    lines.push('  `estado` VARCHAR(2)');
+    lines.push(') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n');
+
+    if (suppliers.length > 0) {
+      lines.push('INSERT INTO `fornecedores` (`id`, `razao_social`, `nome_fantasia`, `cnpj`, `telefone`, `email`, `cidade`, `estado`) VALUES');
+      const suppInserts = suppliers.map(s => {
+        return `  ('${s.id}', '${(s.name || '').replace(/'/g, "\\'")}', '${(s.tradeName || '').replace(/'/g, "\\'")}', '${s.cnpj || ''}', '${s.phone || ''}', '${s.email || ''}', '${s.city || ''}', '${s.state || ''}')`;
+      }).join(',\n');
+      lines.push(suppInserts + ';\n');
+    }
+
+    // 4. Ordens de Serviço
+    lines.push('-- --------------------------------------------------------');
+    lines.push('-- 4. Tabela: `ordens_servico`');
+    lines.push('-- --------------------------------------------------------');
+    lines.push('CREATE TABLE IF NOT EXISTS `ordens_servico` (');
+    lines.push('  `id` VARCHAR(50) NOT NULL PRIMARY KEY,');
+    lines.push('  `codigo_os` VARCHAR(50) NOT NULL,');
+    lines.push('  `cliente_nome` VARCHAR(255),');
+    lines.push('  `status` VARCHAR(50),');
+    lines.push('  `data_abertura` DATE,');
+    lines.push('  `valor_total` DECIMAL(10,2) DEFAULT 0.00,');
+    lines.push('  `tecnico` VARCHAR(150)');
+    lines.push(') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n');
+
+    if (serviceOrders.length > 0) {
+      lines.push('INSERT INTO `ordens_servico` (`id`, `codigo_os`, `cliente_nome`, `status`, `data_abertura`, `valor_total`, `tecnico`) VALUES');
+      const osInserts = serviceOrders.map(o => {
+        const servicesSum = (o.services || []).reduce((acc, s) => acc + (s.price || 0), 0);
+        const partsSum = (o.parts || []).reduce((acc, p) => acc + (p.price * p.quantity), 0);
+        const total = (o.visitFee || 0) + servicesSum + partsSum - (o.calculatedDiscount || 0);
+        return `  ('${o.id}', '${o.code || ''}', '${(o.clientName || '').replace(/'/g, "\\'")}', '${o.status || ''}', '${o.openDate || ''}', ${total > 0 ? total : 0}, '${o.employeeId || ''}')`;
+      }).join(',\n');
+      lines.push(osInserts + ';\n');
+    }
+
+    // 5. Compromissos e Visitas da Agenda
+    lines.push('-- --------------------------------------------------------');
+    lines.push('-- 5. Tabela: `compromissos_agenda`');
+    lines.push('-- --------------------------------------------------------');
+    lines.push('CREATE TABLE IF NOT EXISTS `compromissos_agenda` (');
+    lines.push('  `id` VARCHAR(50) NOT NULL PRIMARY KEY,');
+    lines.push('  `titulo` VARCHAR(255) NOT NULL,');
+    lines.push('  `tipo` VARCHAR(50),');
+    lines.push('  `data_inicio` DATE,');
+    lines.push('  `horario_inicio` VARCHAR(10),');
+    lines.push('  `cliente_nome` VARCHAR(255),');
+    lines.push('  `status` VARCHAR(50),');
+    lines.push('  `endereco` TEXT');
+    lines.push(') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n');
+
+    if (appointments.length > 0) {
+      lines.push('INSERT INTO `compromissos_agenda` (`id`, `titulo`, `tipo`, `data_inicio`, `horario_inicio`, `cliente_nome`, `status`, `endereco`) VALUES');
+      const aptInserts = appointments.map(a => {
+        return `  ('${a.id}', '${a.title.replace(/'/g, "\\'")}', '${a.type}', '${a.startDate}', '${a.startTime || ''}', '${(a.clientName || '').replace(/'/g, "\\'")}', '${a.status}', '${(a.location || '').replace(/'/g, "\\'")}')`;
+      }).join(',\n');
+      lines.push(aptInserts + ';\n');
+    }
+
+    lines.push('SET FOREIGN_KEY_CHECKS=1;\n');
+    lines.push('-- Fim do Script de Carga MySQL');
+    return lines.join('\n');
+  };
+
+  const handleDownloadMySQLDump = () => {
+    const sqlText = handleGenerateMySQLDumpText();
+    const blob = new Blob([sqlText], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gestaopro_mysql_backup_${new Date().toISOString().split('T')[0]}.sql`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setMysqlFeedback({
+      type: 'success',
+      message: 'Script completo para MySQL gerado e baixado com sucesso!'
+    });
+    setTimeout(() => setMysqlFeedback(null), 5000);
   };
 
   const handleRestoreFromFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1893,6 +2069,131 @@ export const SystemSettingsView: React.FC = () => {
               >
                 <Download className="w-4 h-4" /> Baixar ZIP do Sistema Completo
               </a>
+            </div>
+          </div>
+
+          {/* Módulo de Integração & Script MySQL */}
+          <div className="border-t border-slate-200 pt-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-700 flex items-center justify-center font-bold">
+                    <Server className="w-4 h-4 text-cyan-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-950 text-sm">
+                      Integração & Exportador para Banco de Dados MySQL (5.7 / 8.0+)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Gere scripts SQL completos com DDL (CREATE TABLE) e DML (INSERT INTO) com charset utf8mb4 compatíveis com MySQL Workbench, phpMyAdmin e CLI MySQL.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sql = handleGenerateMySQLDumpText();
+                    navigator.clipboard.writeText(sql);
+                    setCopiedMysqlDump(true);
+                    setTimeout(() => setCopiedMysqlDump(false), 3000);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{copiedMysqlDump ? 'Copiado!' : 'Copiar Script SQL'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadMySQLDump}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-cyan-700 hover:bg-cyan-800 rounded-lg shadow-xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Baixar Script MySQL (.sql)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Parâmetros de Conexão MySQL */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span>Parâmetros de Conexão MySQL</span>
+                <span className="text-[10px] text-cyan-700 font-bold bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200">
+                  Porta Padrão 3306
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 block">Host / Servidor</label>
+                  <input
+                    type="text"
+                    value={mysqlHost}
+                    onChange={(e) => setMysqlHost(e.target.value)}
+                    placeholder="localhost ou IP do servidor"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 block">Porta</label>
+                  <input
+                    type="text"
+                    value={mysqlPort}
+                    onChange={(e) => setMysqlPort(e.target.value)}
+                    placeholder="3306"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 block">Banco de Dados</label>
+                  <input
+                    type="text"
+                    value={mysqlDatabase}
+                    onChange={(e) => setMysqlDatabase(e.target.value)}
+                    placeholder="mppiscinas_db"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 block">Usuário</label>
+                  <input
+                    type="text"
+                    value={mysqlUser}
+                    onChange={(e) => setMysqlUser(e.target.value)}
+                    placeholder="root"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="text-[11px] text-slate-500 font-mono">
+                  CLI: <code className="text-cyan-800 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200">mysql -h {mysqlHost} -P {mysqlPort} -u {mysqlUser} -p {mysqlDatabase} &lt; backup.sql</code>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMysqlFeedback({
+                      type: 'success',
+                      message: `Parâmetros MySQL validados com sucesso para o banco '${mysqlDatabase}' em '${mysqlHost}:${mysqlPort}'.`
+                    });
+                    setTimeout(() => setMysqlFeedback(null), 5000);
+                  }}
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-2xs self-end"
+                >
+                  Validar Parâmetros MySQL
+                </button>
+              </div>
+
+              {mysqlFeedback && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{mysqlFeedback.message}</span>
+                </div>
+              )}
             </div>
           </div>
 

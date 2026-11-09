@@ -267,6 +267,8 @@ export interface ParsedXmlSupplier {
 
 export interface ParsedXmlNFe {
   nNF: string;
+  serie?: string;
+  chNFe?: string;
   emissionDate: string;
   totalValue: number;
   supplier: ParsedXmlSupplier;

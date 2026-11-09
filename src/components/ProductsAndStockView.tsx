@@ -43,6 +43,12 @@ import { useApp, formatBRL } from '../context/AppContext';
 import { Product, ParsedXmlNFe } from '../types';
 import { NFeImportStagingModal } from './NFeImportStagingModal';
 import { GmailNfeSearchModal } from './GmailNfeSearchModal';
+import { 
+  checkDuplicateUpload, 
+  generateFileChecksum, 
+  UploadedFileRecord 
+} from '../services/fileUploadTracker';
+import { DuplicateUploadModal } from './DuplicateUploadModal';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -85,6 +91,20 @@ export const ProductsAndStockView: React.FC = () => {
   const [stagingNFe, setStagingNFe] = useState<ParsedXmlNFe | null>(null);
   const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
   const [isGmailModalOpen, setIsGmailModalOpen] = useState(false);
+
+  // Duplicate Upload Alert Modal State
+  const [duplicateUploadState, setDuplicateUploadState] = useState<{
+    isOpen: boolean;
+    record: UploadedFileRecord | null;
+    fileName: string;
+    fileSize?: number;
+    onProceed: () => void;
+  }>({
+    isOpen: false,
+    record: null,
+    fileName: '',
+    onProceed: () => {}
+  });
 
   // Taxonomy Manager Modal State (Categorias, Subcategorias, Marcas e Tags)
   const [isTaxonomyModalOpen, setIsTaxonomyModalOpen] = useState(false);
@@ -509,7 +529,7 @@ export const ProductsAndStockView: React.FC = () => {
     setIsHistoryModalOpen(true);
   };
 
-  const handleProcessXmlForReview = (contentToParse?: string) => {
+  const handleProcessXmlForReview = (contentToParse?: string, sourceFileName?: string, sourceFileSize?: number) => {
     const content = contentToParse !== undefined ? contentToParse : xmlText;
     if (!content.trim()) {
       alert('Insira ou cole o conteúdo do XML da NF-e.');
@@ -517,7 +537,33 @@ export const ProductsAndStockView: React.FC = () => {
     }
     const res = parseNFeXml(content);
     if (res.success && res.parsedNFe) {
-      setStagingNFe(res.parsedNFe);
+      const nfe = res.parsedNFe;
+      // Duplicate check by chNFe, nNF + CNPJ, or file
+      const dupCheck = checkDuplicateUpload({
+        chNFe: nfe.chNFe,
+        nNF: nfe.nNF,
+        supplierCnpj: nfe.supplier.cnpj,
+        fileName: sourceFileName,
+        fileSize: sourceFileSize,
+        category: 'nfe_xml'
+      });
+
+      if (dupCheck.isDuplicate && dupCheck.record) {
+        setDuplicateUploadState({
+          isOpen: true,
+          record: dupCheck.record,
+          fileName: sourceFileName || `NF-e ${nfe.nNF} (${nfe.supplier.name || 'Fornecedor'})`,
+          fileSize: sourceFileSize || content.length,
+          onProceed: () => {
+            setStagingNFe(nfe);
+            setIsStagingModalOpen(true);
+            setXmlResult(null);
+          }
+        });
+        return;
+      }
+
+      setStagingNFe(nfe);
       setIsStagingModalOpen(true);
       setXmlResult(null);
     } else {
@@ -525,16 +571,53 @@ export const ProductsAndStockView: React.FC = () => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        setXmlText(content);
-        handleProcessXmlForReview(content);
-      };
-      reader.readAsText(file);
+    if (!file) return;
+
+    try {
+      const checksum = await generateFileChecksum(file);
+      const content = await file.text();
+      setXmlText(content);
+
+      const res = parseNFeXml(content);
+      if (res.success && res.parsedNFe) {
+        const nfe = res.parsedNFe;
+        const dupCheck = checkDuplicateUpload({
+          chNFe: nfe.chNFe,
+          nNF: nfe.nNF,
+          supplierCnpj: nfe.supplier.cnpj,
+          fileName: file.name,
+          fileSize: file.size,
+          checksum,
+          category: 'nfe_xml'
+        });
+
+        if (dupCheck.isDuplicate && dupCheck.record) {
+          setDuplicateUploadState({
+            isOpen: true,
+            record: dupCheck.record,
+            fileName: file.name,
+            fileSize: file.size,
+            onProceed: () => {
+              setStagingNFe(nfe);
+              setIsStagingModalOpen(true);
+              setXmlResult(null);
+            }
+          });
+          return;
+        }
+
+        setStagingNFe(nfe);
+        setIsStagingModalOpen(true);
+        setXmlResult(null);
+      } else {
+        setXmlResult({ success: false, message: res.message });
+      }
+    } catch (err: any) {
+      alert(`Erro ao ler arquivo XML: ${err?.message || 'Arquivo corrompido'}`);
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -2458,6 +2541,22 @@ export const ProductsAndStockView: React.FC = () => {
             setIsGmailModalOpen(false);
             handleProcessXmlForReview(xmlContent);
           }}
+        />
+      )}
+
+      {/* Modal de Alerta de Upload Duplicado (NF-e XML) */}
+      {duplicateUploadState.isOpen && duplicateUploadState.record && (
+        <DuplicateUploadModal
+          isOpen={duplicateUploadState.isOpen}
+          onClose={() => setDuplicateUploadState(prev => ({ ...prev, isOpen: false }))}
+          onProceedAnyway={() => {
+            const proceedFn = duplicateUploadState.onProceed;
+            setDuplicateUploadState(prev => ({ ...prev, isOpen: false }));
+            proceedFn();
+          }}
+          duplicateRecord={duplicateUploadState.record}
+          currentFileName={duplicateUploadState.fileName}
+          currentFileSize={duplicateUploadState.fileSize}
         />
       )}
     </div>

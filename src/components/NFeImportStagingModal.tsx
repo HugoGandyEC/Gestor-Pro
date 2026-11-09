@@ -24,6 +24,10 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { ParsedXmlNFe, ParsedXmlItem, ParsedXmlSupplier } from '../types';
+import { 
+  checkDuplicateUpload, 
+  registerUploadedFile 
+} from '../services/fileUploadTracker';
 
 interface NFeImportStagingModalProps {
   initialParsedNFe: ParsedXmlNFe;
@@ -186,10 +190,37 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
 
   const potentialRetailProfit = potentialRetailRevenue - totalCost;
 
+  // Duplicate Check
+  const duplicateCheck = useMemo(() => {
+    return checkDuplicateUpload({
+      chNFe: nfeData.chNFe,
+      nNF: nfeData.nNF,
+      supplierCnpj: nfeData.supplier.cnpj,
+      category: 'nfe_xml'
+    });
+  }, [nfeData.chNFe, nfeData.nNF, nfeData.supplier.cnpj]);
+
   // Final commit
   const handleConfirmAndCommit = () => {
     const result = commitImportNFe(nfeData);
     if (result.success) {
+      // Register in upload tracker history
+      registerUploadedFile({
+        fileName: `NF-e ${nfeData.nNF || 'Importada'}.xml`,
+        fileSize: 0,
+        checksum: nfeData.chNFe || `nfe-${nfeData.nNF}-${nfeData.supplier.cnpj}`,
+        category: 'nfe_xml',
+        recordCount: nfeData.items.length,
+        metadata: {
+          chNFe: nfeData.chNFe,
+          nNF: nfeData.nNF,
+          serie: nfeData.serie,
+          supplierName: nfeData.supplier.name,
+          supplierCnpj: nfeData.supplier.cnpj,
+          totalValue: nfeData.totalValue,
+          emissionDate: nfeData.emissionDate
+        }
+      });
       onSuccess(result.message);
     } else {
       alert(result.message);
@@ -228,6 +259,21 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Duplicate Upload Warning Banner */}
+        {duplicateCheck.isDuplicate && duplicateCheck.record && (
+          <div className="bg-amber-100 border-b border-amber-300 px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-amber-900 text-xs">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                <strong>Atenção (NF-e já registrada no sistema):</strong> Esta nota fiscal (Nº {nfeData.nNF}) foi importada anteriormente em {new Date(duplicateCheck.record.uploadedAt).toLocaleString('pt-BR')}. Se prosseguir, os preços serão atualizados e as quantidades serão adicionadas ao estoque.
+              </span>
+            </div>
+            <span className="text-[10px] uppercase font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded border border-amber-300 shrink-0 self-start sm:self-center">
+              Reimportação
+            </span>
+          </div>
+        )}
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs bg-slate-50">

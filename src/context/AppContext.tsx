@@ -1023,6 +1023,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Read NF-e data
       const nNF = xmlDoc.getElementsByTagName('nNF')[0]?.textContent || `NFE-${Math.floor(10000 + Math.random() * 90000)}`;
+      const serie = xmlDoc.getElementsByTagName('serie')[0]?.textContent || '1';
+      let chNFe = xmlDoc.getElementsByTagName('chNFe')[0]?.textContent || '';
+      if (!chNFe) {
+        const infNFe = xmlDoc.getElementsByTagName('infNFe')[0];
+        if (infNFe && infNFe.getAttribute('Id')) {
+          chNFe = infNFe.getAttribute('Id')!.replace(/^NFe/i, '');
+        }
+      }
       const dhEmi = xmlDoc.getElementsByTagName('dhEmi')[0]?.textContent || xmlDoc.getElementsByTagName('dEmi')[0]?.textContent || new Date().toISOString().split('T')[0];
       const emitNome = xmlDoc.getElementsByTagName('xNome')[0]?.textContent || 'Fornecedor Identificado NF-e';
       const emitFant = xmlDoc.getElementsByTagName('xFant')[0]?.textContent || '';
@@ -1136,6 +1144,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const parsedNFe: ParsedXmlNFe = {
         nNF,
+        serie,
+        chNFe: chNFe || undefined,
         emissionDate: dhEmi.slice(0, 10),
         totalValue: finalTotal,
         supplier: parsedSupplier,

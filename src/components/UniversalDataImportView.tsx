@@ -37,6 +37,15 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useApp, formatBRL } from '../context/AppContext';
 import { Client, ServiceCatalogItem, ServiceOrder, DirectSale, Supplier, GeneralExpense, Product } from '../types';
+import { 
+  checkDuplicateUpload, 
+  generateFileChecksum, 
+  registerUploadedFile, 
+  UploadedFileRecord,
+  getUploadedFilesHistory,
+  formatBytes
+} from '../services/fileUploadTracker';
+import { DuplicateUploadModal } from './DuplicateUploadModal';
 
 export type ImportEntity = 
   | 'clients' 
@@ -532,19 +541,40 @@ ${recordsXml}
 export const generateSQLText = (entityDef: EntityDefinition): string => {
   const sampleRows = ENTITY_SAMPLES_MAP[entityDef.id] || [];
   const cols = entityDef.fields.map(f => `\`${f.key}\``).join(', ');
+  const ddlCols = entityDef.fields.map(f => {
+    let type = 'VARCHAR(255)';
+    const k = f.key.toLowerCase();
+    if (k.includes('cost') || k.includes('price') || k.includes('total') || k.includes('value')) {
+      type = 'DECIMAL(10,2) DEFAULT 0.00';
+    } else if (k.includes('date')) {
+      type = 'DATE';
+    } else if (k.includes('stock') || k.includes('qty') || k.includes('quantity')) {
+      type = 'INT DEFAULT 0';
+    } else if (k.includes('desc') || k.includes('notes') || k.includes('description')) {
+      type = 'TEXT';
+    }
+    return `  \`${f.key}\` ${type}`;
+  }).join(',\n');
+
   const valuesLines = sampleRows.map(row => {
     const rowVals = entityDef.fields.map(f => {
       const val = row[f.label] || f.sample;
-      return `'${val.replace(/'/g, "\\'")}'`;
+      return `'${String(val).replace(/'/g, "\\'")}'`;
     }).join(', ');
     return `  (${rowVals})`;
   }).join(',\n');
 
   return `-- =========================================================
--- GESTAOPRO · BACKUP E MODELO DE IMPORTAÇÃO SQL
+-- GESTAOPRO · SCRIPT & MODELO DE CARGA MYSQL (VERSÕES 5.7 / 8.0+)
 -- Tabela de Destino: \`${entityDef.id}\` (${entityDef.label})
--- Gerado em: ${new Date().toLocaleDateString('pt-BR')}
+-- Formato Compatível com MySQL Workbench, phpMyAdmin e CLI MySQL
 -- =========================================================
+
+CREATE TABLE IF NOT EXISTS \`${entityDef.id}\` (
+  \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+${ddlCols},
+  \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO \`${entityDef.id}\` (${cols}) VALUES
 ${valuesLines};
@@ -660,6 +690,23 @@ export const UniversalDataImportView: React.FC = () => {
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Duplicate Upload Alert Modal & File tracking
+  const [duplicateUploadModalState, setDuplicateUploadModalState] = useState<{
+    isOpen: boolean;
+    record: UploadedFileRecord | null;
+    fileName: string;
+    fileSize?: number;
+    onProceed: () => void;
+  }>({
+    isOpen: false,
+    record: null,
+    fileName: '',
+    onProceed: () => {}
+  });
+  const [loadedFileChecksum, setLoadedFileChecksum] = useState<string | null>(null);
+  const [loadedFileSize, setLoadedFileSize] = useState<number | null>(null);
+  const [showUploadHistory, setShowUploadHistory] = useState(false);
 
   // Model & Template Hub states (7 Entidades x 6 Formatos)
   const [isModelHubOpen, setIsModelHubOpen] = useState(false);
@@ -866,13 +913,12 @@ export const UniversalDataImportView: React.FC = () => {
     return parseDelimitedText(cleanLines.join('\n'));
   };
 
-  // Main File Upload Handler
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // Internal File Content Processor
+  const processFileContent = async (file: File, checksum?: string) => {
     setIsProcessing(true);
     setFileName(file.name);
+    setLoadedFileSize(file.size);
+    if (checksum) setLoadedFileChecksum(checksum);
     setFeedbackMessage(null);
 
     try {
@@ -946,6 +992,44 @@ export const UniversalDataImportView: React.FC = () => {
     } finally {
       setIsProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Main File Upload Handler with Duplicate Check
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const checksum = await generateFileChecksum(file);
+      setLoadedFileChecksum(checksum);
+      setLoadedFileSize(file.size);
+
+      // Check duplicate
+      const dupCheck = checkDuplicateUpload({
+        fileName: file.name,
+        fileSize: file.size,
+        checksum,
+        category: 'cadastro_upload',
+        entity: selectedEntity
+      });
+
+      if (dupCheck.isDuplicate && dupCheck.record) {
+        setDuplicateUploadModalState({
+          isOpen: true,
+          record: dupCheck.record,
+          fileName: file.name,
+          fileSize: file.size,
+          onProceed: () => {
+            processFileContent(file, checksum);
+          }
+        });
+        return;
+      }
+
+      await processFileContent(file, checksum);
+    } catch (err: any) {
+      setFeedbackMessage({ type: 'error', text: `Erro ao analisar arquivo: ${err?.message || 'Falha de leitura'}` });
     }
   };
 
@@ -1100,6 +1184,21 @@ export const UniversalDataImportView: React.FC = () => {
           cofinsRate: 7.6
         }));
         importedCount = batchImportProducts(mappedProducts, importMode);
+      }
+
+      if (importedCount > 0) {
+        registerUploadedFile({
+          fileName: fileName || `importacao_${selectedEntity}.dat`,
+          fileSize: loadedFileSize || 0,
+          checksum: loadedFileChecksum || `${selectedEntity}_${Date.now()}`,
+          category: 'cadastro_upload',
+          entity: selectedEntity,
+          recordCount: importedCount,
+          metadata: {
+            entityLabel: currentEntityConfig.label,
+            importMode
+          }
+        });
       }
 
       setFeedbackMessage({
@@ -1511,6 +1610,66 @@ export const UniversalDataImportView: React.FC = () => {
               <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
             )}
             <span className="font-medium">{feedbackMessage.text}</span>
+          </div>
+        )}
+
+        {/* Anti-Duplicate Protection & Upload History Banner */}
+        <div className="border border-slate-200 bg-slate-50/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="text-slate-700 font-semibold">
+              Proteção Anti-Duplicidade Ativa
+            </span>
+            <span className="text-[10px] text-slate-500 font-normal">
+              (identifica uploads duplicados via Hash SHA-256, nome e tamanho de arquivo)
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowUploadHistory(!showUploadHistory)}
+            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+          >
+            <span>{showUploadHistory ? 'Ocultar Histórico' : `Ver Histórico de Uploads (${getUploadedFilesHistory().length})`}</span>
+            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showUploadHistory ? 'rotate-90' : ''}`} />
+          </button>
+        </div>
+
+        {/* Collapsible Uploads History Drawer */}
+        {showUploadHistory && (
+          <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-2 text-xs animate-in fade-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="font-bold text-slate-800">Histórico de Arquivos Enviados & Processados</span>
+              <span className="text-[11px] text-slate-400">Total: {getUploadedFilesHistory().length} arquivos</span>
+            </div>
+
+            {getUploadedFilesHistory().length === 0 ? (
+              <p className="text-slate-400 text-[11px] py-3 text-center">Nenhum arquivo enviado até o momento.</p>
+            ) : (
+              <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                {getUploadedFilesHistory().map(rec => (
+                  <div key={rec.id} className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 px-2 rounded-lg">
+                    <div className="truncate">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-800 truncate" title={rec.fileName}>{rec.fileName}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                          rec.category === 'nfe_xml' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {rec.category === 'nfe_xml' ? 'XML NF-e' : (rec.entity || 'Cadastro')}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {new Date(rec.uploadedAt).toLocaleString('pt-BR')} · {formatBytes(rec.fileSize)}
+                        {rec.recordCount !== undefined ? ` · ${rec.recordCount} registros` : ''}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                      Registrado
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1993,6 +2152,22 @@ export const UniversalDataImportView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Alerta de Upload Duplicado (Planilhas & Cadastros) */}
+      {duplicateUploadModalState.isOpen && duplicateUploadModalState.record && (
+        <DuplicateUploadModal
+          isOpen={duplicateUploadModalState.isOpen}
+          onClose={() => setDuplicateUploadModalState(prev => ({ ...prev, isOpen: false }))}
+          onProceedAnyway={() => {
+            const proceedFn = duplicateUploadModalState.onProceed;
+            setDuplicateUploadModalState(prev => ({ ...prev, isOpen: false }));
+            proceedFn();
+          }}
+          duplicateRecord={duplicateUploadModalState.record}
+          currentFileName={duplicateUploadModalState.fileName}
+          currentFileSize={duplicateUploadModalState.fileSize}
+        />
       )}
     </div>
   );

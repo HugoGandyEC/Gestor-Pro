@@ -38,6 +38,7 @@ import {
   DriveQuota 
 } from '../services/googleDriveService';
 import { useApp, formatBRL } from '../context/AppContext';
+import { GoogleIntegrationModal } from './GoogleIntegrationModal';
 
 export const GoogleDriveView: React.FC = () => {
   const { 
@@ -71,6 +72,7 @@ export const GoogleDriveView: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Destructive Confirmation Modal (MANDATORY per workspace-integration rules)
   const [fileToDelete, setFileToDelete] = useState<DriveFile | null>(null);
@@ -452,7 +454,7 @@ Documento gerado e salvo automaticamente no Google Drive pelo ERP GestãoPro.
             <div>
               {/* Official Google Sign In Button */}
               <button
-                onClick={handleLogin}
+                onClick={() => setIsAuthModalOpen(true)}
                 disabled={isLoggingIn}
                 className="inline-flex items-center gap-3 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-md transition-all cursor-pointer border border-slate-300 disabled:opacity-50"
               >
@@ -539,7 +541,7 @@ Documento gerado e salvo automaticamente no Google Drive pelo ERP GestãoPro.
               </button>
             ) : (
               <button
-                onClick={handleLogin}
+                onClick={() => setIsAuthModalOpen(true)}
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-900/60 hover:bg-blue-800 text-blue-200 border border-blue-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 title="Conecte seu Google Drive para salvar o arquivo diretamente na nuvem"
               >
@@ -568,7 +570,7 @@ Documento gerado e salvo automaticamente no Google Drive pelo ERP GestãoPro.
 
           <div className="pt-2">
             <button
-              onClick={handleLogin}
+              onClick={() => setIsAuthModalOpen(true)}
               disabled={isLoggingIn}
               className="inline-flex items-center gap-3 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
             >
@@ -894,6 +896,20 @@ Documento gerado e salvo automaticamente no Google Drive pelo ERP GestãoPro.
           </div>
         </div>
       )}
+
+      {/* Google Account Connection & Validation Modal */}
+      <GoogleIntegrationModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={user}
+        onSuccess={(email) => {
+          showFeedback(true, `Conectado com sucesso à conta Google: ${email}`);
+          if (token) {
+            loadFiles(token, currentFolderId);
+            loadQuota(token);
+          }
+        }}
+      />
     </div>
   );
 };

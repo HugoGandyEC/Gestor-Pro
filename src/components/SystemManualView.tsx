@@ -203,10 +203,13 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
         'Confirme a importação: o fornecedor é cadastrado, os produtos entram no estoque e uma Conta a Pagar com o valor da nota é gerada automaticamente.'
       ],
       tips: [
+        'Detector Anti-Duplicidade Ativo: Se você enviar acidentalmente o mesmo arquivo XML ou planilha, o sistema alertará na hora exibindo a data e os detalhes do envio anterior.',
         'Na aba "Importação Multi-Formato & Backup", você pode trazer dados legados em CSV, XLSX, TXT, PDF, XML e SQL com exemplos prontos.',
         'Você pode conferir e ajustar as margens antes de confirmar a importação do XML.'
       ],
       rules: [
+        'Proteção contra Upload Duplicado: O sistema calcula a assinatura SHA-256 e confere Chave da NF-e / Número / CNPJ / Tamanho para prevenir duplicidades.',
+        'Se um arquivo duplicado for detectado, o sistema oferece as opções de cancelar ou reprocessar com segurança.',
         'Produtos com o mesmo código ou nome são atualizados no estoque sem criar duplicidades.',
         'O fornecedor identificado pelo CNPJ não é duplicado se já existir na base.'
       ]
@@ -262,7 +265,7 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
       targetTab: 'agenda',
       summary: 'Como conectar a agenda corporativa com o Google Calendar, agendar visitas de campo, serviços técnicos em piscinas e bombas, e gerenciar dados fictícios de exemplo.',
       steps: [
-        'Autenticação Google: No menu lateral, acesse "Google Agenda" e clique no botão oficial "Conectar com Google Agenda" para vincular sua conta corporativa com segurança.',
+        'Autenticação & Validação Google: No menu lateral, acesse "Google Agenda" e clique em "Conectar & Validar Conta Google". O sistema abre a tela oficial de validação onde você informa seu e-mail (mppiscina2004@gmail.com) e credenciais, validando a integração diretamente sem bloqueios de domínio ("auth/unauthorized-domain").',
         'Novo Agendamento: Clique em "+ Novo Agendamento" para cadastrar visitas técnicas, serviços especializados, compromissos diários ou entregas.',
         'Vínculo com Ordens de Serviço: Ao selecionar uma OS cadastrada, o sistema preenche automaticamente cliente, endereço e detalhes técnicos no agendamento.',
         'Agendamento Direto na Tela de OS: Na tela "Ordens de Serviço", clique no botão "Agendar" na coluna de Ações para criar o evento correspondente em 1 clique.',
@@ -272,7 +275,8 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
       ],
       tips: [
         'Agendamentos sincronizados com o Google Agenda notificam a equipe técnica automaticamente via alertas no celular.',
-        'Ao agendar uma OS, o endereço completo da residência ou condomínio é automaticamente formatado no evento do Google Calendar com link para navegação GPS (Google Maps / Waze).'
+        'Ao agendar uma OS, o endereço completo da residência ou condomínio é automaticamente formatado no evento do Google Calendar com link para navegação GPS (Google Maps / Waze).',
+        'Se você utiliza banco de dados MySQL, acesse "Configurações > Gestão de Dados" para baixar o script de carga completo .sql compatível com MySQL 5.7 / 8.0 e charset utf8mb4.'
       ],
       rules: [
         'Exclusões de compromissos que estejam sincronizados com o Google Agenda requerem confirmação explícita na tela para evitar perdas acidentais.'
