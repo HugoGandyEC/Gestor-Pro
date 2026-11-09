@@ -21,7 +21,8 @@ import {
   SequenceSettings,
   WarrantyPolicy,
   ThemeDefinition,
-  AuthUser
+  AuthUser,
+  CompanyAppointment
 } from './types';
 
 // ============================================================================
@@ -614,3 +615,154 @@ export const initialAuthUsers: AuthUser[] = [
     employeeId: 'emp-admin'
   }
 ];
+
+// ============================================================================
+// DADOS FICTÍCIOS DE EXEMPLO - GOOGLE AGENDA & COMPROMISSOS DA EMPRESA
+// ============================================================================
+
+const formatOffsetDate = (offsetDays: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().split('T')[0];
+};
+
+export const createSampleAppointments = (): CompanyAppointment[] => [
+  {
+    id: 'apt-sample-1',
+    title: 'Visita Técnica: Diagnóstico Aquecedor Solar e Medição de Telhado',
+    type: 'visita_tecnica',
+    description: 'Vistoria técnica de diagnóstico no condomínio Quinta da Baroneza. Cliente relatou queda de temperatura nos coletores de vidro a vácuo e barulho no pressurizador pós-boiler.',
+    startDate: formatOffsetDate(0), // Hoje
+    startTime: '09:00',
+    endDate: formatOffsetDate(0),
+    endTime: '11:30',
+    clientId: 'cli-sample-roberto',
+    clientName: 'Roberto Carlos de Lima',
+    serviceOrderId: 'os-sample-101',
+    serviceOrderCode: 'OS-2026-101',
+    employeeId: 'emp-ricardo',
+    employeeName: 'Ricardo Silveira (Técnico Solar)',
+    location: 'Alameda dos Jacarandás, 450 - Cond. Quinta da Baroneza, Bragança Paulista - SP',
+    status: 'confirmado',
+    isSyncedWithGoogle: false,
+    isSample: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'apt-sample-2',
+    title: 'Serviço: Troca de Areia Especial do Filtro Dancor 75kg e Selo Mecânico',
+    type: 'servico',
+    description: 'Substituição completa do leito filtrante de areia especial, desobstrução das crepinas e troca do selo mecânico da bomba autoescorvante.',
+    startDate: formatOffsetDate(1), // Amanhã
+    startTime: '13:30',
+    endDate: formatOffsetDate(1),
+    endTime: '16:30',
+    clientId: 'cli-sample-mariana',
+    clientName: 'Mariana Souza',
+    serviceOrderId: 'os-sample-102',
+    serviceOrderCode: 'OS-2026-102',
+    employeeId: 'emp-marcos',
+    employeeName: 'Marcos Pereira (Técnico Piscinas)',
+    location: 'Rua das Palmeiras, 112 - Residencial Alphaville 2, Campinas - SP',
+    status: 'agendado',
+    isSyncedWithGoogle: false,
+    isSample: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'apt-sample-3',
+    title: 'Compromisso da Empresa: Reunião Mensal com Fornecedores TermoMax & Henrimar',
+    type: 'compromisso',
+    description: 'Reunião de alinhamento estratégico para negociação de descontos na tabela de atacado para bombas de calor e boilers solares em inox 316.',
+    startDate: formatOffsetDate(2), // Em 2 dias
+    startTime: '10:00',
+    endDate: formatOffsetDate(2),
+    endTime: '11:45',
+    employeeId: 'usr-admin',
+    employeeName: 'Administrador Geral / Diretoria',
+    location: 'Sala de Reuniões MP Piscinas & Aquecedores - Unidade Central',
+    status: 'confirmado',
+    isSyncedWithGoogle: false,
+    isSample: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'apt-sample-4',
+    title: 'Visita Técnica: Teste Hidrostático e Detecção de Infiltração em Piscina',
+    type: 'visita_tecnica',
+    description: 'Teste com corante fluorescente e detecção acústica em tubulação de retorno e ralo de fundo. Avaliação de perda d\'água de 60m³.',
+    startDate: formatOffsetDate(3),
+    startTime: '14:00',
+    endDate: formatOffsetDate(3),
+    endTime: '16:30',
+    clientId: 'cli-sample-marcelo',
+    clientName: 'Dr. Marcelo Prado',
+    employeeId: 'emp-ricardo',
+    employeeName: 'Ricardo Silveira (Técnico Solar)',
+    location: 'Rodovia das Colinas, Km 14 - Chácara Santa Maria, Atibaia - SP',
+    status: 'agendado',
+    isSyncedWithGoogle: false,
+    isSample: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'apt-sample-5',
+    title: 'Serviço: Instalação de Painel de Automação Wi-Fi Tholz & Iluminação LED',
+    type: 'servico',
+    description: 'Instalação de quadro elétrico de comando com módulo Wi-Fi Tholz para acionamento remoto de cascata, hidro e troca de cores dos refletores LED RGB.',
+    startDate: formatOffsetDate(-1), // Ontem
+    startTime: '08:30',
+    endDate: formatOffsetDate(-1),
+    endTime: '12:00',
+    clientId: 'cli-sample-amanda',
+    clientName: 'Amanda Ribeiro',
+    serviceOrderId: 'os-sample-105',
+    serviceOrderCode: 'OS-2026-105',
+    employeeId: 'emp-marcos',
+    employeeName: 'Marcos Pereira (Técnico Piscinas)',
+    location: 'Av. dos Ipês, 88 - Cond. Granja Viana, Cotia - SP',
+    status: 'concluido',
+    isSyncedWithGoogle: false,
+    isSample: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'apt-sample-6',
+    title: 'Compromisso da Empresa: Conferência de Estoque Químico & Entrada NF-e',
+    type: 'compromisso',
+    description: 'Recebimento de carregamento de hipoclorito de cálcio, barrilha leve, sulfato de alumínio e pastilhas de tricloro. Bipagem de códigos e conferência física.',
+    startDate: formatOffsetDate(4),
+    startTime: '16:00',
+    endDate: formatOffsetDate(4),
+    endTime: '17:30',
+    employeeId: 'usr-admin',
+    employeeName: 'Equipe de Almoxarifado / Estoque',
+    location: 'Depósito & Galpão Logístico MP Piscinas',
+    status: 'agendado',
+    isSyncedWithGoogle: false,
+    isSample: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'apt-sample-7',
+    title: 'Entrega Técnica: Robô Aspirador Automático & Treinamento Operacional',
+    type: 'entrega',
+    description: 'Entrega do robô limpador de piscina Nautilus, montagem do carrinho de transporte, teste na água e instrução do operador/caseiro para programação de ciclos.',
+    startDate: formatOffsetDate(5),
+    startTime: '10:30',
+    endDate: formatOffsetDate(5),
+    endTime: '12:00',
+    clientId: 'cli-sample-carlos',
+    clientName: 'Carlos Eduardo Mendes',
+    employeeId: 'emp-ricardo',
+    employeeName: 'Ricardo Silveira (Técnico Solar)',
+    location: 'Estrada dos Eucaliptos, 330 - Sítio Bela Vista, Jundiaí - SP',
+    status: 'agendado',
+    isSyncedWithGoogle: false,
+    isSample: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
+export const initialAppointments: CompanyAppointment[] = createSampleAppointments();
+

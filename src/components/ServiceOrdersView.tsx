@@ -82,12 +82,42 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     deleteServiceOrder,
     convertBudgetToOrderOrSale,
     currentRole,
-    currentUser
+    currentUser,
+    appointments,
+    addAppointment
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todas');
   const [selectedOSForDetail, setSelectedOSForDetail] = useState<ServiceOrder | null>(null);
+
+  const handleScheduleOSInCalendar = (os: ServiceOrder) => {
+    const existing = appointments.find(a => a.serviceOrderId === os.id);
+    if (existing) {
+      alert(`Esta Ordem de Serviço já possui agendamento na agenda (${formatDateBR(existing.startDate)} às ${existing.startTime}). Acesse o menu Google Agenda para detalhes.`);
+      return;
+    }
+    const emp = employees.find(e => e.id === os.employeeId);
+    addAppointment({
+      title: `OS ${os.code}: ${os.clientName} - Atendimento Técnico`,
+      type: 'servico',
+      description: `Execução da Ordem de Serviço ${os.code}.\nEquipamento: ${os.equipmentType || 'N/A'}\nServiços: ${os.services.map(s => s.name).join(', ')}\nObs: ${os.description}`,
+      startDate: os.forecastDate || new Date().toISOString().split('T')[0],
+      startTime: '09:00',
+      endDate: os.forecastDate || new Date().toISOString().split('T')[0],
+      endTime: '12:00',
+      clientId: os.clientId,
+      clientName: os.clientName,
+      serviceOrderId: os.id,
+      serviceOrderCode: os.code,
+      employeeId: os.employeeId,
+      employeeName: emp?.name,
+      location: os.clientAddress,
+      status: 'agendado',
+      isSample: false
+    });
+    alert(`Ordem de Serviço ${os.code} agendada com sucesso no Google Agenda para ${formatDateBR(os.forecastDate || new Date().toISOString().split('T')[0])} às 09:00!`);
+  };
 
   // Sincroniza o título da página com o número da OS para que ao imprimir ou salvar como PDF o arquivo venha com o número correto da OS
   React.useEffect(() => {
@@ -1436,6 +1466,16 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span className="hidden xl:inline">Baixar</span>
+                          </button>
+
+                          {/* 5. Agendar no Google Agenda */}
+                          <button
+                            onClick={() => handleScheduleOSInCalendar(os)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-purple-700 hover:text-purple-900 hover:bg-purple-50 border border-purple-200 rounded-md transition-colors cursor-pointer"
+                            title="Agendar atendimento desta OS no Google Agenda"
+                          >
+                            <Calendar className="w-3.5 h-3.5 text-purple-600" />
+                            <span className="hidden xl:inline">Agendar</span>
                           </button>
 
                           {/* Ver Detalhes */}

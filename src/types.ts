@@ -640,3 +640,36 @@ export interface AuthUser {
   clientId?: string; // ID do cliente vinculado para isolamento de dados no Portal do Cliente (Multi-Tenancy)
   employeeId?: string; // ID do técnico/funcionário vinculado para isolamento de atendimentos (RBAC)
 }
+
+// ============================================================================
+// GOOGLE AGENDA & AGENDAMENTOS DA EMPRESA
+// ============================================================================
+
+export type AppointmentType = 'servico' | 'visita_tecnica' | 'compromisso' | 'entrega';
+export type AppointmentStatus = 'agendado' | 'confirmado' | 'em_andamento' | 'concluido' | 'cancelado';
+
+export interface CompanyAppointment {
+  id: string;
+  title: string;
+  type: AppointmentType;
+  description?: string;
+  startDate: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endDate: string; // YYYY-MM-DD
+  endTime: string; // HH:mm
+  clientId?: string;
+  clientName?: string;
+  serviceOrderId?: string;
+  serviceOrderCode?: string;
+  employeeId?: string; // Técnico / Responsável
+  employeeName?: string;
+  location?: string;
+  status: AppointmentStatus;
+  googleCalendarEventId?: string;
+  googleCalendarHtmlLink?: string;
+  isSyncedWithGoogle?: boolean;
+  isSample?: boolean; // Flag para dados fictícios de exemplo
+  createdAt: string;
+  updatedAt?: string;
+}
+

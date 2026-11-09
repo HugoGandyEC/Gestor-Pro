@@ -29,7 +29,8 @@ import {
   WarrantyPolicy,
   AppTheme,
   ThemeDefinition,
-  AuthUser
+  AuthUser,
+  CompanyAppointment
 } from '../types';
 import { 
   initialEmployees, 
@@ -58,7 +59,9 @@ import {
   initialProductCategories,
   initialProductSubcategories,
   initialProductBrands,
-  initialProductTags
+  initialProductTags,
+  initialAppointments,
+  createSampleAppointments
 } from '../mockData';
 import { 
   canModifyClientData, 
@@ -248,6 +251,14 @@ interface AppContextType {
 
   addAuditLog: (action: string, details: string) => void;
 
+  // Google Agenda & Agendamentos da Empresa
+  appointments: CompanyAppointment[];
+  addAppointment: (item: Omit<CompanyAppointment, 'id' | 'createdAt'>) => void;
+  updateAppointment: (id: string, updates: Partial<CompanyAppointment>) => void;
+  deleteAppointment: (id: string) => void;
+  clearSampleAppointments: () => void;
+  restoreSampleAppointments: () => void;
+
   resetToDefaults: () => void;
 
   // Analytics Helpers
@@ -304,7 +315,8 @@ const KEYS = {
   PRODUCT_CATEGORIES: 'gestaopro_product_categories_v4',
   PRODUCT_SUBCATEGORIES: 'gestaopro_product_subcategories_v4',
   PRODUCT_BRANDS: 'gestaopro_product_brands_v4',
-  PRODUCT_TAGS: 'gestaopro_product_tags_v4'
+  PRODUCT_TAGS: 'gestaopro_product_tags_v4',
+  APPOINTMENTS: 'gestaopro_appointments_v4'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -611,6 +623,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  const [appointments, setAppointments] = useState<CompanyAppointment[]>(() => {
+    const saved = localStorage.getItem(KEYS.APPOINTMENTS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    return initialAppointments;
+  });
+
   const [selectedMonthYear, setSelectedMonthYear] = useState<string>(() => {
     const saved = localStorage.getItem(KEYS.SELECTED_MONTH);
     return saved || '2026-10';
@@ -641,6 +664,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem(KEYS.SERVICE_ORDERS, JSON.stringify(serviceOrders)); }, [serviceOrders]);
   useEffect(() => { localStorage.setItem(KEYS.DIRECT_SALES, JSON.stringify(directSales)); }, [directSales]);
   useEffect(() => { localStorage.setItem(KEYS.SETUP_COSTS, JSON.stringify(setupCosts)); }, [setupCosts]);
+  useEffect(() => { localStorage.setItem(KEYS.APPOINTMENTS, JSON.stringify(appointments)); }, [appointments]);
   useEffect(() => { localStorage.setItem(KEYS.SELECTED_MONTH, selectedMonthYear); }, [selectedMonthYear]);
   useEffect(() => { localStorage.setItem(KEYS.SEQUENCE_SETTINGS, JSON.stringify(sequenceSettings)); }, [sequenceSettings]);
   useEffect(() => { localStorage.setItem(KEYS.WARRANTY_POLICIES, JSON.stringify(warrantyPolicies)); }, [warrantyPolicies]);
@@ -800,7 +824,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       generalExpenses,
       serviceOrders,
       directSales,
-      setupCosts
+      setupCosts,
+      appointments
     };
     return JSON.stringify(backupData, null, 2);
   };
@@ -836,6 +861,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.serviceOrders) setServiceOrders(data.serviceOrders);
       if (data.directSales) setDirectSales(data.directSales);
       if (data.setupCosts) setSetupCosts(data.setupCosts);
+      if (data.appointments) setAppointments(data.appointments);
 
       addAuditLog('Restauração de Backup', 'Base de dados restaurada com sucesso a partir de arquivo de backup JSON.');
       return { success: true, message: 'Backup restaurado com sucesso! Todos os dados foram atualizados.' };
@@ -865,8 +891,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setServiceOrders(initialServiceOrders);
     setDirectSales(initialDirectSales);
     setSetupCosts(initialSetupCosts);
+    setAppointments(initialAppointments);
     setSelectedMonthYear('2026-10');
     addAuditLog('Restauração de Sistema', 'Base de dados restaurada para o padrão inicial de fábrica.');
+  };
+
+  // Google Agenda & Company Appointments Operations
+  const addAppointment = (item: Omit<CompanyAppointment, 'id' | 'createdAt'>) => {
+    const newAppointment: CompanyAppointment = {
+      ...item,
+      id: `apt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      createdAt: new Date().toISOString()
+    };
+    setAppointments(prev => [newAppointment, ...prev]);
+    addAuditLog('Novo Agendamento', `Agendamento criado: ${item.title} (${item.type}) em ${item.startDate} às ${item.startTime}`);
+  };
+
+  const updateAppointment = (id: string, updates: Partial<CompanyAppointment>) => {
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updates, updatedAt: new Date().toISOString() } : a));
+    addAuditLog('Atualização de Agendamento', `Agendamento atualizado.`);
+  };
+
+  const deleteAppointment = (id: string) => {
+    setAppointments(prev => prev.filter(a => a.id !== id));
+    addAuditLog('Exclusão de Agendamento', `Agendamento excluído da agenda.`);
+  };
+
+  const clearSampleAppointments = () => {
+    setAppointments(prev => prev.filter(a => !a.isSample));
+    addAuditLog('Limpeza de Dados de Exemplo', 'Todos os agendamentos fictícios de exemplo foram removidos.');
+  };
+
+  const restoreSampleAppointments = () => {
+    const freshSamples = createSampleAppointments();
+    setAppointments(prev => {
+      const nonSamples = prev.filter(a => !a.isSample);
+      return [...freshSamples, ...nonSamples];
+    });
+    addAuditLog('Restauração de Dados de Exemplo', 'Dados fictícios de exemplo do Google Agenda foram recarregados.');
   };
 
   // Live Lookups: ViaCEP
@@ -2617,6 +2679,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleGeneralExpensePayment,
         applyBulkMarginsToAllProducts,
         addAuditLog,
+        appointments,
+        addAppointment,
+        updateAppointment,
+        deleteAppointment,
+        clearSampleAppointments,
+        restoreSampleAppointments,
         resetToDefaults,
         getEmployeeById,
         getVehicleById,

@@ -24,13 +24,15 @@ import {
   ChevronDown,
   Menu,
   X,
-  LogOut
+  LogOut,
+  Calendar
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SYSTEM_VERSION } from '../constants/version';
 
 export type ActiveTab = 
   | 'dashboard' 
+  | 'agenda'
   | 'orders' 
   | 'sales' 
   | 'products'
@@ -93,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     serviceCatalog,
     checklistTemplates,
     currentUser,
+    appointments,
     logout,
     openLogoutModal
   } = useApp();
@@ -136,6 +139,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: LayoutDashboard,
           badge: null,
           roles: ['admin', 'colaborador', 'tecnico', 'contador']
+        },
+        {
+          id: 'agenda' as ActiveTab,
+          label: 'Google Agenda',
+          icon: Calendar,
+          badge: appointments.length > 0 ? `${appointments.length}` : null,
+          highlight: true,
+          roles: ['admin', 'colaborador', 'tecnico']
         },
         {
           id: 'orders' as ActiveTab,

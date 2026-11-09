@@ -20,7 +20,8 @@ import {
   FileSpreadsheet,
   AlertCircle,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  Calendar
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 
@@ -249,6 +250,29 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
       ],
       rules: [
         'Toda ação crítica de exclusão ou alteração de preço gera um registro inalterável de auditoria.'
+      ]
+    },
+    {
+      id: 'google_agenda',
+      title: '10. Google Agenda & Agendamento de Serviços e Visitas Técnicas',
+      badge: 'Integração Google',
+      icon: Calendar,
+      targetTab: 'agenda',
+      summary: 'Como conectar a agenda corporativa com o Google Calendar, agendar visitas de campo, serviços técnicos em piscinas e bombas, e gerenciar dados fictícios de exemplo.',
+      steps: [
+        'Autenticação Google: No menu lateral, acesse "Google Agenda" e clique no botão oficial "Conectar com Google Agenda" para vincular sua conta corporativa com segurança.',
+        'Novo Agendamento: Clique em "+ Novo Agendamento" para cadastrar visitas técnicas, serviços especializados, compromissos diários ou entregas.',
+        'Vínculo com Ordens de Serviço: Ao selecionar uma OS cadastrada, o sistema preenche automaticamente cliente, endereço e detalhes técnicos no agendamento.',
+        'Agendamento Direto na Tela de OS: Na tela "Ordens de Serviço", clique no botão "Agendar" na coluna de Ações para criar o evento correspondente em 1 clique.',
+        'Sincronização em Tempo Real: Clique em "Sincronizar Google Agenda" para enviar agendamentos pendentes diretamente para sua agenda remota da nuvem.',
+        'Limpeza de Dados de Exemplo: Para começar a usar a agenda com dados 100% limpos e reais, use o botão "Limpar Dados de Exemplo" no topo da tela.'
+      ],
+      tips: [
+        'Agendamentos sincronizados com o Google Agenda notificam a equipe técnica automaticamente via alertas no celular.',
+        'Você pode restaurar os dados de exemplo a qualquer momento pelo botão "Restaurar Exemplos Fictícios" se desejar demonstração.'
+      ],
+      rules: [
+        'Exclusões de compromissos que estejam sincronizados com o Google Agenda requerem confirmação explícita na tela para evitar perdas acidentais.'
       ]
     }
   ];

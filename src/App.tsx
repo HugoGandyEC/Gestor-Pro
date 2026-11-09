@@ -19,6 +19,7 @@ import { AccountingClosingView } from './components/AccountingClosingView';
 import { MasterRegistrationsView } from './components/MasterRegistrationsView';
 import { CardOperatorsView } from './components/CardOperatorsView';
 import { GoogleDriveView } from './components/GoogleDriveView';
+import { GoogleCalendarView } from './components/GoogleCalendarView';
 import { SystemSettingsView } from './components/SystemSettingsView';
 import { SystemDocumentationModal } from './components/SystemDocumentationModal';
 import { AuditLogsModal } from './components/AuditLogsModal';
@@ -57,6 +58,8 @@ const MainLayout: React.FC = () => {
             onOpenNewOS={() => setIsNewOSModalOpen(true)} 
           />
         );
+      case 'agenda':
+        return <GoogleCalendarView />;
       case 'orders':
         return (
           <ServiceOrdersView 
