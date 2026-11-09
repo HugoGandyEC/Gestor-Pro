@@ -23,6 +23,7 @@ import { SystemSettingsView } from './components/SystemSettingsView';
 import { SystemDocumentationModal } from './components/SystemDocumentationModal';
 import { AuditLogsModal } from './components/AuditLogsModal';
 import { SystemHelpModal } from './components/SystemHelpModal';
+import { SystemManualView } from './components/SystemManualView';
 import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
 import { LoginView } from './components/LoginView';
 import { SystemFooter } from './components/SystemFooter';
@@ -95,6 +96,8 @@ const MainLayout: React.FC = () => {
         return <FinancialView />;
       case 'employees':
         return <EmployeesView />;
+      case 'documentation':
+        return <SystemManualView onNavigate={(tab) => setActiveTab(tab)} />;
       default:
         return (
           <DashboardView 

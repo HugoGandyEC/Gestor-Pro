@@ -1,12 +1,11 @@
 {
-  "projectId": "axiomatic-splice-dbvhw",
-  "appId": "1:26461715:web:7bcd7532d6cef033c3a1e6",
-  "apiKey": "AIzaSyBdyGvZYwVToQFz7ypD2BqBqA2ORcF93fk",
-  "authDomain": "axiomatic-splice-dbvhw.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-gestoprosistemad-5bf09503-053b-4bfc-9d10-c3b91fe4b0d6",
-  "storageBucket": "axiomatic-splice-dbvhw.firebasestorage.app",
-  "messagingSenderId": "26461715",
+  "projectId": "gen-lang-client-0734880868",
+  "appId": "1:160250351324:web:eeee8112857869a49b2e19",
+  "apiKey": "AIzaSyA3kF9lNN8Dx9bDOEm9CuZALmv7CJ0L9XI",
+  "authDomain": "gen-lang-client-0734880868.firebaseapp.com",
+  "storageBucket": "gen-lang-client-0734880868.firebasestorage.app",
+  "messagingSenderId": "160250351324",
   "measurementId": "",
-  "oAuthClientId": "26461715-c9jhd58e16qls31ra1v5f6q8tr041rc8.apps.googleusercontent.com",
+  "oAuthClientId": "160250351324-2g6kk9gmqafvjm9lvdih282idk68cmvf.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

@@ -18,6 +18,7 @@ import {
   FolderOpen,
   CreditCard,
   HardDrive,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -273,6 +274,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Settings,
           badge: null,
           roles: ['admin']
+        },
+        {
+          id: 'documentation' as ActiveTab,
+          label: 'Ajuda & Manual',
+          icon: BookOpen,
+          badge: 'Guia',
+          highlight: true,
+          roles: ['admin', 'colaborador', 'tecnico', 'contador', 'cliente']
         }
       ]
     }

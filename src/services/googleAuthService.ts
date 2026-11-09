@@ -12,7 +12,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 
-export const DRIVE_SCOPES = [
+export const WORKSPACE_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/drive.activity',
   'https://www.googleapis.com/auth/drive.activity.readonly',
@@ -28,8 +29,10 @@ export const DRIVE_SCOPES = [
   'https://www.googleapis.com/auth/drive.scripts'
 ];
 
+export const DRIVE_SCOPES = WORKSPACE_SCOPES;
+
 const provider = new GoogleAuthProvider();
-DRIVE_SCOPES.forEach(scope => {
+WORKSPACE_SCOPES.forEach(scope => {
   provider.addScope(scope);
 });
 provider.setCustomParameters({

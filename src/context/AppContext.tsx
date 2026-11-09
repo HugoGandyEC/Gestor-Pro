@@ -241,6 +241,11 @@ interface AppContextType {
   deleteSetupCost: (id: string) => void;
   syncSetupCostsToExpenses: () => { count: number };
 
+  toggleDirectSalePayment: (saleId: string) => void;
+  toggleServiceOrderPayment: (orderId: string) => void;
+  toggleGeneralExpensePayment: (id: string) => void;
+  applyBulkMarginsToAllProducts: (retailMargin?: number, wholesaleMargin?: number) => { count: number };
+
   addAuditLog: (action: string, details: string) => void;
 
   resetToDefaults: () => void;
@@ -261,6 +266,8 @@ interface AppContextType {
     totalCosts: number;
     netProfit: number;
     netMarginPercent: number;
+    totalPendingReceivables: number;
+    totalPendingPayables: number;
     ordersCompletedCount: number;
     ordersActiveCount: number;
   };
@@ -1003,9 +1010,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             category = 'Insumos Elétricos';
           }
 
-          // Margins
-          const defaultRetailMargin = 50; // 50% margem varejo
-          const defaultWholesaleMargin = 35; // 35% margem atacado
+          // Margins (Varejo 55% / Atacado 35%)
+          const defaultRetailMargin = 55; // 55% margem varejo (solicitada)
+          const defaultWholesaleMargin = 35; // 35% margem atacado (solicitada)
 
           const suggestedRetailPrice = Number((vUnCom * (1 + defaultRetailMargin / 100)).toFixed(2));
           const suggestedWholesalePrice = Number((vUnCom * (1 + defaultWholesaleMargin / 100)).toFixed(2));
@@ -2303,47 +2310,161 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .sort((a, b) => b.netProfit - a.netProfit);
   };
 
-  // Company-wide monthly financial summary
+  const toggleDirectSalePayment = (saleId: string) => {
+    setDirectSales(prev => prev.map(s => {
+      if (s.id === saleId) {
+        const nextStatus = s.paymentStatus === 'pago' ? 'pendente' : 'pago';
+        return { ...s, paymentStatus: nextStatus };
+      }
+      return s;
+    }));
+  };
+
+  const toggleServiceOrderPayment = (orderId: string) => {
+    setServiceOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        const nextStatus = o.paymentStatus === 'pago' ? 'pendente' : 'pago';
+        return { ...o, paymentStatus: nextStatus };
+      }
+      return o;
+    }));
+  };
+
+  const toggleGeneralExpensePayment = (id: string) => {
+    setGeneralExpenses(prev => prev.map(e => {
+      if (e.id === id) {
+        const nextPaid = !e.isPaid;
+        return { 
+          ...e, 
+          isPaid: nextPaid, 
+          paymentDate: nextPaid ? new Date().toISOString().split('T')[0] : undefined 
+        };
+      }
+      return e;
+    }));
+  };
+
+  const applyBulkMarginsToAllProducts = (retailMargin = 55, wholesaleMargin = 35) => {
+    let count = 0;
+    setProducts(prev => prev.map(p => {
+      const cost = p.costPrice || 0;
+      if (cost > 0) {
+        count++;
+        return {
+          ...p,
+          retailMarginPercent: retailMargin,
+          retailPrice: Number((cost * (1 + retailMargin / 100)).toFixed(2)),
+          wholesaleMarginPercent: wholesaleMargin,
+          wholesalePrice: Number((cost * (1 + wholesaleMargin / 100)).toFixed(2))
+        };
+      }
+      return p;
+    }));
+    addAuditLog('Reajuste de Margens em Massa', `Margens de ${retailMargin}% (Varejo) e ${wholesaleMargin}% (Atacado) aplicadas a ${count} produtos.`);
+    return { count };
+  };
+
+  // Company-wide monthly financial summary with full precision and zero data dropping
   const monthlyFinancialSummary = useMemo(() => {
     const allReports = getMonthlyProfitabilityAllEmployees(selectedMonthYear);
     
-    const totalRevenue = allReports.reduce((acc, r) => acc + r.totalRevenue, 0);
-    const totalPartsCost = allReports.reduce((acc, r) => acc + r.partsCost, 0);
+    // 1. Receitas de Ordens de Serviço faturadas/concluídas no mês
+    const monthOrdersFinished = serviceOrders.filter(o => {
+      const d = o.completionDate || o.openDate;
+      const isFin = o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada';
+      return d.startsWith(selectedMonthYear) && isFin;
+    });
+
+    const ordersServicesRevenue = monthOrdersFinished.reduce((acc, o) => 
+      acc + o.services.reduce((a, b) => a + Number(b.price || 0), 0) + Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0), 0
+    );
+    const ordersPartsRevenue = monthOrdersFinished.reduce((acc, o) => 
+      acc + o.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0), 0
+    );
+    const ordersPartsCost = monthOrdersFinished.reduce((acc, o) => 
+      acc + o.parts.reduce((a, b) => a + (Number(b.cost || 0) * Number(b.quantity || 1)), 0), 0
+    );
+
+    // 2. Receitas de Vendas Diretas no mês (incluindo vendas avulsas e de balcão)
+    const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear));
+    const salesRevenue = monthSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
+    const salesCost = monthSales.reduce((acc, s) => 
+      acc + s.items.reduce((a, b) => a + (Number(b.cost || 0) * Number(b.quantity || 1)), 0), 0
+    );
+
+    // Total de Faturamento e Custo de Mercadorias (CMV)
+    const totalRevenue = ordersServicesRevenue + ordersPartsRevenue + salesRevenue;
+    const totalPartsCost = ordersPartsCost + salesCost;
     const grossMargin = totalRevenue - totalPartsCost;
 
-    const totalPersonnelCost = allReports.reduce((acc, r) => acc + r.totalPersonnelCost, 0);
+    // 3. Custos com Pessoal (Salários CLT, Benefícios e Comissões)
+    const baseSalaries = employees.reduce((a, b) => a + b.baseSalary, 0);
+    const benefitsCharges = employees.reduce((a, b) => a + b.benefitsCharges, 0);
+    const commissions = allReports.reduce((acc, r) => acc + r.commissionEarned, 0);
+    const totalPersonnelCost = baseSalaries + benefitsCharges + commissions;
 
+    // 4. Custos com Frota & Veículos
     const monthVehicleExpenses = vehicleExpenses.filter(ve => ve.date.startsWith(selectedMonthYear));
     const totalVehicleDirect = monthVehicleExpenses.reduce((acc, ve) => acc + ve.cost, 0);
     const totalVehicleProrated = vehicles.reduce((acc, v) => acc + ((v.annualIpvaValue + v.annualInsuranceValue) / 12), 0);
     const totalVehicleCost = totalVehicleDirect + totalVehicleProrated;
 
+    // 5. Custos Operacionais & Administrativos (Despesas Gerais + Dívidas/Parcelas do Mês)
     const monthGeneralExpenses = generalExpenses.filter(ge => ge.dueDate.startsWith(selectedMonthYear));
-    const totalOperationalCost = monthGeneralExpenses.reduce((acc, ge) => acc + ge.cost, 0);
+    const generalExpensesSum = monthGeneralExpenses.reduce((acc, ge) => acc + ge.cost, 0);
+    
+    // Soma de parcelas de dívidas ativas cadastradas em setupCosts (se não estiverem sincronizadas em generalExpenses)
+    const unsyncedDebtInstallments = setupCosts
+      .filter(s => s.costType === 'parcelado' && s.status !== 'quitado' && !s.syncWithGeneralExpenses)
+      .reduce((acc, s) => acc + (s.installmentValue || 0), 0);
 
-    // Calculate card machine fees deducted in month
+    const totalOperationalCost = generalExpensesSum + unsyncedDebtInstallments;
+
+    // 6. Taxas de Operadoras de Cartão no mês
     let totalCardFees = 0;
     serviceOrders.forEach(o => {
-      o.payments?.forEach(p => {
-        if (p.rateAmount) totalCardFees += p.rateAmount;
-      });
+      if ((o.completionDate || o.openDate).startsWith(selectedMonthYear)) {
+        o.payments?.forEach(p => {
+          if (p.rateAmount) totalCardFees += p.rateAmount;
+        });
+      }
     });
     directSales.forEach(s => {
-      s.payments?.forEach(p => {
-        if (p.rateAmount) totalCardFees += p.rateAmount;
-      });
+      if (s.date.startsWith(selectedMonthYear)) {
+        s.payments?.forEach(p => {
+          if (p.rateAmount) totalCardFees += p.rateAmount;
+        });
+      }
     });
 
     const totalCosts = totalPartsCost + totalPersonnelCost + totalVehicleCost + totalOperationalCost + totalCardFees;
     const netProfit = totalRevenue - totalCosts;
     const netMarginPercent = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-    const completedOrders = serviceOrders.filter(o => {
-      const d = o.completionDate || o.openDate;
-      const isFin = o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada';
-      return d.startsWith(selectedMonthYear) && isFin;
-    }).length;
+    // 7. Contas a Receber Pendentes no Mês
+    const pendingOrdersReceivables = serviceOrders
+      .filter(o => (o.completionDate || o.openDate).startsWith(selectedMonthYear) && o.paymentStatus !== 'pago')
+      .reduce((acc, o) => {
+        const tot = o.services.reduce((a, b) => a + Number(b.price || 0), 0) + 
+                    o.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0) + 
+                    Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0);
+        return acc + tot;
+      }, 0);
 
+    const pendingSalesReceivables = directSales
+      .filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus !== 'pago')
+      .reduce((acc, s) => acc + Number(s.total || 0), 0);
+
+    const totalPendingReceivables = pendingOrdersReceivables + pendingSalesReceivables;
+
+    // 8. Contas a Pagar Pendentes no Mês
+    const pendingGeneralPayables = monthGeneralExpenses
+      .filter(e => !e.isPaid)
+      .reduce((acc, e) => acc + e.cost, 0);
+
+    const totalPendingPayables = pendingGeneralPayables + unsyncedDebtInstallments;
+
+    const completedOrders = monthOrdersFinished.length;
     const activeOrders = serviceOrders.filter(o => {
       return o.status === 'orcamento_aberto' || o.status === 'aguardando_aprovacao' || o.status === 'aprovada_em_andamento' || o.status === 'aguardando_pecas';
     }).length;
@@ -2359,10 +2480,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalCosts,
       netProfit,
       netMarginPercent,
+      totalPendingReceivables,
+      totalPendingPayables,
       ordersCompletedCount: completedOrders,
       ordersActiveCount: activeOrders
     };
-  }, [selectedMonthYear, employees, vehicles, vehicleExpenses, generalExpenses, serviceOrders, directSales]);
+  }, [selectedMonthYear, employees, vehicles, vehicleExpenses, generalExpenses, serviceOrders, directSales, setupCosts]);
 
   return (
     <AppContext.Provider
@@ -2489,6 +2612,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSetupCost,
         deleteSetupCost,
         syncSetupCostsToExpenses,
+        toggleDirectSalePayment,
+        toggleServiceOrderPayment,
+        toggleGeneralExpensePayment,
+        applyBulkMarginsToAllProducts,
         addAuditLog,
         resetToDefaults,
         getEmployeeById,

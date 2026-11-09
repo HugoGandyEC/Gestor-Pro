@@ -36,11 +36,13 @@ import {
   Settings2,
   SlidersHorizontal,
   ExternalLink,
-  Link2
+  Link2,
+  Mail
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { Product, ParsedXmlNFe } from '../types';
 import { NFeImportStagingModal } from './NFeImportStagingModal';
+import { GmailNfeSearchModal } from './GmailNfeSearchModal';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -51,6 +53,7 @@ export const ProductsAndStockView: React.FC = () => {
     deleteProduct, 
     parseNFeXml,
     importNFeXml,
+    applyBulkMarginsToAllProducts,
     currentRole,
     serviceOrders,
     directSales,
@@ -81,6 +84,7 @@ export const ProductsAndStockView: React.FC = () => {
   // Staging Modal State for NFe Import with Margin & Price Adjustment
   const [stagingNFe, setStagingNFe] = useState<ParsedXmlNFe | null>(null);
   const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
+  const [isGmailModalOpen, setIsGmailModalOpen] = useState(false);
 
   // Taxonomy Manager Modal State (Categorias, Subcategorias, Marcas e Tags)
   const [isTaxonomyModalOpen, setIsTaxonomyModalOpen] = useState(false);
@@ -584,6 +588,29 @@ export const ProductsAndStockView: React.FC = () => {
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#53383e]" />
             <span>Gerenciar Categorias & Marcas</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (confirm('Deseja aplicar a regra oficial de precificação em todo o catálogo? (+55% para Varejo e +35% para Atacado sobre o Preço de Custo)')) {
+                const res = applyBulkMarginsToAllProducts(55, 35);
+                alert(`Regra aplicada com sucesso! ${res.count} produto(s) atualizado(s) com 55% de margem no Varejo e 35% no Atacado.`);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-xs cursor-pointer"
+            title="Aplica 55% de margem no varejo e 35% no atacado para todos os produtos com custo cadastrado"
+          >
+            <Percent className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Aplicar 55% Varejo / 35% Atacado</span>
+          </button>
+
+          <button
+            onClick={() => setIsGmailModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors shadow-xs cursor-pointer"
+            title="Buscar e-mails de fornecedores no Gmail com anexos XML de NF-e"
+          >
+            <Mail className="w-3.5 h-3.5 text-red-600" />
+            <span>Buscar NF-e no Gmail</span>
           </button>
 
           <button
@@ -2419,6 +2446,18 @@ export const ProductsAndStockView: React.FC = () => {
           initialParsedNFe={stagingNFe}
           onClose={() => setIsStagingModalOpen(false)}
           onSuccess={handleStagingSuccess}
+        />
+      )}
+
+      {/* Modal de Busca de NF-e no Gmail */}
+      {isGmailModalOpen && (
+        <GmailNfeSearchModal
+          isOpen={isGmailModalOpen}
+          onClose={() => setIsGmailModalOpen(false)}
+          onSelectXmlContent={(xmlContent) => {
+            setIsGmailModalOpen(false);
+            handleProcessXmlForReview(xmlContent);
+          }}
         />
       )}
     </div>
