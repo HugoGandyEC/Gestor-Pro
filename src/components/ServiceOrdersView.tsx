@@ -56,6 +56,7 @@ import {
 } from '../types';
 import { ServiceOrderPrintTemplate } from './ServiceOrderPrintTemplate';
 import { getScopedServiceOrders } from '../security/secureDataAccess';
+import { WhatsAppModal } from './WhatsAppModal';
 
 interface ServiceOrdersViewProps {
   isNewModalOpen: boolean;
@@ -117,6 +118,49 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
       isSample: false
     });
     alert(`Ordem de Serviço ${os.code} agendada com sucesso no Google Agenda para ${formatDateBR(os.forecastDate || new Date().toISOString().split('T')[0])} às 09:00!`);
+  };
+
+  // WhatsApp Message Modal State
+  const [whatsAppModalData, setWhatsAppModalData] = useState<{
+    isOpen: boolean;
+    phone: string;
+    clientName: string;
+    templateId: string;
+    variables: Record<string, string | number | undefined>;
+  }>({
+    isOpen: false,
+    phone: '',
+    clientName: '',
+    templateId: 'os_orcamento',
+    variables: {}
+  });
+
+  const handleOpenWhatsAppForOS = (os: ServiceOrder) => {
+    const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
+    const isCompleted = os.status === 'concluida_aguardando_retirada' || os.status === 'entregue_finalizada';
+    const templateId = isBudget ? 'os_orcamento' : isCompleted ? 'os_concluida' : 'os_aprovada';
+
+    const srvTotal = os.services.reduce((a, s) => a + s.price, 0);
+    const prtTotal = os.parts.reduce((a, p) => a + (p.price * p.quantity), 0);
+    const osTotal = Math.max(0, (srvTotal + prtTotal + (os.visitFee || 0)) - (os.calculatedDiscount || 0));
+    const emp = employees.find(e => e.id === os.employeeId);
+
+    setWhatsAppModalData({
+      isOpen: true,
+      phone: os.clientPhone || '',
+      clientName: os.clientName || 'Cliente',
+      templateId,
+      variables: {
+        numero_os: os.code,
+        equipamento_servico: os.equipmentType || (os.services.length > 0 ? os.services.map(s => s.name).join(', ') : os.description.slice(0, 45)),
+        valor_total: formatBRL(osTotal),
+        data_previsao: formatDateBR(os.forecastDate),
+        tecnico: emp?.name || 'Técnico MP Piscinas',
+        endereco: os.clientAddress || 'Endereço cadastrado',
+        garantia: `${os.warrantyPeriodDays || 90} dias`,
+        status_pagamento: os.paymentStatus === 'pago' ? 'Pago ✅' : 'Pendente de Pagamento'
+      }
+    });
   };
 
   // Sincroniza o título da página com o número da OS para que ao imprimir ou salvar como PDF o arquivo venha com o número correto da OS
@@ -1476,6 +1520,16 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                           >
                             <Calendar className="w-3.5 h-3.5 text-purple-600" />
                             <span className="hidden xl:inline">Agendar</span>
+                          </button>
+
+                          {/* 6. WhatsApp */}
+                          <button
+                            onClick={() => handleOpenWhatsAppForOS(os)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 border border-emerald-300 rounded-md transition-colors cursor-pointer"
+                            title="Enviar orçamento, status ou comprovante desta OS pelo WhatsApp"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="hidden xl:inline">WhatsApp</span>
                           </button>
 
                           {/* Ver Detalhes */}
@@ -3335,6 +3389,16 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
           </div>
         </div>
       )}
+
+      {/* WhatsApp Message Modal */}
+      <WhatsAppModal
+        isOpen={whatsAppModalData.isOpen}
+        onClose={() => setWhatsAppModalData(prev => ({ ...prev, isOpen: false }))}
+        recipientPhone={whatsAppModalData.phone}
+        recipientName={whatsAppModalData.clientName}
+        defaultTemplateId={whatsAppModalData.templateId}
+        contextVariables={whatsAppModalData.variables}
+      />
     </div>
   );
 };

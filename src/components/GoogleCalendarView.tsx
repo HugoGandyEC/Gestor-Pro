@@ -27,10 +27,13 @@ import {
   Eye, 
   FileText,
   Building,
-  UserCheck
+  UserCheck,
+  MessageSquare,
+  Phone
 } from 'lucide-react';
 import { useApp, formatDateBR } from '../context/AppContext';
 import { CompanyAppointment, AppointmentType, AppointmentStatus } from '../types';
+import { WhatsAppModal } from './WhatsAppModal';
 import { 
   googleSignIn, 
   logoutGoogle, 
@@ -81,6 +84,37 @@ export const GoogleCalendarView: React.FC = () => {
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isRestoreConfirmOpen, setIsRestoreConfirmOpen] = useState(false);
   const [viewDetailsAppointment, setViewDetailsAppointment] = useState<CompanyAppointment | null>(null);
+
+  // WhatsApp Message Modal State
+  const [whatsAppModalData, setWhatsAppModalData] = useState<{
+    isOpen: boolean;
+    phone: string;
+    clientName: string;
+    variables: Record<string, string | number | undefined>;
+  }>({
+    isOpen: false,
+    phone: '',
+    clientName: '',
+    variables: {}
+  });
+
+  const handleOpenWhatsAppForAppointment = (apt: CompanyAppointment) => {
+    const client = clients.find(c => c.id === apt.clientId);
+    setWhatsAppModalData({
+      isOpen: true,
+      phone: client?.phone || '',
+      clientName: apt.clientName || client?.name || 'Cliente',
+      variables: {
+        data_visita: formatDateBR(apt.startDate),
+        hora_visita: apt.startTime,
+        tipo_visita: apt.type === 'visita_tecnica' ? 'Visita Técnica' : apt.type === 'servico' ? 'Serviço Especializado' : 'Atendimento da Empresa',
+        tecnico: apt.employeeName || 'Equipe Técnica MP Piscinas',
+        endereco: apt.location || 'Local informado no agendamento',
+        numero_os: apt.serviceOrderCode || 'Agendamento Direto',
+        equipamento_servico: apt.title
+      }
+    });
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -665,26 +699,23 @@ export const GoogleCalendarView: React.FC = () => {
             </a>
           </div>
 
-          {/* Sample Data Management (Requested specifically by user) */}
+          {/* Sample Data Status & Direction to Configurações */}
           <div className="flex items-center gap-2">
             {sampleItemsCount > 0 ? (
-              <button
-                onClick={() => setIsClearConfirmOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg shadow-xs transition-colors"
-                title="Remover todos os agendamentos fictícios de exemplo da agenda"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                Limpar Dados de Exemplo ({sampleItemsCount})
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1.5 font-medium">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>{sampleItemsCount} agendamentos de exemplo</span>
+                </span>
+                <span className="text-[11px] text-gray-500 hidden md:inline">
+                  (Para zerar todos os dados do sistema, acesse <strong>Configurações &gt; Gestão de Dados</strong>)
+                </span>
+              </div>
             ) : (
-              <button
-                onClick={() => setIsRestoreConfirmOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg shadow-xs transition-colors"
-                title="Recarregar agendamentos fictícios para demonstração"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
-                Restaurar Exemplos Fictícios
-              </button>
+              <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5 font-medium">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Base de agendamentos limpa</span>
+              </span>
             )}
           </div>
         </div>
@@ -898,7 +929,17 @@ export const GoogleCalendarView: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
+                      {/* WhatsApp Notification */}
+                      <button
+                        onClick={() => handleOpenWhatsAppForAppointment(apt)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md border border-emerald-200 transition-colors cursor-pointer"
+                        title="Enviar confirmação desta visita técnica / serviço pelo WhatsApp"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>WhatsApp</span>
+                      </button>
+
                       <button
                         onClick={() => handleOpenEditModal(apt)}
                         className="px-2.5 py-1 text-xs text-gray-700 hover:text-gray-900 hover:bg-gray-200/80 rounded transition-colors"
@@ -1337,6 +1378,16 @@ export const GoogleCalendarView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* WhatsApp Message Modal */}
+      <WhatsAppModal
+        isOpen={whatsAppModalData.isOpen}
+        onClose={() => setWhatsAppModalData(prev => ({ ...prev, isOpen: false }))}
+        recipientPhone={whatsAppModalData.phone}
+        recipientName={whatsAppModalData.clientName}
+        defaultTemplateId="visita_agendada"
+        contextVariables={whatsAppModalData.variables}
+      />
     </div>
   );
 };

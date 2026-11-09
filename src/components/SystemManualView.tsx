@@ -21,7 +21,9 @@ import {
   AlertCircle,
   HelpCircle,
   Sparkles,
-  Calendar
+  Calendar,
+  MessageSquare,
+  Database
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 
@@ -265,14 +267,65 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
         'Vínculo com Ordens de Serviço: Ao selecionar uma OS cadastrada, o sistema preenche automaticamente cliente, endereço e detalhes técnicos no agendamento.',
         'Agendamento Direto na Tela de OS: Na tela "Ordens de Serviço", clique no botão "Agendar" na coluna de Ações para criar o evento correspondente em 1 clique.',
         'Sincronização em Tempo Real: Clique em "Sincronizar Google Agenda" para enviar agendamentos pendentes diretamente para sua agenda remota da nuvem.',
-        'Limpeza de Dados de Exemplo: Para começar a usar a agenda com dados 100% limpos e reais, use o botão "Limpar Dados de Exemplo" no topo da tela.'
+        'Notificação via WhatsApp: Em cada compromisso agendado, você conta com o botão verde "WhatsApp" para disparar instantaneamente a confirmação de data e horário ao cliente.',
+        'Gestão e Limpeza de Dados: A limpeza de dados fictícios está centralizada no menu "Configurações > Gestão de Dados", garantindo que a base seja zerada com total segurança operacional.'
       ],
       tips: [
         'Agendamentos sincronizados com o Google Agenda notificam a equipe técnica automaticamente via alertas no celular.',
-        'Você pode restaurar os dados de exemplo a qualquer momento pelo botão "Restaurar Exemplos Fictícios" se desejar demonstração.'
+        'Ao agendar uma OS, o endereço completo da residência ou condomínio é automaticamente formatado no evento do Google Calendar com link para navegação GPS (Google Maps / Waze).'
       ],
       rules: [
         'Exclusões de compromissos que estejam sincronizados com o Google Agenda requerem confirmação explícita na tela para evitar perdas acidentais.'
+      ]
+    },
+    {
+      id: 'whatsapp_integracao',
+      title: '11. Integração com WhatsApp & Notificações Rápidas',
+      badge: 'Comunicação',
+      icon: MessageSquare,
+      targetTab: 'configuracoes',
+      summary: 'Como configurar e usar o WhatsApp integrado para envio de orçamentos, confirmação de visitas, aprovação e conclusão de OS com garantia, cobrança PIX e comprovantes.',
+      steps: [
+        'Configurações Iniciais: Acesse "Configurações" no menu lateral e clique na aba "Integração WhatsApp". Informe o Telefone Comercial com DDD (ex: 11 99999-8888) e a Chave PIX Padrão.',
+        'Modelos de Mensagem: O sistema já possui 6 modelos profissionais pré-configurados: Orçamento de OS, OS Aprovada, OS Concluída com Garantia, Visita Técnica Agendada, Cobrança com Chave Pix e Comprovante de Venda/PDV.',
+        'Personalização de Textos: Você pode editar e criar novos modelos na tela de configurações, utilizando variáveis dinâmicas como {cliente_nome}, {os_numero}, {valor_total}, {chave_pix}, {data}, {horario} e {garantia}.',
+        'Envio em 1 Clique em Ordens de Serviço: Na tela de "Ordens de Serviço", clique no botão verde "WhatsApp" na coluna de Ações. O modal abrirá com o modelo apropriado pré-selecionado e as variáveis substituídas.',
+        'Envio em 1 Clique na Google Agenda: Na tela de "Google Agenda", cada card de visita ou serviço técnico possui o botão "WhatsApp" para avisar o cliente sobre o horário agendado.',
+        'Disparo Direto: Clique em "Abrir & Enviar no WhatsApp". O sistema abre o WhatsApp Web no computador ou o aplicativo nativo no celular/tablet, com o número do cliente formatado internacionalmente (+55) e o texto pronto para envio.'
+      ],
+      tips: [
+        'Você pode editar o texto da mensagem no próprio modal antes de disparar, adicionando observações personalizadas para o cliente.',
+        'Se o WhatsApp Web não abrir diretamente no seu navegador, você pode usar o botão "Copiar Texto" e colar manualmente na conversa do WhatsApp.',
+        'Não há cobrança por mensagem nem necessidade de aprovação de templates por terceiros, funcionando 100% de forma direta e gratuita via protocolo web/app.'
+      ],
+      rules: [
+        'O número do cliente é sanitizado automaticamente pelo sistema: pontuações, espaços e parênteses são removidos e o código do Brasil (+55) é inserido caso omitido.',
+        'As mensagens com termos de garantia informam formalmente os prazos de cobertura conforme o Código de Defesa do Consumidor e termos da empresa.'
+      ]
+    },
+    {
+      id: 'gestao_dados_limpeza',
+      title: '12. Gestão de Dados: Limpar Dados (Zerar Sistema), Restaurar Exemplos & Backups',
+      badge: 'Administração',
+      icon: Database,
+      targetTab: 'configuracoes',
+      summary: 'Centralização das ferramentas de controle de base de dados: como zerar o sistema para entrar em produção real, como restaurar dados de demonstração e como recuperar backups.',
+      steps: [
+        'Localização Centralizada: Todos os comandos de controle de dados estão centralizados exclusivamente em "Configurações > Gestão de Dados, Limpeza & Restauração" para segurança máxima contra exclusões acidentais.',
+        'Botão "Limpar Dados (Zerar Sistema)": Use esta opção quando estiver pronto para colocar o sistema em PRODUÇÃO REAL. Ela zera todos os clientes, fornecedores, produtos, ordens de serviço, vendas, compromissos da agenda, custos iniciais e despesas de exemplo.',
+        'Confirmação Segura: Ao clicar em "Limpar Dados", uma janela modal de confirmação é exibida explicando exatamente o que será zerado. Clique em "Sim, Limpar e Zerar Todos os Dados" para efetivar.',
+        'Botão "Restaurar Dados de Exemplo": Se desejar demonstrar o sistema para novos funcionários ou sócios, este botão recarrega instantaneamente toda a massa de dados padrão de teste da MP Piscinas.',
+        'Botão "Executar Restauração JSON": Para restaurar um backup previamente salvo da sua empresa, cole o código JSON no campo correspondente e clique no botão verde para reconstituir toda a base.',
+        'Download do Sistema Completo: Na mesma tela, você pode clicar em "Baixar Código Fonte & Banco Completo (.ZIP)" para salvar uma cópia offline completa e independente do sistema.'
+      ],
+      tips: [
+        'Antes de clicar em "Limpar Dados (Zerar Sistema)", sempre clique em "Exportar Backup JSON Completo" para ter uma cópia de segurança salva no seu computador.',
+        'Após zerar o sistema, você pode começar cadastrando seus Fornecedores e Produtos importando diretamente os XMLs das notas fiscais dos seus fornecedores.',
+        'O sistema armazena todos os registros no LocalStorage persistente do seu navegador, permitindo operação instantânea e segura mesmo sem internet.'
+      ],
+      rules: [
+        'A ação de "Limpar Dados" reinicia os contadores de sequência de OS e Vendas para o número inicial 1.',
+        'Toda operação de limpeza e restauração de dados gera um registro de auditoria com data, hora e usuário responsável.'
       ]
     }
   ];

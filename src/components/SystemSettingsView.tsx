@@ -32,10 +32,20 @@ import {
   X,
   Palette,
   Image as ImageIcon,
-  Loader2
+  Loader2,
+  MessageSquare,
+  Phone,
+  Send
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { CardBrand, CardMachineRate, CompanySettings, UserRole, SequenceSettings, WarrantyPolicy } from '../types';
+import { 
+  defaultWhatsAppTemplates, 
+  renderWhatsAppTemplate, 
+  sendWhatsAppMessage, 
+  formatWhatsAppNumber,
+  WhatsAppTemplate 
+} from '../services/whatsappService';
 
 type SettingsTab = 
   | 'company' 
@@ -44,6 +54,7 @@ type SettingsTab =
   | 'themes'
   | 'cardRates' 
   | 'fiscal' 
+  | 'whatsapp'
   | 'permissions' 
   | 'backup';
 
@@ -64,6 +75,7 @@ export const SystemSettingsView: React.FC = () => {
     exportDatabaseJson, 
     restoreDatabaseJson, 
     resetToDefaults,
+    clearAllSystemData,
     currentRole,
     setCurrentRole,
     lookupCep,
@@ -314,15 +326,74 @@ export const SystemSettingsView: React.FC = () => {
     reader.readAsText(file);
   };
 
+  // Limpar Dados Modal State
+  const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
+
+  // WhatsApp Configuration State
+  const [whatsappPhone, setWhatsappPhone] = useState<string>(() => {
+    return localStorage.getItem('gestaopro_whatsapp_phone') || companySettings.phone || '';
+  });
+  const [whatsappPixKey, setWhatsappPixKey] = useState<string>(() => {
+    return localStorage.getItem('gestaopro_whatsapp_pix') || companySettings.cnpj || '';
+  });
+  const [selectedTemplateTab, setSelectedTemplateTab] = useState<string>(defaultWhatsAppTemplates[0].id);
+  const [customTemplates, setCustomTemplates] = useState<WhatsAppTemplate[]>(() => {
+    const saved = localStorage.getItem('gestaopro_whatsapp_templates');
+    return saved ? JSON.parse(saved) : defaultWhatsAppTemplates;
+  });
+  const [testPhone, setTestPhone] = useState<string>('');
+  const [testSuccessMsg, setTestSuccessMsg] = useState<string | null>(null);
+
+  const handleSaveWhatsAppConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('gestaopro_whatsapp_phone', whatsappPhone);
+    localStorage.setItem('gestaopro_whatsapp_pix', whatsappPixKey);
+    localStorage.setItem('gestaopro_whatsapp_templates', JSON.stringify(customTemplates));
+    setSaveSuccessMsg('Configurações e modelos do WhatsApp salvos com sucesso!');
+    setTimeout(() => setSaveSuccessMsg(null), 4000);
+  };
+
+  const handleTestWhatsAppSend = () => {
+    if (!testPhone.trim()) {
+      alert('Informe um número de telefone com DDD para testar o envio.');
+      return;
+    }
+    const tmpl = customTemplates.find(t => t.id === selectedTemplateTab) || customTemplates[0];
+    const preview = renderWhatsAppTemplate(tmpl.template, {
+      empresa: companySettings.companyName || 'MP Piscinas & Aquecedores',
+      cliente: 'Cliente Teste',
+      numero_os: 'OS-2026-999',
+      equipamento_servico: 'Manutenção de Bomba e Filtro Solar',
+      valor_total: 'R$ 750,00',
+      data_previsao: '12/11/2026',
+      tecnico: 'Ricardo Silveira',
+      endereco: 'Rua das Flores, 100 - Bairro Centro',
+      garantia: '90 dias',
+      status_pagamento: 'Aguardando Pagamento',
+      chave_pix: whatsappPixKey || companySettings.cnpj || 'chave@pix.com',
+      data_visita: '10/11/2026',
+      hora_visita: '14:30',
+      tipo_visita: 'Visita Técnica de Diagnóstico',
+      referencia_documento: 'Ordem de Serviço OS-2026-999',
+      numero_venda: 'VD-1099',
+      resumo_itens: '1x Cloro Granulado 10kg, 2x Pastilha Tricloro',
+      forma_pagamento: 'Pix'
+    });
+    sendWhatsAppMessage(testPhone, preview, 'api');
+    setTestSuccessMsg(`Disparo teste aberto no WhatsApp para ${testPhone}!`);
+    setTimeout(() => setTestSuccessMsg(null), 5000);
+  };
+
   const tabsConfig = [
     { id: 'company', label: 'Dados da Empresa / Emitente', icon: Building2 },
     { id: 'sequences', label: 'Numerações & Séries', icon: ListOrdered },
     { id: 'warranty', label: 'Garantias & Serviços Atrelados', icon: ShieldCheck },
+    { id: 'whatsapp', label: 'Integração WhatsApp', icon: MessageSquare },
     { id: 'themes', label: 'Temas & Identidade Visual', icon: Palette },
     { id: 'cardRates', label: 'Taxas de Maquininha por Bandeira', icon: CreditCard },
     { id: 'fiscal', label: 'Ambiente Fiscal & NF-e', icon: FileText },
     { id: 'permissions', label: 'Matriz de Permissões (RBAC)', icon: Lock },
-    { id: 'backup', label: 'Backup & Banco de Dados', icon: Database }
+    { id: 'backup', label: 'Gestão de Dados, Limpeza & Restauração', icon: Database }
   ];
 
   return (
@@ -1457,17 +1528,214 @@ export const SystemSettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 6: BACKUP & BANCO DE DADOS */}
+      {/* TAB: INTEGRAÇÃO WHATSAPP */}
+      {activeTab === 'whatsapp' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+                <MessageSquare className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Integração WhatsApp & Mensagens Automáticas</h2>
+                <p className="text-xs text-slate-500">
+                  Configure o número oficial da empresa, chave Pix padrão e personalize os modelos de mensagens para orçamentos, ordens de serviço, agendamentos e cobranças.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              WhatsApp Web / API Ativo
+            </div>
+          </div>
+
+          {testSuccessMsg && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{testSuccessMsg}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveWhatsAppConfig} className="space-y-6">
+            {/* Parâmetros Gerais */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  WhatsApp Oficial da Empresa (com DDD)
+                </label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-emerald-600 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Ex: (11) 98765-4321"
+                    value={whatsappPhone}
+                    onChange={(e) => setWhatsappPhone(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Utilizado como remetente oficial para contato e orçamentos.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Chave Pix Padrão para Cobranças
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: CNPJ 00.000.000/0001-00 ou chave aleatória"
+                  value={whatsappPixKey}
+                  onChange={(e) => setWhatsappPixKey(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white font-mono"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Inserida automaticamente nas mensagens de cobrança e recibos.
+                </span>
+              </div>
+            </div>
+
+            {/* Modelos de Mensagens (Templates) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Modelos de Mensagens Automáticas (Templates)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Selecione o evento para personalizar o texto padrão que será enviado ao cliente.
+                  </p>
+                </div>
+              </div>
+
+              {/* Selector Tabs for Templates */}
+              <div className="flex flex-wrap gap-2">
+                {customTemplates.map(tmpl => {
+                  const isSelected = tmpl.id === selectedTemplateTab;
+                  return (
+                    <button
+                      type="button"
+                      key={tmpl.id}
+                      onClick={() => setSelectedTemplateTab(tmpl.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        isSelected
+                          ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {tmpl.title}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Template Editor */}
+              {(() => {
+                const activeTmpl = customTemplates.find(t => t.id === selectedTemplateTab) || customTemplates[0];
+                return (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800">
+                        {activeTmpl.title}
+                      </span>
+                      <span className="text-[10px] text-slate-500 italic">
+                        {activeTmpl.description}
+                      </span>
+                    </div>
+
+                    <textarea
+                      rows={5}
+                      value={activeTmpl.template}
+                      onChange={(e) => {
+                        const newText = e.target.value;
+                        setCustomTemplates(prev => prev.map(t => t.id === activeTmpl.id ? { ...t, template: newText } : t));
+                      }}
+                      className="w-full p-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-sans leading-relaxed"
+                    />
+
+                    {/* Supported tags pills */}
+                    <div className="text-[11px] text-slate-600 space-y-1">
+                      <span className="font-semibold text-slate-700 block">Variáveis dinâmicas suportadas (clique para copiar):</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          '{cliente}', '{empresa}', '{numero_os}', '{equipamento_servico}', 
+                          '{valor_total}', '{data_previsao}', '{tecnico}', '{endereco}', 
+                          '{garantia}', '{chave_pix}', '{data_visita}', '{hora_visita}', '{numero_venda}'
+                        ].map(tag => (
+                          <span
+                            key={tag}
+                            onClick={() => {
+                              navigator.clipboard.writeText(tag);
+                              alert(`Variável ${tag} copiada! Cole no texto acima.`);
+                            }}
+                            className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-emerald-700 cursor-pointer hover:bg-emerald-50"
+                            title="Clique para copiar"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Test Sender Sandbox */}
+            <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-200 space-y-3">
+              <h4 className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                <Send className="w-3.5 h-3.5 text-emerald-600" />
+                Simulador de Teste de Disparo WhatsApp
+              </h4>
+              <p className="text-[11px] text-slate-600">
+                Digite um número de WhatsApp com DDD e envie uma mensagem simulada para verificar a formatação em tempo real no seu WhatsApp.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="(11) 99999-8888"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  className="w-full sm:w-64 px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestWhatsAppSend}
+                  className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Testar Disparo no WhatsApp
+                </button>
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="submit"
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                Salvar Configurações do WhatsApp
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* TAB: GESTÃO DE DADOS, LIMPEZA & BACKUP */}
       {activeTab === 'backup' && (
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Rotinas de Backup & Banco de Dados Relacional</h2>
-              <p className="text-xs text-slate-500">Exportação completa dos dados para segurança e restauração imediata em caso de auditoria.</p>
+              <h2 className="text-base font-bold text-slate-900">Gestão de Dados, Limpeza & Restauração</h2>
+              <p className="text-xs text-slate-500">
+                Central oficial para zerar dados de exemplo, restaurar dados de demonstração, executar restaurações de backup e baixar cópias de segurança.
+              </p>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              MySQL VPS Conectado
+              Banco de Dados Operacional
             </div>
           </div>
 
@@ -1486,6 +1754,78 @@ export const SystemSettingsView: React.FC = () => {
             </div>
           )}
 
+          {/* PAINEL CENTRAL SOLICITADO: BOTÃO LIMPAR DADOS, RESTAURAR E EXECUTAR RESTAURAÇÃO */}
+          <div className="border border-rose-200 bg-rose-50/40 rounded-2xl p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Ações Rápidas de Dados: Limpar Dados, Restaurar Exemplos & Executar Restauração
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                  Conforme solicitado, utilize os botões abaixo para <strong>zerar todos os dados e exemplos</strong> deixando o sistema pronto para produção real, <strong>restaurar dados padrão de exemplo</strong> para demonstração, ou <strong>executar restauração de backup JSON</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Três botões principais em destaque lado a lado */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              {/* 1. Botão Limpar Dados do Sistema (Zerar Tudo) */}
+              <button
+                type="button"
+                onClick={() => setIsClearAllModalOpen(true)}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                title="Limpar todos os dados do sistema e zerar os dados de exemplo"
+              >
+                <Trash2 className="w-4 h-4 text-white" />
+                <span>Limpar Dados (Zerar Sistema)</span>
+              </button>
+
+              {/* 2. Botão Restaurar Dados de Exemplo */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Deseja recarregar a base de dados com todos os dados fictícios de exemplo (clientes, ordens de serviço, produtos e visitas)?')) {
+                    resetToDefaults();
+                    setFormData({ ...companySettings });
+                    setRestoreFeedback({ type: 'success', message: 'Dados fictícios de exemplo restaurados com sucesso!' });
+                  }
+                }}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                title="Recarregar dados de exemplo padrão de fábrica"
+              >
+                <RefreshCw className="w-4 h-4 text-white" />
+                <span>Restaurar Dados de Exemplo</span>
+              </button>
+
+              {/* 3. Botão Executar Restauração JSON */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!restoreJsonInput.trim()) {
+                    alert('Cole o conteúdo JSON na caixa de texto abaixo ou selecione um arquivo de backup para executar a restauração.');
+                    return;
+                  }
+                  const res = restoreDatabaseJson(restoreJsonInput);
+                  if (res.success) {
+                    setRestoreFeedback({ type: 'success', message: res.message });
+                    setRestoreJsonInput('');
+                  } else {
+                    setRestoreFeedback({ type: 'error', message: res.message });
+                  }
+                }}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                title="Executar restauração a partir do texto JSON ou arquivo"
+              >
+                <Upload className="w-4 h-4 text-white" />
+                <span>Executar Restauração JSON</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Grid de Backup: Download JSON, Upload Arquivo e ZIP Completo */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Export box */}
             <div className="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3 flex flex-col justify-between">
@@ -1556,9 +1896,9 @@ export const SystemSettingsView: React.FC = () => {
             </div>
           </div>
 
-          {/* Paste JSON manually or Factory Reset */}
+          {/* Paste JSON manually */}
           <div className="border-t border-slate-200 pt-6 space-y-4">
-            <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Restauração Manual via JSON Texto</h3>
+            <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Inserção Manual de JSON para Executar Restauração</h3>
             <textarea
               rows={4}
               placeholder="Cole aqui o conteúdo JSON do backup caso prefira inserção direta..."
@@ -1566,21 +1906,7 @@ export const SystemSettingsView: React.FC = () => {
               onChange={(e) => setRestoreJsonInput(e.target.value)}
               className="w-full p-3 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
             />
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm('Atenção: Deseja restaurar a base de dados de fábrica? Todas as alterações manuais serão resetadas.')) {
-                    resetToDefaults();
-                    setFormData({ ...companySettings });
-                    setRestoreFeedback({ type: 'success', message: 'Sistema redefinido com sucesso para o estado inicial padrão!' });
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg text-xs font-medium border border-rose-200"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Restaurar Padrões de Fábrica
-              </button>
-
+            <div className="flex items-center justify-end">
               <button
                 type="button"
                 disabled={!restoreJsonInput.trim()}
@@ -1593,7 +1919,7 @@ export const SystemSettingsView: React.FC = () => {
                     setRestoreFeedback({ type: 'error', message: res.message });
                   }
                 }}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold"
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs"
               >
                 Executar Restauração JSON
               </button>
@@ -1804,6 +2130,79 @@ export const SystemSettingsView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO: LIMPAR TODOS OS DADOS / ZERAR SISTEMA */}
+      {isClearAllModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-rose-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-gradient-to-r from-rose-700 to-red-800 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Limpar Dados & Zerar Sistema</h3>
+                  <p className="text-white/80 text-xs">Exclusão total de dados e exemplos demonstrativos</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsClearAllModalOpen(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 space-y-2">
+                <p className="font-bold flex items-center gap-1.5 text-rose-700">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  Atenção: Ação irreversível sem backup!
+                </p>
+                <p className="leading-relaxed">
+                  Esta ação irá apagar <strong>todos os dados do sistema</strong>, incluindo:
+                </p>
+                <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-rose-800">
+                  <li>Todos os clientes e fornecedores cadastrados</li>
+                  <li>Todas as ordens de serviço e laudos técnicos</li>
+                  <li>Todas as vendas e movimentações de estoque</li>
+                  <li>Todos os compromissos e visitas da agenda</li>
+                  <li>Todos os custos iniciais, contas a pagar e despesas</li>
+                  <li>Todos os dados fictícios de exemplo de demonstração</li>
+                </ul>
+                <p className="text-[11px] font-semibold text-rose-800 pt-1">
+                  O sistema ficará 100% limpo com numeração zerada (em branco), pronto para seu uso real em produção.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsClearAllModalOpen(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  Cancelar / Manter Dados
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearAllSystemData();
+                    setIsClearAllModalOpen(false);
+                    setRestoreFeedback({
+                      type: 'success',
+                      message: 'Todos os dados e exemplos foram completamente zerados! A base de dados está 100% limpa para produção.'
+                    });
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Sim, Zerar Todos os Dados Agora
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

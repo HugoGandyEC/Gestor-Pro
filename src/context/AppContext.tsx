@@ -258,6 +258,7 @@ interface AppContextType {
   deleteAppointment: (id: string) => void;
   clearSampleAppointments: () => void;
   restoreSampleAppointments: () => void;
+  clearAllSystemData: () => void;
 
   resetToDefaults: () => void;
 
@@ -929,6 +930,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [...freshSamples, ...nonSamples];
     });
     addAuditLog('Restauração de Dados de Exemplo', 'Dados fictícios de exemplo do Google Agenda foram recarregados.');
+  };
+
+  const clearAllSystemData = () => {
+    setClients([]);
+    setSuppliers([]);
+    setProducts([]);
+    setStockMovements([]);
+    setServiceOrders([]);
+    setDirectSales([]);
+    setAppointments([]);
+    setCustomerTickets([]);
+    setVehicleExpenses([]);
+    setGeneralExpenses([]);
+    setSetupCosts([]);
+    setSequenceSettings({
+      serviceOrderNextNumber: 1,
+      serviceOrderPrefix: '',
+      serviceOrderDigits: 0,
+      saleNextNumber: 1,
+      salePrefix: 'VD-',
+      saleDigits: 0,
+      budgetNextNumber: 1,
+      budgetPrefix: 'ORC-',
+      budgetDigits: 0
+    });
+    addAuditLog('Limpeza Geral do Sistema', 'Todos os dados transacionais e de exemplo foram zerados. O sistema está em branco para produção.');
   };
 
   // Live Lookups: ViaCEP
@@ -2685,6 +2712,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteAppointment,
         clearSampleAppointments,
         restoreSampleAppointments,
+        clearAllSystemData,
         resetToDefaults,
         getEmployeeById,
         getVehicleById,

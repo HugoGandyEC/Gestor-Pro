@@ -18,11 +18,13 @@ import {
   Store,
   Send,
   X,
+  Copy,
   Check,
-  Copy
+  MessageSquare
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { SaleItem, PaymentMethod, PaymentSplit, CardBrand, DirectSale } from '../types';
+import { WhatsAppModal } from './WhatsAppModal';
 
 export const SalesView: React.FC = () => {
   const { 
@@ -44,6 +46,7 @@ export const SalesView: React.FC = () => {
   const [pdvTerminal, setPdvTerminal] = useState('caixa_01');
   const [pdvMethod, setPdvMethod] = useState<PaymentMethod>('pix');
   const [copiedPix, setCopiedPix] = useState(false);
+  const [whatsAppSale, setWhatsAppSale] = useState<DirectSale | null>(null);
 
   const [clientId, setClientId] = useState(clients[0]?.id || '');
   const [employeeId, setEmployeeId] = useState(employees[3]?.id || employees[0]?.id || '');
@@ -415,6 +418,16 @@ export const SalesView: React.FC = () => {
                           <span className="hidden xl:inline">Baixar</span>
                         </button>
 
+                        {/* 5. WhatsApp */}
+                        <button
+                          onClick={() => setWhatsAppSale(sale)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-800 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-md transition-colors cursor-pointer"
+                          title="Enviar Cupom ou Chave PIX via WhatsApp"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="hidden xl:inline">WhatsApp</span>
+                        </button>
+
                         {/* Excluir */}
                         {currentRole === 'admin' && (
                           <button
@@ -754,6 +767,23 @@ export const SalesView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Envio via WhatsApp */}
+      {whatsAppSale && (
+        <WhatsAppModal
+          isOpen={!!whatsAppSale}
+          onClose={() => setWhatsAppSale(null)}
+          defaultTemplateId="comprovante_venda"
+          recipientPhone={clients.find(c => c.id === whatsAppSale.clientId)?.phone || ''}
+          recipientName={clients.find(c => c.id === whatsAppSale.clientId)?.name || 'Cliente'}
+          contextVariables={{
+            cliente_nome: clients.find(c => c.id === whatsAppSale.clientId)?.name || 'Cliente',
+            codigo_venda: whatsAppSale.code,
+            valor_total: formatBRL(whatsAppSale.total),
+            itens_resumo: (whatsAppSale.items || []).map(i => `${i.quantity}x ${i.name}`).join(', ')
+          }}
+        />
       )}
     </div>
   );
