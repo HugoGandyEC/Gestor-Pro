@@ -305,6 +305,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  // On mobile drawer, always display the full expanded sidebar so user on mobile has complete labels and menus
+  const isEffectiveCollapsed = isCollapsed && !isMobileOpen;
+
   return (
     <>
       {/* Mobile Backdrop Overlay */}
@@ -325,8 +328,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         } ${isCollapsed ? 'lg:w-16 xl:w-20' : 'lg:w-60 xl:w-64'}`}
       >
         {/* Top Header of Sidebar */}
-        <div className={`p-3 border-b border-[#3d3f42] flex items-center ${isCollapsed ? 'lg:justify-center' : 'justify-between'}`}>
-          {!isCollapsed && (
+        <div className={`p-3 border-b border-[#3d3f42] flex items-center ${isEffectiveCollapsed ? 'lg:justify-center' : 'justify-between'}`}>
+          {!isEffectiveCollapsed && (
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold text-[#c2bfb0] uppercase tracking-wider">
                 Navegação
@@ -363,7 +366,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation Categories and Items */}
-        <nav className={`p-2 space-y-3 flex-1 overflow-y-auto ${isCollapsed ? 'px-1.5' : 'p-3'}`}>
+        <nav className={`p-2 space-y-3 flex-1 overflow-y-auto ${isEffectiveCollapsed ? 'px-1.5' : 'p-3'}`}>
           {navigationCategories.map((group) => {
             const visibleItems = group.items.filter(item => 
               item.roles.includes(currentRole) || 
@@ -376,7 +379,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             return (
               <div key={group.category} className="space-y-1">
-                {isCollapsed ? (
+                {isEffectiveCollapsed ? (
                   <div className="my-1.5 border-t border-[#3d3f42]/70 mx-1" title={group.category} />
                 ) : (
                   <button
@@ -404,7 +407,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </button>
                 )}
 
-                {(!isCategoryCollapsed || isCollapsed) && (
+                {(!isCategoryCollapsed || isEffectiveCollapsed) && (
                   <div className="space-y-0.5">
                     {visibleItems.map((item) => {
                       const Icon = item.icon;
@@ -415,28 +418,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <button
                           key={item.id}
                           onClick={() => handleSelectTab(item.id)}
-                          title={isCollapsed ? itemTitle : undefined}
+                          title={isEffectiveCollapsed ? itemTitle : undefined}
                           className={`w-full flex items-center ${
-                            isCollapsed ? 'justify-center py-2.5 px-0' : 'justify-between px-3 py-2'
+                            isEffectiveCollapsed ? 'justify-center py-2.5 px-0' : 'justify-between px-3 py-2'
                           } rounded-lg text-xs font-medium transition-all cursor-pointer relative group ${
                             isActive
                               ? 'bg-[#53383e] text-white shadow-sm font-semibold'
                               : 'text-[#d8d8d8] hover:text-white hover:bg-[#383a3d]'
                           } ${item.highlight && !isActive ? 'text-[#c2bfb0]' : ''}`}
                         >
-                          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5 truncate'}`}>
+                          <div className={`flex items-center ${isEffectiveCollapsed ? 'justify-center' : 'gap-2.5 truncate'}`}>
                             <div className="relative">
-                              <Icon className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} shrink-0 ${isActive ? 'text-white' : 'text-[#a0a2a6] group-hover:text-white'}`} />
-                              {isCollapsed && item.badge && (
+                              <Icon className={`${isEffectiveCollapsed ? 'w-5 h-5' : 'w-4 h-4'} shrink-0 ${isActive ? 'text-white' : 'text-[#a0a2a6] group-hover:text-white'}`} />
+                              {isEffectiveCollapsed && item.badge && (
                                 <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#53383e] border border-white" />
                               )}
                             </div>
-                            {!isCollapsed && (
+                            {!isEffectiveCollapsed && (
                               <span className="truncate">{item.label}</span>
                             )}
                           </div>
 
-                          {!isCollapsed && item.badge && (
+                          {!isEffectiveCollapsed && item.badge && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap ml-1 ${
                               isActive
                                 ? 'bg-white/20 text-white'
@@ -458,7 +461,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* Footer User Box & Logout */}
-        {isCollapsed ? (
+        {isEffectiveCollapsed ? (
           <div className="p-2 border-t border-[#3d3f42] flex flex-col items-center gap-2">
             <button
               type="button"

@@ -640,35 +640,174 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved || '2026-10';
   });
 
+const SYNC_CHANNEL_NAME = 'gestaopro_sync_channel_v4';
+
+const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
+  try {
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      const channel = new BroadcastChannel(SYNC_CHANNEL_NAME);
+      channel.postMessage({ type, key, timestamp: Date.now() });
+      channel.close();
+    }
+  } catch {}
+};
+
   // LocalStorage sync
-  useEffect(() => { localStorage.setItem(KEYS.ROLE, currentRole); }, [currentRole]);
-  useEffect(() => { localStorage.setItem(KEYS.COMPANY_SETTINGS, JSON.stringify(companySettings)); }, [companySettings]);
-  useEffect(() => { localStorage.setItem(KEYS.SERVICE_CATALOG, JSON.stringify(serviceCatalog)); }, [serviceCatalog]);
-  useEffect(() => { localStorage.setItem(KEYS.CHECKLIST_TEMPLATES, JSON.stringify(checklistTemplates)); }, [checklistTemplates]);
-  useEffect(() => { localStorage.setItem(KEYS.CLIENTS, JSON.stringify(clients)); }, [clients]);
-  useEffect(() => { localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify(suppliers)); }, [suppliers]);
-  useEffect(() => { localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products)); }, [products]);
-  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_CATEGORIES, JSON.stringify(productCategories)); }, [productCategories]);
-  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_SUBCATEGORIES, JSON.stringify(productSubcategories)); }, [productSubcategories]);
-  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_BRANDS, JSON.stringify(productBrands)); }, [productBrands]);
-  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_TAGS, JSON.stringify(productTags)); }, [productTags]);
-  useEffect(() => { localStorage.setItem(KEYS.STOCK, JSON.stringify(stockMovements)); }, [stockMovements]);
-  useEffect(() => { localStorage.setItem(KEYS.CARD_RATES, JSON.stringify(cardRates)); }, [cardRates]);
-  useEffect(() => { localStorage.setItem(KEYS.CARD_OPERATORS, JSON.stringify(cardOperators)); }, [cardOperators]);
-  useEffect(() => { localStorage.setItem(KEYS.PAGBANK_TRANSACTIONS, JSON.stringify(pagBankTransactions)); }, [pagBankTransactions]);
-  useEffect(() => { localStorage.setItem(KEYS.TICKETS, JSON.stringify(customerTickets)); }, [customerTickets]);
-  useEffect(() => { localStorage.setItem(KEYS.LOGS, JSON.stringify(auditLogs)); }, [auditLogs]);
-  useEffect(() => { localStorage.setItem(KEYS.EMPLOYEES, JSON.stringify(employees)); }, [employees]);
-  useEffect(() => { localStorage.setItem(KEYS.VEHICLES, JSON.stringify(vehicles)); }, [vehicles]);
-  useEffect(() => { localStorage.setItem(KEYS.VEHICLE_EXPENSES, JSON.stringify(vehicleExpenses)); }, [vehicleExpenses]);
-  useEffect(() => { localStorage.setItem(KEYS.GENERAL_EXPENSES, JSON.stringify(generalExpenses)); }, [generalExpenses]);
-  useEffect(() => { localStorage.setItem(KEYS.SERVICE_ORDERS, JSON.stringify(serviceOrders)); }, [serviceOrders]);
-  useEffect(() => { localStorage.setItem(KEYS.DIRECT_SALES, JSON.stringify(directSales)); }, [directSales]);
-  useEffect(() => { localStorage.setItem(KEYS.SETUP_COSTS, JSON.stringify(setupCosts)); }, [setupCosts]);
-  useEffect(() => { localStorage.setItem(KEYS.APPOINTMENTS, JSON.stringify(appointments)); }, [appointments]);
-  useEffect(() => { localStorage.setItem(KEYS.SELECTED_MONTH, selectedMonthYear); }, [selectedMonthYear]);
-  useEffect(() => { localStorage.setItem(KEYS.SEQUENCE_SETTINGS, JSON.stringify(sequenceSettings)); }, [sequenceSettings]);
-  useEffect(() => { localStorage.setItem(KEYS.WARRANTY_POLICIES, JSON.stringify(warrantyPolicies)); }, [warrantyPolicies]);
+  useEffect(() => { localStorage.setItem(KEYS.ROLE, currentRole); broadcastSync('KEY', KEYS.ROLE); }, [currentRole]);
+  useEffect(() => { localStorage.setItem(KEYS.COMPANY_SETTINGS, JSON.stringify(companySettings)); broadcastSync('KEY', KEYS.COMPANY_SETTINGS); }, [companySettings]);
+  useEffect(() => { localStorage.setItem(KEYS.SERVICE_CATALOG, JSON.stringify(serviceCatalog)); broadcastSync('KEY', KEYS.SERVICE_CATALOG); }, [serviceCatalog]);
+  useEffect(() => { localStorage.setItem(KEYS.CHECKLIST_TEMPLATES, JSON.stringify(checklistTemplates)); broadcastSync('KEY', KEYS.CHECKLIST_TEMPLATES); }, [checklistTemplates]);
+  useEffect(() => { localStorage.setItem(KEYS.CLIENTS, JSON.stringify(clients)); broadcastSync('KEY', KEYS.CLIENTS); }, [clients]);
+  useEffect(() => { localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify(suppliers)); broadcastSync('KEY', KEYS.SUPPLIERS); }, [suppliers]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products)); broadcastSync('KEY', KEYS.PRODUCTS); }, [products]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_CATEGORIES, JSON.stringify(productCategories)); broadcastSync('KEY', KEYS.PRODUCT_CATEGORIES); }, [productCategories]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_SUBCATEGORIES, JSON.stringify(productSubcategories)); broadcastSync('KEY', KEYS.PRODUCT_SUBCATEGORIES); }, [productSubcategories]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_BRANDS, JSON.stringify(productBrands)); broadcastSync('KEY', KEYS.PRODUCT_BRANDS); }, [productBrands]);
+  useEffect(() => { localStorage.setItem(KEYS.PRODUCT_TAGS, JSON.stringify(productTags)); broadcastSync('KEY', KEYS.PRODUCT_TAGS); }, [productTags]);
+  useEffect(() => { localStorage.setItem(KEYS.STOCK, JSON.stringify(stockMovements)); broadcastSync('KEY', KEYS.STOCK); }, [stockMovements]);
+  useEffect(() => { localStorage.setItem(KEYS.CARD_RATES, JSON.stringify(cardRates)); broadcastSync('KEY', KEYS.CARD_RATES); }, [cardRates]);
+  useEffect(() => { localStorage.setItem(KEYS.CARD_OPERATORS, JSON.stringify(cardOperators)); broadcastSync('KEY', KEYS.CARD_OPERATORS); }, [cardOperators]);
+  useEffect(() => { localStorage.setItem(KEYS.PAGBANK_TRANSACTIONS, JSON.stringify(pagBankTransactions)); broadcastSync('KEY', KEYS.PAGBANK_TRANSACTIONS); }, [pagBankTransactions]);
+  useEffect(() => { localStorage.setItem(KEYS.TICKETS, JSON.stringify(customerTickets)); broadcastSync('KEY', KEYS.TICKETS); }, [customerTickets]);
+  useEffect(() => { localStorage.setItem(KEYS.LOGS, JSON.stringify(auditLogs)); broadcastSync('KEY', KEYS.LOGS); }, [auditLogs]);
+  useEffect(() => { localStorage.setItem(KEYS.EMPLOYEES, JSON.stringify(employees)); broadcastSync('KEY', KEYS.EMPLOYEES); }, [employees]);
+  useEffect(() => { localStorage.setItem(KEYS.VEHICLES, JSON.stringify(vehicles)); broadcastSync('KEY', KEYS.VEHICLES); }, [vehicles]);
+  useEffect(() => { localStorage.setItem(KEYS.VEHICLE_EXPENSES, JSON.stringify(vehicleExpenses)); broadcastSync('KEY', KEYS.VEHICLE_EXPENSES); }, [vehicleExpenses]);
+  useEffect(() => { localStorage.setItem(KEYS.GENERAL_EXPENSES, JSON.stringify(generalExpenses)); broadcastSync('KEY', KEYS.GENERAL_EXPENSES); }, [generalExpenses]);
+  useEffect(() => { localStorage.setItem(KEYS.SERVICE_ORDERS, JSON.stringify(serviceOrders)); broadcastSync('KEY', KEYS.SERVICE_ORDERS); }, [serviceOrders]);
+  useEffect(() => { localStorage.setItem(KEYS.DIRECT_SALES, JSON.stringify(directSales)); broadcastSync('KEY', KEYS.DIRECT_SALES); }, [directSales]);
+  useEffect(() => { localStorage.setItem(KEYS.SETUP_COSTS, JSON.stringify(setupCosts)); broadcastSync('KEY', KEYS.SETUP_COSTS); }, [setupCosts]);
+  useEffect(() => { localStorage.setItem(KEYS.APPOINTMENTS, JSON.stringify(appointments)); broadcastSync('KEY', KEYS.APPOINTMENTS); }, [appointments]);
+  useEffect(() => { localStorage.setItem(KEYS.SELECTED_MONTH, selectedMonthYear); broadcastSync('KEY', KEYS.SELECTED_MONTH); }, [selectedMonthYear]);
+  useEffect(() => { localStorage.setItem(KEYS.SEQUENCE_SETTINGS, JSON.stringify(sequenceSettings)); broadcastSync('KEY', KEYS.SEQUENCE_SETTINGS); }, [sequenceSettings]);
+  useEffect(() => { localStorage.setItem(KEYS.WARRANTY_POLICIES, JSON.stringify(warrantyPolicies)); broadcastSync('KEY', KEYS.WARRANTY_POLICIES); }, [warrantyPolicies]);
+
+  // Real-time synchronization across browser tabs and devices (desktop & mobile)
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        channel = new BroadcastChannel(SYNC_CHANNEL_NAME);
+      }
+    } catch {}
+
+    const handleSync = (key: string | null, rawValue?: string | null) => {
+      if (!key) return;
+      try {
+        const val = rawValue !== undefined ? rawValue : localStorage.getItem(key);
+        if (val === null) return;
+        const parsed = JSON.parse(val);
+
+        switch (key) {
+          case KEYS.CLIENTS:
+            if (Array.isArray(parsed)) setClients(parsed);
+            break;
+          case KEYS.SUPPLIERS:
+            if (Array.isArray(parsed)) setSuppliers(parsed);
+            break;
+          case KEYS.PRODUCTS:
+            if (Array.isArray(parsed)) setProducts(parsed);
+            break;
+          case KEYS.STOCK:
+            if (Array.isArray(parsed)) setStockMovements(parsed);
+            break;
+          case KEYS.CARD_RATES:
+            if (Array.isArray(parsed)) setCardRates(parsed);
+            break;
+          case KEYS.CARD_OPERATORS:
+            if (Array.isArray(parsed)) setCardOperators(parsed);
+            break;
+          case KEYS.PAGBANK_TRANSACTIONS:
+            if (Array.isArray(parsed)) setPagBankTransactions(parsed);
+            break;
+          case KEYS.TICKETS:
+            if (Array.isArray(parsed)) setCustomerTickets(parsed);
+            break;
+          case KEYS.LOGS:
+            if (Array.isArray(parsed)) setAuditLogs(parsed);
+            break;
+          case KEYS.EMPLOYEES:
+            if (Array.isArray(parsed)) setEmployees(parsed);
+            break;
+          case KEYS.VEHICLES:
+            if (Array.isArray(parsed)) setVehicles(parsed);
+            break;
+          case KEYS.VEHICLE_EXPENSES:
+            if (Array.isArray(parsed)) setVehicleExpenses(parsed);
+            break;
+          case KEYS.GENERAL_EXPENSES:
+            if (Array.isArray(parsed)) setGeneralExpenses(parsed);
+            break;
+          case KEYS.SERVICE_ORDERS:
+            if (Array.isArray(parsed)) setServiceOrders(parsed);
+            break;
+          case KEYS.DIRECT_SALES:
+            if (Array.isArray(parsed)) setDirectSales(parsed);
+            break;
+          case KEYS.SETUP_COSTS:
+            if (Array.isArray(parsed)) setSetupCosts(parsed);
+            break;
+          case KEYS.APPOINTMENTS:
+            if (Array.isArray(parsed)) setAppointments(parsed);
+            break;
+          case KEYS.COMPANY_SETTINGS:
+            if (parsed && typeof parsed === 'object') setCompanySettings(parsed);
+            break;
+          case KEYS.SERVICE_CATALOG:
+            if (Array.isArray(parsed)) setServiceCatalog(parsed);
+            break;
+          case KEYS.CHECKLIST_TEMPLATES:
+            if (Array.isArray(parsed)) setChecklistTemplates(parsed);
+            break;
+          case KEYS.SEQUENCE_SETTINGS:
+            if (parsed && typeof parsed === 'object') setSequenceSettings(parsed);
+            break;
+          case KEYS.WARRANTY_POLICIES:
+            if (Array.isArray(parsed)) setWarrantyPolicies(parsed);
+            break;
+          case KEYS.PRODUCT_CATEGORIES:
+            if (Array.isArray(parsed)) setProductCategories(parsed);
+            break;
+          case KEYS.PRODUCT_SUBCATEGORIES:
+            if (Array.isArray(parsed)) setProductSubcategories(parsed);
+            break;
+          case KEYS.PRODUCT_BRANDS:
+            if (Array.isArray(parsed)) setProductBrands(parsed);
+            break;
+          case KEYS.PRODUCT_TAGS:
+            if (Array.isArray(parsed)) setProductTags(parsed);
+            break;
+          default:
+            break;
+        }
+      } catch {}
+    };
+
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key) {
+        handleSync(e.key, e.newValue);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageEvent);
+
+    if (channel) {
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'KEY' && event.data.key) {
+          handleSync(event.data.key);
+        } else if (event.data?.type === 'FULL') {
+          Object.values(KEYS).forEach(k => handleSync(k));
+        }
+      };
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorageEvent);
+      if (channel) {
+        channel.close();
+      }
+    };
+  }, []);
 
   const addAuditLog = (action: string, details: string) => {
     const now = new Date();
@@ -864,6 +1003,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.setupCosts) setSetupCosts(data.setupCosts);
       if (data.appointments) setAppointments(data.appointments);
 
+      broadcastSync('FULL');
       addAuditLog('Restauração de Backup', 'Base de dados restaurada com sucesso a partir de arquivo de backup JSON.');
       return { success: true, message: 'Backup restaurado com sucesso! Todos os dados foram atualizados.' };
     } catch {
@@ -894,6 +1034,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSetupCosts(initialSetupCosts);
     setAppointments(initialAppointments);
     setSelectedMonthYear('2026-10');
+    broadcastSync('FULL');
     addAuditLog('Restauração de Sistema', 'Base de dados restaurada para o padrão inicial de fábrica.');
   };
 
@@ -955,6 +1096,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       budgetPrefix: 'ORC-',
       budgetDigits: 0
     });
+    broadcastSync('FULL');
     addAuditLog('Limpeza Geral do Sistema', 'Todos os dados transacionais e de exemplo foram zerados. O sistema está em branco para produção.');
   };
 

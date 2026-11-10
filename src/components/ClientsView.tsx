@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Client, ClientAddress } from '../types';
+import { TablePagination } from './TablePagination';
 
 export const ClientsView: React.FC = () => {
   const { 
@@ -42,6 +43,10 @@ export const ClientsView: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'pj' | 'pf'>('all');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Client Modal State
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -141,6 +146,16 @@ export const ClientsView: React.FC = () => {
       );
     });
   }, [clients, searchTerm, typeFilter]);
+
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, typeFilter]);
+
+  const paginatedClients = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredClients.slice(start, start + itemsPerPage);
+  }, [filteredClients, currentPage, itemsPerPage]);
 
   // Address Handlers
   const handleAddAddress = () => {
@@ -676,7 +691,7 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                   </td>
                 </tr>
               ) : (
-                filteredClients.map((client) => {
+                paginatedClients.map((client) => {
                   const isPJ = client.personType === 'PJ' || client.document.replace(/\D/g, '').length === 14;
                   const ordersCount = getClientOrdersCount(client.id);
                   const cleanPhone = client.phone.replace(/\D/g, '');
@@ -874,6 +889,16 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
             </tbody>
           </table>
         </div>
+
+        {/* Paginação da Tabela de Clientes */}
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredClients.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemName="clientes cadastrados"
+        />
       </div>
 
       {/* MODAL CADASTRO / EDIÇÃO DE CLIENTE (COM SELETOR PJ / PF E MÚLTIPLOS ENDEREÇOS) */}

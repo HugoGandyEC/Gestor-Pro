@@ -29,32 +29,102 @@ import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
 import { LoginView } from './components/LoginView';
 import { SystemFooter } from './components/SystemFooter';
 
+const VALID_TABS: ActiveTab[] = [
+  'dashboard',
+  'agenda',
+  'orders',
+  'sales',
+  'products',
+  'clients',
+  'suppliers',
+  'customerPortal',
+  'accounting',
+  'profitability',
+  'fleet',
+  'operational',
+  'initialCosts',
+  'financial',
+  'employees',
+  'cadastros',
+  'cardOperators',
+  'googleDrive',
+  'configuracoes',
+  'documentation'
+];
+
+const getInitialTab = (): ActiveTab => {
+  try {
+    const hash = window.location.hash.replace(/^#/, '') as ActiveTab;
+    if (hash && VALID_TABS.includes(hash)) {
+      return hash;
+    }
+    const saved = localStorage.getItem('gestaopro_active_tab') as ActiveTab;
+    if (saved && VALID_TABS.includes(saved)) {
+      return saved;
+    }
+  } catch {}
+  return 'dashboard';
+};
+
 const MainLayout: React.FC = () => {
   const { currentRole } = useApp();
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [activeTab, setActiveTabState] = useState<ActiveTab>(getInitialTab);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
+  const handleSetActiveTab = React.useCallback((tab: ActiveTab) => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem('gestaopro_active_tab', tab);
+      if (window.location.hash !== `#${tab}`) {
+        window.history.replaceState(null, '', `#${tab}`);
+      }
+    } catch {}
+  }, []);
+
+  // Sync with browser navigation & maintain same screen on reload
+  React.useEffect(() => {
+    try {
+      if (!window.location.hash || window.location.hash === '#') {
+        window.history.replaceState(null, '', `#${activeTab}`);
+      }
+      localStorage.setItem('gestaopro_active_tab', activeTab);
+    } catch {}
+
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#/, '') as ActiveTab;
+      if (hash && VALID_TABS.includes(hash)) {
+        setActiveTabState(hash);
+        try {
+          localStorage.setItem('gestaopro_active_tab', hash);
+        } catch {}
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeTab]);
+
   // If role switches to client, default tab to customerPortal
   React.useEffect(() => {
     if (currentRole === 'cliente') {
-      setActiveTab('customerPortal');
+      handleSetActiveTab('customerPortal');
     } else if (currentRole === 'tecnico' && (activeTab === 'sales' || activeTab === 'customerPortal' || activeTab === 'configuracoes')) {
-      setActiveTab('orders');
+      handleSetActiveTab('orders');
     } else if (currentRole === 'contador' && (activeTab === 'orders' || activeTab === 'fleet' || activeTab === 'configuracoes')) {
-      setActiveTab('accounting');
+      handleSetActiveTab('accounting');
     }
-  }, [currentRole]);
+  }, [currentRole, handleSetActiveTab]);
 
   const renderCurrentView = () => {
     switch (activeTab) {
       case 'dashboard':
         return (
           <DashboardView 
-            onNavigate={(tab) => setActiveTab(tab)} 
+            onNavigate={(tab) => handleSetActiveTab(tab)} 
             onOpenNewOS={() => setIsNewOSModalOpen(true)} 
           />
         );
@@ -100,11 +170,11 @@ const MainLayout: React.FC = () => {
       case 'employees':
         return <EmployeesView />;
       case 'documentation':
-        return <SystemManualView onNavigate={(tab) => setActiveTab(tab)} />;
+        return <SystemManualView onNavigate={(tab) => handleSetActiveTab(tab)} />;
       default:
         return (
           <DashboardView 
-            onNavigate={(tab) => setActiveTab(tab)} 
+            onNavigate={(tab) => handleSetActiveTab(tab)} 
             onOpenNewOS={() => setIsNewOSModalOpen(true)} 
           />
         );
@@ -116,7 +186,7 @@ const MainLayout: React.FC = () => {
       {/* Top Bar Header */}
       <Header 
         onOpenNewOS={() => {
-          setActiveTab('orders');
+          handleSetActiveTab('orders');
           setIsNewOSModalOpen(true);
         }}
         onOpenDoc={() => setIsDocModalOpen(true)}
@@ -131,7 +201,7 @@ const MainLayout: React.FC = () => {
         <Sidebar 
           activeTab={activeTab} 
           setActiveTab={(tab) => {
-            setActiveTab(tab);
+            handleSetActiveTab(tab);
             setIsMobileMenuOpen(false);
           }}
           isMobileOpen={isMobileMenuOpen}
@@ -153,7 +223,7 @@ const MainLayout: React.FC = () => {
         isOpen={isHelpModalOpen}
         onClose={() => setIsHelpModalOpen(false)}
         onNavigate={(tab) => {
-          setActiveTab(tab);
+          handleSetActiveTab(tab);
           setIsHelpModalOpen(false);
         }}
       />

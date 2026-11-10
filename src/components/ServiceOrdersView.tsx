@@ -57,6 +57,7 @@ import {
 import { ServiceOrderPrintTemplate } from './ServiceOrderPrintTemplate';
 import { getScopedServiceOrders } from '../security/secureDataAccess';
 import { WhatsAppModal } from './WhatsAppModal';
+import { TablePagination } from './TablePagination';
 
 interface ServiceOrdersViewProps {
   isNewModalOpen: boolean;
@@ -91,6 +92,10 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todas');
   const [selectedOSForDetail, setSelectedOSForDetail] = useState<ServiceOrder | null>(null);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const handleScheduleOSInCalendar = (os: ServiceOrder) => {
     const existing = appointments.find(a => a.serviceOrderId === os.id);
@@ -1152,6 +1157,16 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
     return matchesSearch && matchesStatus;
   });
 
+  // Reset page when search or status filter changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const paginatedOrders = React.useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredOrders.slice(start, start + itemsPerPage);
+  }, [filteredOrders, currentPage, itemsPerPage]);
+
   const getStatusBadge = (st: ServiceOrderStatus) => {
     switch (st) {
       case 'orcamento_aberto':
@@ -1309,7 +1324,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map(os => {
+                paginatedOrders.map(os => {
                   const tech = employees.find(e => e.id === os.employeeId);
                   const veh = vehicles.find(v => v.id === os.vehicleId);
                   const srvTotal = os.services.reduce((a, b) => a + Number(b.price || 0), 0);
@@ -1593,6 +1608,16 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
             </tbody>
           </table>
         </div>
+
+        {/* Paginação da Tabela de Ordens de Serviço */}
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredOrders.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemName="ordens de serviço"
+        />
       </div>
 
       {/* Comprovante Completo com Checklist, Fotos e Assinatura Digital (Visualização / Impressão) */}

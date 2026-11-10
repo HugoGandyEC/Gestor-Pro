@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { Supplier, GeneralExpense } from '../types';
+import { TablePagination } from './TablePagination';
 
 export const SuppliersView: React.FC = () => {
   const { 
@@ -33,6 +34,10 @@ export const SuppliersView: React.FC = () => {
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Supplier Modal State
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
@@ -86,6 +91,16 @@ export const SuppliersView: React.FC = () => {
       (sup.notes && sup.notes.toLowerCase().includes(term))
     );
   }, [suppliers, searchTerm]);
+
+  // Reset page when search term changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const paginatedSuppliers = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredSuppliers.slice(start, start + itemsPerPage);
+  }, [filteredSuppliers, currentPage, itemsPerPage]);
 
   // Auto lookup CEP
   const handleCepSearch = async () => {
@@ -377,7 +392,7 @@ export const SuppliersView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredSuppliers.map((supplier) => {
+                paginatedSuppliers.map((supplier) => {
                   const payables = getSupplierPayables(supplier.id);
                   const cleanPhone = supplier.phone.replace(/\D/g, '');
 
@@ -486,6 +501,16 @@ export const SuppliersView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Paginação da Tabela de Fornecedores */}
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredSuppliers.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemName="fornecedores cadastrados"
+        />
       </div>
 
       {/* Modal Cadastro/Edição de Fornecedor */}

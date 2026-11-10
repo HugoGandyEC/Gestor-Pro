@@ -74,7 +74,6 @@ export const SystemSettingsView: React.FC = () => {
     cardRates, 
     cardOperators,
     updateCardRate, 
-    exportDatabaseJson, 
     restoreDatabaseJson, 
     resetToDefaults,
     clearAllSystemData,
@@ -313,19 +312,6 @@ export const SystemSettingsView: React.FC = () => {
     setTimeout(() => setSaveSuccessMsg(null), 4000);
   };
 
-  const handleDownloadBackup = () => {
-    const jsonStr = exportDatabaseJson();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup-erp-gestaopro-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const handleGenerateMySQLDumpText = () => {
     const lines: string[] = [];
     lines.push('-- ========================================================');
@@ -483,25 +469,6 @@ export const SystemSettingsView: React.FC = () => {
     setTimeout(() => setMysqlFeedback(null), 5000);
   };
 
-  const handleRestoreFromFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        const res = restoreDatabaseJson(content);
-        if (res.success) {
-          setRestoreFeedback({ type: 'success', message: res.message });
-          setFormData({ ...companySettings });
-        } else {
-          setRestoreFeedback({ type: 'error', message: res.message });
-        }
-      }
-    };
-    reader.readAsText(file);
-  };
-
   // Limpar Dados Modal State
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
 
@@ -586,15 +553,6 @@ export const SystemSettingsView: React.FC = () => {
           <p className="text-sm text-slate-300 mt-1">
             Personalize os parâmetros operacionais, taxas financeiras, dados fiscais da empresa e rotinas de segurança.
           </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleDownloadBackup}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors"
-          >
-            <Download className="w-4 h-4" /> Exportar Backup
-          </button>
         </div>
       </div>
 
@@ -1906,7 +1864,7 @@ export const SystemSettingsView: React.FC = () => {
             <div>
               <h2 className="text-base font-bold text-slate-900">Gestão de Dados, Limpeza & Restauração</h2>
               <p className="text-xs text-slate-500">
-                Central oficial para zerar dados de exemplo, restaurar dados de demonstração, executar restaurações de backup e baixar cópias de segurança.
+                Central oficial para zerar dados de exemplo para produção real, restaurar dados de demonstração e integração MySQL.
               </p>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">
@@ -1998,77 +1956,6 @@ export const SystemSettingsView: React.FC = () => {
                 <Upload className="w-4 h-4 text-white" />
                 <span>Executar Restauração JSON</span>
               </button>
-            </div>
-          </div>
-
-          {/* Grid de Backup: Download JSON, Upload Arquivo e ZIP Completo */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* Export box */}
-            <div className="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-2 font-bold text-slate-900 text-sm mb-1">
-                  <Download className="w-4 h-4 text-blue-600" />
-                  <span>Download de Backup Geral (JSON)</span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Gera um arquivo de snapshot completo contendo todos os clientes, fornecedores, ordens de serviço, veículos, manutenções, folha de pagamento, produtos e movimentações de estoque.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDownloadBackup}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              >
-                <Download className="w-4 h-4" /> Baixar Dados em JSON
-              </button>
-            </div>
-
-            {/* Restore box */}
-            <div className="p-5 border border-slate-200 rounded-xl bg-slate-50/50 space-y-3 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-2 font-bold text-slate-900 text-sm mb-1">
-                  <Upload className="w-4 h-4 text-indigo-600" />
-                  <span>Restaurar de Arquivo de Backup</span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Carregue um arquivo JSON previamente exportado para restabelecer os dados do sistema.
-                </p>
-              </div>
-
-              <div>
-                <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-colors">
-                  <Upload className="w-4 h-4" />
-                  <span>Selecionar Arquivo JSON</span>
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={handleRestoreFromFile}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            </div>
-
-            {/* ZIP Full codebase box */}
-            <div className="p-5 border border-emerald-200 rounded-xl bg-emerald-50/40 space-y-3 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-2 font-bold text-emerald-950 text-sm mb-1">
-                  <Download className="w-4 h-4 text-emerald-600" />
-                  <span>Código-Fonte & Arquivos (.ZIP)</span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Baixe o pacote ZIP compactado (~592 KB) contendo todos os arquivos do sistema (React, TypeScript, Tailwind, configurações e dados) pronto para seu computador ou hospedagem.
-                </p>
-              </div>
-
-              <a
-                href="/gestaopro-sistema-completo.zip"
-                download="gestaopro-sistema-completo.zip"
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
-              >
-                <Download className="w-4 h-4" /> Baixar ZIP do Sistema Completo
-              </a>
             </div>
           </div>
 

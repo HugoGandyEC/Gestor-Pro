@@ -49,6 +49,7 @@ import {
   UploadedFileRecord 
 } from '../services/fileUploadTracker';
 import { DuplicateUploadModal } from './DuplicateUploadModal';
+import { TablePagination } from './TablePagination';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -86,6 +87,10 @@ export const ProductsAndStockView: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('todas');
   const [brandFilter, setBrandFilter] = useState('todas');
   const [subcategoryFilter, setSubcategoryFilter] = useState('todas');
+
+  // Pagination State for Products
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Staging Modal State for NFe Import with Margin & Price Adjustment
   const [stagingNFe, setStagingNFe] = useState<ParsedXmlNFe | null>(null);
@@ -645,6 +650,16 @@ export const ProductsAndStockView: React.FC = () => {
     return matchesSearch && matchesCat && matchesBrand && matchesSubcat;
   });
 
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, brandFilter, subcategoryFilter]);
+
+  const paginatedProducts = React.useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -853,7 +868,15 @@ export const ProductsAndStockView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-sans">
-                  {filteredProducts.map(p => {
+                  {filteredProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={currentRole !== 'tecnico' ? 8 : 7} className="py-12 text-center text-slate-400">
+                        <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                        Nenhum produto encontrado com os filtros selecionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedProducts.map(p => {
                     const isLow = p.currentStock <= p.minStock;
                     return (
                       <tr key={p.id} className="hover:bg-slate-50 transition-colors">
@@ -1008,10 +1031,21 @@ export const ProductsAndStockView: React.FC = () => {
                         )}
                       </tr>
                     );
-                  })}
-                </tbody>
+                  })
+                )}
+              </tbody>
               </table>
             </div>
+
+            {/* Paginação da Tabela de Produtos */}
+            <TablePagination
+              currentPage={currentPage}
+              totalItems={filteredProducts.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemName="produtos cadastrados"
+            />
           </div>
         </div>
       )}
