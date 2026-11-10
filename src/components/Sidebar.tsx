@@ -508,7 +508,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="text-[10px] text-[#8e9094] flex items-center justify-between">
               <span>MP PISCINA ERP · <strong className="text-slate-300 font-mono">{SYSTEM_VERSION}</strong></span>
-              <span className="text-emerald-400 font-mono">● Online</span>
+              <span className="text-emerald-400 font-mono flex items-center gap-1">● Nuvem Sincronizada</span>
             </div>
           </div>
         )}

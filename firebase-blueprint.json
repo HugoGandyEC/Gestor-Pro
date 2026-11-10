@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Produto ou peça do catálogo de estoque",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "costPrice": { "type": "number" },
+        "retailPrice": { "type": "number" },
+        "wholesalePrice": { "type": "number" },
+        "currentStock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "unit": { "type": "string" },
+        "ncm": { "type": "string" }
+      },
+      "required": ["id", "code", "name", "category", "currentStock"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Cadastro de cliente da empresa",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "ServiceOrder": {
+      "title": "ServiceOrder",
+      "description": "Ordem de serviço operacional",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "clientId": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "code", "clientId", "status"]
+    },
+    "SystemSync": {
+      "title": "SystemSync",
+      "description": "Sincronização de dados corporativos entre computador e celular",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["id", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Produtos do catálogo sincronizados em tempo real"
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Clientes da empresa sincronizados em tempo real"
+    },
+    "/serviceOrders/{orderId}": {
+      "schema": "ServiceOrder",
+      "description": "Ordens de serviço sincronizadas em tempo real"
+    },
+    "/systemSync/{syncId}": {
+      "schema": "SystemSync",
+      "description": "Armazenamento sincronizado central de dados e entidades"
+    }
+  }
+}

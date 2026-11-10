@@ -67,8 +67,22 @@ import {
   canModifyClientData, 
   canModifyServiceOrder, 
   getTenantClientId, 
-  getTechnicianEmployeeId 
 } from '../security/rbac';
+import {
+  subscribeToCloudSync,
+  syncProductToCloud,
+  deleteProductFromCloud,
+  syncClientToCloud,
+  deleteClientFromCloud,
+  syncSupplierToCloud,
+  deleteSupplierFromCloud,
+  syncOrderToCloud,
+  deleteOrderFromCloud,
+  syncAppointmentToCloud,
+  deleteAppointmentFromCloud,
+  bootstrapCloudDatabase,
+  testFirestoreConnection
+} from '../services/firestoreSyncService';
 
 interface AppContextType {
   // Auth & Session
@@ -809,6 +823,41 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     };
   }, []);
 
+  // Real-time Cloud Synchronization between physical devices (PC <-> Celular) via Firestore
+  useEffect(() => {
+    testFirestoreConnection();
+
+    bootstrapCloudDatabase({
+      products,
+      clients,
+      suppliers,
+      serviceOrders,
+      appointments
+    });
+
+    const unsubscribeCloud = subscribeToCloudSync({
+      onProductsSync: (cloudProducts) => {
+        setProducts(cloudProducts);
+      },
+      onClientsSync: (cloudClients) => {
+        setClients(cloudClients);
+      },
+      onSuppliersSync: (cloudSuppliers) => {
+        setSuppliers(cloudSuppliers);
+      },
+      onOrdersSync: (cloudOrders) => {
+        setServiceOrders(cloudOrders);
+      },
+      onAppointmentsSync: (cloudAppointments) => {
+        setAppointments(cloudAppointments);
+      }
+    });
+
+    return () => {
+      unsubscribeCloud();
+    };
+  }, []);
+
   const addAuditLog = (action: string, details: string) => {
     const now = new Date();
     const timestamp = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR');
@@ -1046,16 +1095,25 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       createdAt: new Date().toISOString()
     };
     setAppointments(prev => [newAppointment, ...prev]);
+    syncAppointmentToCloud(newAppointment);
     addAuditLog('Novo Agendamento', `Agendamento criado: ${item.title} (${item.type}) em ${item.startDate} às ${item.startTime}`);
   };
 
   const updateAppointment = (id: string, updates: Partial<CompanyAppointment>) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updates, updatedAt: new Date().toISOString() } : a));
+    setAppointments(prev => prev.map(a => {
+      if (a.id === id) {
+        const updated = { ...a, ...updates, updatedAt: new Date().toISOString() };
+        syncAppointmentToCloud(updated);
+        return updated;
+      }
+      return a;
+    }));
     addAuditLog('Atualização de Agendamento', `Agendamento atualizado.`);
   };
 
   const deleteAppointment = (id: string) => {
     setAppointments(prev => prev.filter(a => a.id !== id));
+    deleteAppointmentFromCloud(id);
     addAuditLog('Exclusão de Agendamento', `Agendamento excluído da agenda.`);
   };
 
@@ -1509,6 +1567,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       createdAt: new Date().toISOString().split('T')[0]
     };
     setClients(prev => [newClient, ...prev]);
+    syncClientToCloud(newClient);
     addAuditLog('Novo Cliente', `Cliente ${c.name} cadastrado no sistema.`);
   };
 
@@ -1522,7 +1581,14 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         return;
       }
     }
-    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    setClients(prev => prev.map(c => {
+      if (c.id === id) {
+        const updated = { ...c, ...updates };
+        syncClientToCloud(updated);
+        return updated;
+      }
+      return c;
+    }));
     addAuditLog('Edição de Cliente', `Cliente ID ${id} atualizado.`);
   };
 
@@ -1533,6 +1599,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       return;
     }
     setClients(prev => prev.filter(c => c.id !== id));
+    deleteClientFromCloud(id);
     addAuditLog('Exclusão de Cliente', `Cliente ID ${id} removido.`);
   };
 
@@ -1543,15 +1610,24 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       id: `sup-${Date.now()}`
     };
     setSuppliers(prev => [newSup, ...prev]);
+    syncSupplierToCloud(newSup);
     addAuditLog('Novo Fornecedor', `Fornecedor ${s.name} cadastrado.`);
   };
 
   const updateSupplier = (id: string, updates: Partial<Supplier>) => {
-    setSuppliers(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    setSuppliers(prev => prev.map(s => {
+      if (s.id === id) {
+        const updated = { ...s, ...updates };
+        syncSupplierToCloud(updated);
+        return updated;
+      }
+      return s;
+    }));
   };
 
   const deleteSupplier = (id: string) => {
     setSuppliers(prev => prev.filter(s => s.id !== id));
+    deleteSupplierFromCloud(id);
   };
 
   // Product Taxonomies CRUD & Management (Categorias, Subcategorias, Marcas, Tags)
@@ -1763,6 +1839,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       id: `prod-${Date.now()}`
     };
     setProducts(prev => [newProd, ...prev]);
+    syncProductToCloud(newProd);
 
     // Auto-adiciona na lista de taxonomias salvas se forem novas
     if (p.category && !productCategories.includes(p.category)) {
@@ -1784,7 +1861,14 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    setProducts(prev => prev.map(p => {
+      if (p.id === id) {
+        const updated = { ...p, ...updates };
+        syncProductToCloud(updated);
+        return updated;
+      }
+      return p;
+    }));
 
     // Auto-adiciona na lista de taxonomias salvas
     if (updates.category && !productCategories.includes(updates.category)) {
@@ -1803,6 +1887,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
 
   const deleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
+    deleteProductFromCloud(id);
   };
 
   const addStockMovement = (m: Omit<StockMovement, 'id' | 'date'>) => {
@@ -2092,6 +2177,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       code
     };
     setServiceOrders(prev => [newOrder, ...prev]);
+    syncOrderToCloud(newOrder);
 
     // Advance sequence number
     if (isBudget) {
@@ -2135,7 +2221,14 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       }
     }
 
-    setServiceOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+    setServiceOrders(prev => prev.map(o => {
+      if (o.id === id) {
+        const updated = { ...o, ...updates };
+        syncOrderToCloud(updated);
+        return updated;
+      }
+      return o;
+    }));
     addAuditLog('Atualização de OS', `OS ID ${id} atualizada com status ${updates.status || 'modificado'}.`);
   };
 
@@ -2147,6 +2240,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       return;
     }
     setServiceOrders(prev => prev.filter(o => o.id !== id));
+    deleteOrderFromCloud(id);
     addAuditLog('Exclusão de OS', `OS ID ${id} removida.`);
   };
 
