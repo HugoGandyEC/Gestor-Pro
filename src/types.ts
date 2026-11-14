@@ -438,6 +438,12 @@ export interface ServiceOrder {
   // Assinatura digital em tela touch
   signature?: DigitalSignature;
 
+  // Rastreamento PDV / Caixa
+  pdvTerminal?: string;
+  sentToPdvAt?: string;
+  settledInPdvAt?: string;
+  pdvSessionId?: string;
+
   notes?: string;
 }
 
@@ -467,6 +473,63 @@ export interface DirectSale {
   paymentMethod: PaymentMethod;
   payments: PaymentSplit[];
   paymentStatus: 'pendente' | 'pago';
+  pdvTerminal?: string;
+  sentToPdvAt?: string;
+  settledInPdvAt?: string;
+  pdvSessionId?: string;
+}
+
+// ============================================================================
+// PDV / FRENTE DE CAIXA
+// ============================================================================
+
+export type CashRegisterStatus = 'aberto' | 'fechado';
+
+export type CashMovementType =
+  | 'abertura'
+  | 'recebimento_venda'
+  | 'recebimento_os'
+  | 'suprimento'
+  | 'sangria'
+  | 'fechamento';
+
+export interface CashRegisterSession {
+  id: string;
+  code: string; // Ex: CX-2026-001
+  terminalName: string;
+  operatorId: string;
+  operatorName: string;
+  openedAt: string;
+  closedAt?: string;
+  openingBalance: number;
+  expectedCashBalance?: number;
+  closingBalance?: number;
+  differenceAmount?: number;
+  status: CashRegisterStatus;
+  notes?: string;
+}
+
+export interface CashRegisterMovement {
+  id: string;
+  sessionId: string;
+  type: CashMovementType;
+  sourceType?: 'venda' | 'os' | 'manual';
+  sourceId?: string;
+  sourceCode?: string;
+  clientId?: string;
+  clientName?: string;
+  description: string;
+  paymentMethod: PaymentMethod;
+  payments?: PaymentSplit[];
+  grossAmount: number;
+  feeAmount: number;
+  netAmount: number;
+  amountReceived?: number;
+  changeAmount?: number;
+  nsu?: string;
+  terminalName?: string;
+  operatorName: string;
+  createdAt: string;
 }
 
 export interface CustomerPortalTicket {

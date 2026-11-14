@@ -23,9 +23,14 @@ import {
   Sparkles,
   Calendar,
   MessageSquare,
-  Database
+  Database,
+  Store,
+  History,
+  Download
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
+import { SYSTEM_VERSION, SYSTEM_BUILD, SYSTEM_RELEASE_DATE } from '../constants/version';
+import { SYSTEM_CHANGELOG, ChangeCategory } from '../constants/changelog';
 
 interface SystemManualViewProps {
   onNavigate?: (tab: ActiveTab) => void;
@@ -44,8 +49,11 @@ interface ManualSection {
 }
 
 export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }) => {
+  const [viewMode, setViewMode] = useState<'manual' | 'changelog'>('manual');
   const [selectedSectionId, setSelectedSectionId] = useState<string>('fluxo_geral');
   const [searchTerm, setSearchTerm] = useState('');
+  const [changelogCategoryFilter, setChangelogCategoryFilter] = useState<'Todas' | ChangeCategory>('Todas');
+  const [changelogSearch, setChangelogSearch] = useState('');
 
   const sections: ManualSection[] = [
     {
@@ -315,21 +323,44 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
       targetTab: 'configuracoes',
       summary: 'Centralização das ferramentas de controle de base de dados: como zerar o sistema para entrar em produção real, como restaurar dados de demonstração e como recuperar backups.',
       steps: [
-        'Localização Centralizada: Todos os comandos de controle de dados estão centralizados exclusivamente em "Configurações > Gestão de Dados, Limpeza & Restauração" para segurança máxima contra exclusões acidentais.',
-        'Botão "Limpar Dados (Zerar Sistema)": Use esta opção quando estiver pronto para colocar o sistema em PRODUÇÃO REAL. Ela zera todos os clientes, fornecedores, produtos, ordens de serviço, vendas, compromissos da agenda, custos iniciais e despesas de exemplo.',
-        'Confirmação Segura: Ao clicar em "Limpar Dados", uma janela modal de confirmação é exibida explicando exatamente o que será zerado. Clique em "Sim, Limpar e Zerar Todos os Dados" para efetivar.',
-        'Botão "Restaurar Dados de Exemplo": Se desejar demonstrar o sistema para novos funcionários ou sócios, este botão recarrega instantaneamente toda a massa de dados padrão de teste da MP Piscinas.',
-        'Botão "Executar Restauração JSON": Para restaurar um backup previamente salvo da sua empresa, cole o código JSON no campo correspondente e clique no botão verde para reconstituir toda a base.',
-        'Download do Sistema Completo: Na mesma tela, você pode clicar em "Baixar Código Fonte & Banco Completo (.ZIP)" para salvar uma cópia offline completa e independente do sistema.'
+        'Localização Centralizada: Todos os comandos de controle de dados e exportação SQL MySQL estão centralizados em "Configurações > Gestão de Dados" para segurança operacional.',
+        'Sincronização em Tempo Real (PC ↔ Celular): Todos os produtos, clientes, fornecedores, ordens de serviço, vendas e movimentações de caixa são sincronizados automaticamente na nuvem via Firestore.',
+        'Botão "Limpar Dados (Zerar Sistema)": Use esta opção quando estiver pronto para colocar o sistema em PRODUÇÃO REAL. Ela zera todos os registros de exemplo (clientes, fornecedores, produtos, OS, vendas, agenda, caixa e despesas).',
+        'Confirmação Segura: Ao clicar em "Limpar Dados", uma janela de confirmação é exibida explicando exatamente o que será zerado.',
+        'Botão "Restaurar Dados de Exemplo": Para demonstrações e treinamentos, recarrega instantaneamente toda a base padrão de exemplo.',
+        'Exportação SQL para MySQL: Permite baixar o script .sql completo compatível com MySQL 5.7 / 8.0 (charset utf8mb4).'
       ],
       tips: [
-        'Antes de clicar em "Limpar Dados (Zerar Sistema)", sempre clique em "Exportar Backup JSON Completo" para ter uma cópia de segurança salva no seu computador.',
-        'Após zerar o sistema, você pode começar cadastrando seus Fornecedores e Produtos importando diretamente os XMLs das notas fiscais dos seus fornecedores.',
-        'O sistema armazena todos os registros no LocalStorage persistente do seu navegador, permitindo operação instantânea e segura mesmo sem internet.'
+        'Após zerar o sistema, você pode começar cadastrando seus Fornecedores e Produtos importando diretamente os XMLs das notas fiscais.',
+        'O detector anti-duplicidade evita que o mesmo XML ou planilha seja importado duas vezes por engano.'
       ],
       rules: [
         'A ação de "Limpar Dados" reinicia os contadores de sequência de OS e Vendas para o número inicial 1.',
         'Toda operação de limpeza e restauração de dados gera um registro de auditoria com data, hora e usuário responsável.'
+      ]
+    },
+    {
+      id: 'pdv_frente_caixa',
+      title: '13. PDV / Frente de Caixa & Baixa Unificada de Recebimentos',
+      badge: 'PDV / Caixa',
+      icon: Store,
+      targetTab: 'pdv',
+      summary: 'Fluxo completo de caixa para recebimento e baixa de todas as Vendas Diretas e Ordens de Serviço, com abertura/fechamento de turno, suprimento, sangria e comprovante.',
+      steps: [
+        'Abertura de Caixa: Acesse "PDV / Caixa" no menu lateral ou no cabeçalho superior, clique em "Abrir Caixa PDV", escolha o terminal (Caixa 01, Caixa 02, Caixa 03 ou PDV Móvel) e informe o Fundo de Troco inicial em dinheiro.',
+        'Fila de Recebimentos: Todas as Vendas Diretas e Ordens de Serviço com pagamento pendente aparecem automaticamente na Fila do Caixa.',
+        'Receber no Caixa: Clique em "Receber no Caixa" em qualquer OS ou Venda. Selecione pagamento único ou "Dividir Pagamento" (Multi-Split), informe dinheiro recebido (com cálculo automático de troco), PIX ou cartão com bandeira e parcelas (1x a 12x).',
+        'Balcão PDV Rápido: Monte vendas de balcão buscando produtos por nome, código ou código de barras, alternando tabela Varejo/Atacado e finalizando direto para o caixa.',
+        'Suprimento e Sangria: Registre reforços de troco ou retiradas para cofre mantendo o saldo esperado em gaveta sempre exato.',
+        'Fechamento de Caixa: Ao encerrar o turno, clique em "Fechar Caixa", informe o valor contado na gaveta e confira automaticamente se houve diferença (sobra/falta).'
+      ],
+      tips: [
+        'Após cada baixa no caixa, é possível imprimir o Comprovante de Recebimento térmico ou baixá-lo em HTML.',
+        'Você também pode encaminhar uma OS ou Venda para a fila de um terminal específico diretamente pelo botão "Cobrar (PDV)" nas telas de OS e Vendas.'
+      ],
+      rules: [
+        'Cada recebimento liquidado no PDV gera uma movimentação vinculada à sessão aberta do caixa e sincroniza em tempo real entre computador e celular.',
+        'Taxas de operadoras de cartão são descontadas automaticamente para apuração do valor líquido recebido.'
       ]
     }
   ];
@@ -348,46 +379,248 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
 
   const activeSection = sections.find(s => s.id === selectedSectionId) || sections[0];
 
+  const handleDownloadChangelogMd = () => {
+    const mdLines: string[] = [
+      '# Histórico de Versões e Alterações — GestãoPro ERP',
+      '',
+      `Versão Atual: ${SYSTEM_VERSION} (Build ${SYSTEM_BUILD} · ${SYSTEM_RELEASE_DATE})`,
+      ''
+    ];
+    SYSTEM_CHANGELOG.forEach(entry => {
+      mdLines.push(`## [${entry.version}] — ${entry.date}`);
+      mdLines.push(`**${entry.title}**`);
+      mdLines.push('');
+      mdLines.push(entry.summary);
+      mdLines.push('');
+      entry.changes.forEach(ch => {
+        mdLines.push(`- **[${ch.category}]** ${ch.description}`);
+      });
+      mdLines.push('');
+    });
+    const blob = new Blob([mdLines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `CHANGELOG_${SYSTEM_VERSION}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getCategoryBadgeStyle = (category: ChangeCategory) => {
+    switch (category) {
+      case 'Adicionado':
+        return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+      case 'Corrigido':
+        return 'bg-blue-50 text-blue-800 border-blue-200';
+      case 'Alterado':
+        return 'bg-amber-50 text-amber-800 border-amber-200';
+      case 'Segurança':
+        return 'bg-purple-50 text-purple-800 border-purple-200';
+      case 'Removido':
+        return 'bg-rose-50 text-rose-800 border-rose-200';
+    }
+  };
+
+  const filteredChangelog = SYSTEM_CHANGELOG.map(entry => {
+    const q = changelogSearch.trim().toLowerCase();
+    const matchingChanges = entry.changes.filter(ch => {
+      if (changelogCategoryFilter !== 'Todas' && ch.category !== changelogCategoryFilter) return false;
+      if (!q) return true;
+      return (
+        ch.description.toLowerCase().includes(q) ||
+        ch.category.toLowerCase().includes(q) ||
+        entry.version.toLowerCase().includes(q) ||
+        entry.title.toLowerCase().includes(q)
+      );
+    });
+    return { ...entry, changes: matchingChanges };
+  }).filter(entry => entry.changes.length > 0 || (
+    changelogCategoryFilter === 'Todas' &&
+    (!changelogSearch.trim() ||
+      entry.title.toLowerCase().includes(changelogSearch.trim().toLowerCase()) ||
+      entry.version.toLowerCase().includes(changelogSearch.trim().toLowerCase()))
+  ));
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="w-8 h-8 rounded-lg bg-[#f6eff1] text-[#53383e] flex items-center justify-center font-bold">
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Manual do Sistema & Guia de Funções
-              </h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                  Manual do Sistema & Documentação de Versões
+                </h1>
+                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[#53383e] text-white">
+                  {SYSTEM_VERSION}
+                </span>
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Manual oficial em português detalhando passo a passo todos os módulos, regras financeiras e fluxos operacionais.
+                Guia operacional completo e registro oficial de todas as versões e alterações do sistema ({SYSTEM_CHANGELOG[SYSTEM_CHANGELOG.length - 1]?.version} até {SYSTEM_VERSION}).
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {viewMode === 'changelog' && (
+            <button
+              type="button"
+              onClick={handleDownloadChangelogMd}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#53383e] bg-[#f6eff1] hover:bg-[#ebdce0] border border-[#53383e]/30 rounded-lg transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Baixar CHANGELOG.md</span>
+            </button>
+          )}
           <button
+            type="button"
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors shadow-xs cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-slate-600" />
-            <span>Imprimir Manual</span>
+            <span>Imprimir / PDF</span>
           </button>
         </div>
       </div>
 
+      {/* Mode Switcher: Manual vs Changelog */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-0">
+        <button
+          type="button"
+          onClick={() => setViewMode('manual')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            viewMode === 'manual'
+              ? 'border-[#53383e] text-[#53383e] bg-white rounded-t-lg'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>Manual Operacional ({sections.length} Capítulos)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('changelog')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+            viewMode === 'changelog'
+              ? 'border-[#53383e] text-[#53383e] bg-white rounded-t-lg'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Histórico de Versões & Alterações ({SYSTEM_CHANGELOG.length} Versões)</span>
+        </button>
+      </div>
+
+      {viewMode === 'changelog' ? (
+        <div className="space-y-5">
+          {/* Current Version Banner */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-white border border-slate-200">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Versão Atual em Produção</div>
+              <div className="text-2xl font-black font-mono text-[#53383e] mt-1">{SYSTEM_VERSION}</div>
+              <div className="text-xs text-slate-500 mt-1">Build {SYSTEM_BUILD} · {SYSTEM_RELEASE_DATE}</div>
+            </div>
+            <div className="p-4 rounded-xl bg-white border border-slate-200">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Versões Documentadas</div>
+              <div className="text-2xl font-black font-mono text-slate-900 mt-1">
+                {SYSTEM_CHANGELOG.length} <span className="text-xs font-normal text-slate-500">releases</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                Da versão {SYSTEM_CHANGELOG[SYSTEM_CHANGELOG.length - 1]?.version} até {SYSTEM_VERSION}
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-white border border-slate-200">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Total de Alterações Registradas</div>
+              <div className="text-2xl font-black font-mono text-emerald-700 mt-1">
+                {SYSTEM_CHANGELOG.reduce((acc, e) => acc + e.changes.length, 0)}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">Adições, correções, segurança e melhorias</div>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['Todas', 'Adicionado', 'Corrigido', 'Alterado', 'Segurança', 'Removido'] as const).map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setChangelogCategoryFilter(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    changelogCategoryFilter === cat
+                      ? 'bg-[#53383e] text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Filtrar versão, PDV, MySQL, Firestore..."
+                value={changelogSearch}
+                onChange={(e) => setChangelogSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#53383e]"
+              />
+            </div>
+          </div>
+
+          {/* Releases Timeline */}
+          <div className="space-y-4">
+            {filteredChangelog.map((entry, idx) => (
+              <div key={entry.version} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs ${
+                      idx === 0 ? 'bg-[#53383e] text-white' : 'bg-slate-900 text-white'
+                    }`}>
+                      {entry.version}
+                    </span>
+                    <h3 className="text-sm font-bold text-slate-900">{entry.title}</h3>
+                    {entry.version === SYSTEM_VERSION && (
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        Versão Atual
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs font-mono text-slate-500">{entry.date}</span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed">{entry.summary}</p>
+
+                <div className="space-y-2 pt-1">
+                  {entry.changes.map((ch, cIdx) => (
+                    <div key={cIdx} className="flex items-start gap-2.5 text-xs p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border shrink-0 mt-0.5 ${getCategoryBadgeStyle(ch.category)}`}>
+                        {ch.category}
+                      </span>
+                      <span className="text-slate-800 leading-relaxed">{ch.description}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
       {/* Search Bar */}
       <div className="relative">
         <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
         <input
           type="text"
-          placeholder="Pesquisar por assunto, tela, regra de negócio ou fórmula (ex: DRE, NF-e, 55%, checklist, parcelas)..."
+          placeholder="Pesquisar por assunto, tela, regra de negócio ou fórmula (ex: PDV, DRE, NF-e, 55%, checklist, parcelas)..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
+          className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#53383e] shadow-xs"
         />
       </div>
 
@@ -514,6 +747,8 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

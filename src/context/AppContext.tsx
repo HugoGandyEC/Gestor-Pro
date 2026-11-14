@@ -30,7 +30,11 @@ import {
   AppTheme,
   ThemeDefinition,
   AuthUser,
-  CompanyAppointment
+  CompanyAppointment,
+  CashRegisterSession,
+  CashRegisterMovement,
+  PaymentMethod,
+  PaymentSplit
 } from '../types';
 import { 
   initialEmployees, 
@@ -78,8 +82,12 @@ import {
   deleteSupplierFromCloud,
   syncOrderToCloud,
   deleteOrderFromCloud,
+  syncDirectSaleToCloud,
+  deleteDirectSaleFromCloud,
   syncAppointmentToCloud,
   deleteAppointmentFromCloud,
+  syncCashSessionToCloud,
+  syncCashMovementToCloud,
   bootstrapCloudDatabase,
   testFirestoreConnection
 } from '../services/firestoreSyncService';
@@ -235,8 +243,43 @@ interface AppContextType {
 
   convertBudgetToOrderOrSale: (orderId: string, targetType: 'os_aprovada' | 'venda_direta') => void;
 
-  addDirectSale: (sale: Omit<DirectSale, 'id' | 'code'>) => void;
+  addDirectSale: (sale: Omit<DirectSale, 'id' | 'code'>) => DirectSale;
+  updateDirectSale: (id: string, updates: Partial<DirectSale>) => void;
   deleteDirectSale: (id: string) => void;
+
+  // PDV / Frente de Caixa
+  cashSessions: CashRegisterSession[];
+  cashMovements: CashRegisterMovement[];
+  activeCashSession: CashRegisterSession | null;
+  openCashSession: (terminalName: string, openingBalance: number, notes?: string) => CashRegisterSession;
+  closeCashSession: (sessionId: string, closingBalance: number, notes?: string) => void;
+  addCashManualMovement: (type: 'suprimento' | 'sangria', amount: number, description: string, paymentMethod?: PaymentMethod) => void;
+  sendSaleToPdv: (saleId: string, terminalName: string) => void;
+  sendOrderToPdv: (orderId: string, terminalName: string) => void;
+  settleSaleInPdv: (
+    saleId: string,
+    params: {
+      payments: PaymentSplit[];
+      paymentMethod: PaymentMethod;
+      amountReceived?: number;
+      changeAmount?: number;
+      nsu?: string;
+      terminalName?: string;
+      saleOverride?: DirectSale;
+    }
+  ) => CashRegisterMovement | null;
+  settleServiceOrderInPdv: (
+    orderId: string,
+    params: {
+      payments: PaymentSplit[];
+      paymentMethod: PaymentMethod;
+      amountReceived?: number;
+      changeAmount?: number;
+      nsu?: string;
+      terminalName?: string;
+      orderOverride?: ServiceOrder;
+    }
+  ) => CashRegisterMovement | null;
 
   addGeneralExpense: (exp: Omit<GeneralExpense, 'id'>) => void;
   updateGeneralExpense: (id: string, updates: Partial<GeneralExpense>) => void;
@@ -331,7 +374,9 @@ const KEYS = {
   PRODUCT_SUBCATEGORIES: 'gestaopro_product_subcategories_v4',
   PRODUCT_BRANDS: 'gestaopro_product_brands_v4',
   PRODUCT_TAGS: 'gestaopro_product_tags_v4',
-  APPOINTMENTS: 'gestaopro_appointments_v4'
+  APPOINTMENTS: 'gestaopro_appointments_v4',
+  CASH_SESSIONS: 'gestaopro_cash_sessions_v4',
+  CASH_MOVEMENTS: 'gestaopro_cash_movements_v4'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -654,6 +699,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved || '2026-10';
   });
 
+  const [cashSessions, setCashSessions] = useState<CashRegisterSession[]>(() => {
+    const saved = localStorage.getItem(KEYS.CASH_SESSIONS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    return [];
+  });
+
+  const [cashMovements, setCashMovements] = useState<CashRegisterMovement[]>(() => {
+    const saved = localStorage.getItem(KEYS.CASH_MOVEMENTS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    return [];
+  });
+
+  const activeCashSession = useMemo(() => {
+    return cashSessions.find(s => s.status === 'aberto') || null;
+  }, [cashSessions]);
+
 const SYNC_CHANNEL_NAME = 'gestaopro_sync_channel_v4';
 
 const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
@@ -695,6 +766,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   useEffect(() => { localStorage.setItem(KEYS.SELECTED_MONTH, selectedMonthYear); broadcastSync('KEY', KEYS.SELECTED_MONTH); }, [selectedMonthYear]);
   useEffect(() => { localStorage.setItem(KEYS.SEQUENCE_SETTINGS, JSON.stringify(sequenceSettings)); broadcastSync('KEY', KEYS.SEQUENCE_SETTINGS); }, [sequenceSettings]);
   useEffect(() => { localStorage.setItem(KEYS.WARRANTY_POLICIES, JSON.stringify(warrantyPolicies)); broadcastSync('KEY', KEYS.WARRANTY_POLICIES); }, [warrantyPolicies]);
+  useEffect(() => { localStorage.setItem(KEYS.CASH_SESSIONS, JSON.stringify(cashSessions)); broadcastSync('KEY', KEYS.CASH_SESSIONS); }, [cashSessions]);
+  useEffect(() => { localStorage.setItem(KEYS.CASH_MOVEMENTS, JSON.stringify(cashMovements)); broadcastSync('KEY', KEYS.CASH_MOVEMENTS); }, [cashMovements]);
 
   // Real-time synchronization across browser tabs and devices (desktop & mobile)
   useEffect(() => {
@@ -791,6 +864,12 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
           case KEYS.PRODUCT_TAGS:
             if (Array.isArray(parsed)) setProductTags(parsed);
             break;
+          case KEYS.CASH_SESSIONS:
+            if (Array.isArray(parsed)) setCashSessions(parsed);
+            break;
+          case KEYS.CASH_MOVEMENTS:
+            if (Array.isArray(parsed)) setCashMovements(parsed);
+            break;
           default:
             break;
         }
@@ -832,6 +911,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       clients,
       suppliers,
       serviceOrders,
+      directSales,
       appointments
     });
 
@@ -848,8 +928,17 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       onOrdersSync: (cloudOrders) => {
         setServiceOrders(cloudOrders);
       },
+      onDirectSalesSync: (cloudSales) => {
+        setDirectSales(cloudSales);
+      },
       onAppointmentsSync: (cloudAppointments) => {
         setAppointments(cloudAppointments);
+      },
+      onCashSessionsSync: (cloudSessions) => {
+        setCashSessions(cloudSessions);
+      },
+      onCashMovementsSync: (cloudMovements) => {
+        setCashMovements(cloudMovements);
       }
     });
 
@@ -1143,6 +1232,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setVehicleExpenses([]);
     setGeneralExpenses([]);
     setSetupCosts([]);
+    setCashSessions([]);
+    setCashMovements([]);
     setSequenceSettings({
       serviceOrderNextNumber: 1,
       serviceOrderPrefix: '',
@@ -2295,15 +2386,16 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         total: partsTotal - target.calculatedDiscount,
         paymentMethod: target.paymentMethod,
         payments: target.payments,
-        paymentStatus: 'pago'
+        paymentStatus: target.paymentStatus || 'pendente'
       };
       setDirectSales(prev => [newSale, ...prev]);
+      syncDirectSaleToCloud(newSale);
       updateServiceOrder(orderId, { status: 'entregue_finalizada' });
       addAuditLog('Conversão para Venda', `Orçamento ${target.code} convertido na Venda Direta ${saleCode}.`);
     }
   };
 
-  const addDirectSale = (sale: Omit<DirectSale, 'id' | 'code'>) => {
+  const addDirectSale = (sale: Omit<DirectSale, 'id' | 'code'>): DirectSale => {
     const code = getNextSaleCode();
     setSequenceSettings(prev => ({
       ...prev,
@@ -2316,6 +2408,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       code
     };
     setDirectSales(prev => [newSale, ...prev]);
+    syncDirectSaleToCloud(newSale);
 
     // Deduce stock
     sale.items.forEach(it => {
@@ -2331,10 +2424,312 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     });
 
     addAuditLog('Nova Venda', `Venda ${code} realizada no valor de R$ ${sale.total.toFixed(2)}.`);
+    return newSale;
+  };
+
+  const updateDirectSale = (id: string, updates: Partial<DirectSale>) => {
+    setDirectSales(prev => prev.map(s => {
+      if (s.id === id) {
+        const updated = { ...s, ...updates };
+        syncDirectSaleToCloud(updated);
+        return updated;
+      }
+      return s;
+    }));
   };
 
   const deleteDirectSale = (id: string) => {
     setDirectSales(prev => prev.filter(s => s.id !== id));
+    deleteDirectSaleFromCloud(id);
+  };
+
+  // =========================================================================
+  // PDV / FRENTE DE CAIXA OPERATIONS
+  // =========================================================================
+
+  const openCashSession = (terminalName: string, openingBalance: number, notes?: string): CashRegisterSession => {
+    const nowIso = new Date().toISOString();
+    const sessionCode = `CX-${new Date().getFullYear()}-${String(cashSessions.length + 1).padStart(3, '0')}`;
+    const newSession: CashRegisterSession = {
+      id: `cx-${Date.now()}`,
+      code: sessionCode,
+      terminalName: terminalName || 'Caixa 01 - Balcão Principal',
+      operatorId: currentUser?.id || 'usr-admin',
+      operatorName: currentUser?.name || 'Administrador',
+      openedAt: nowIso,
+      openingBalance: Number(openingBalance) || 0,
+      status: 'aberto',
+      notes
+    };
+
+    const openingMovement: CashRegisterMovement = {
+      id: `cm-${Date.now()}`,
+      sessionId: newSession.id,
+      type: 'abertura',
+      sourceType: 'manual',
+      description: `Abertura de Caixa (${newSession.terminalName}) - Fundo de Troco`,
+      paymentMethod: 'dinheiro',
+      grossAmount: newSession.openingBalance,
+      feeAmount: 0,
+      netAmount: newSession.openingBalance,
+      terminalName: newSession.terminalName,
+      operatorName: newSession.operatorName,
+      createdAt: nowIso
+    };
+
+    setCashSessions(prev => [newSession, ...prev]);
+    setCashMovements(prev => [openingMovement, ...prev]);
+    syncCashSessionToCloud(newSession);
+    syncCashMovementToCloud(openingMovement);
+    addAuditLog('Abertura de Caixa PDV', `Caixa ${sessionCode} (${newSession.terminalName}) aberto com fundo de ${newSession.openingBalance.toFixed(2)}.`);
+    return newSession;
+  };
+
+  const closeCashSession = (sessionId: string, closingBalance: number, notes?: string) => {
+    const targetSession = cashSessions.find(s => s.id === sessionId);
+    if (!targetSession || targetSession.status === 'fechado') return;
+
+    const sessionMoves = cashMovements.filter(m => m.sessionId === sessionId);
+    let expectedCash = targetSession.openingBalance;
+    sessionMoves.forEach(m => {
+      if (m.type === 'suprimento' && m.paymentMethod === 'dinheiro') {
+        expectedCash += m.grossAmount;
+      } else if (m.type === 'sangria' && m.paymentMethod === 'dinheiro') {
+        expectedCash -= m.grossAmount;
+      } else if (m.type === 'recebimento_venda' || m.type === 'recebimento_os') {
+        if (m.payments && m.payments.length > 0) {
+          m.payments.forEach(p => {
+            if (p.method === 'dinheiro') expectedCash += p.amount;
+          });
+        } else if (m.paymentMethod === 'dinheiro') {
+          expectedCash += m.grossAmount;
+        }
+      }
+    });
+
+    const closedAt = new Date().toISOString();
+    const counted = Number(closingBalance) || 0;
+    const diff = counted - expectedCash;
+
+    const updatedSession: CashRegisterSession = {
+      ...targetSession,
+      status: 'fechado',
+      closedAt,
+      expectedCashBalance: expectedCash,
+      closingBalance: counted,
+      differenceAmount: diff,
+      notes: notes || targetSession.notes
+    };
+
+    const closingMove: CashRegisterMovement = {
+      id: `cm-close-${Date.now()}`,
+      sessionId: targetSession.id,
+      type: 'fechamento',
+      sourceType: 'manual',
+      description: `Fechamento de Caixa (${targetSession.code}) - Conferido: R$ ${counted.toFixed(2)}`,
+      paymentMethod: 'dinheiro',
+      grossAmount: counted,
+      feeAmount: 0,
+      netAmount: counted,
+      terminalName: targetSession.terminalName,
+      operatorName: currentUser?.name || 'Administrador',
+      createdAt: closedAt
+    };
+
+    setCashSessions(prev => prev.map(s => s.id === sessionId ? updatedSession : s));
+    setCashMovements(prev => [closingMove, ...prev]);
+    syncCashSessionToCloud(updatedSession);
+    syncCashMovementToCloud(closingMove);
+    addAuditLog('Fechamento de Caixa PDV', `Caixa ${targetSession.code} fechado. Esperado em dinheiro: R$ ${expectedCash.toFixed(2)} | Contado: R$ ${counted.toFixed(2)}.`);
+  };
+
+  const addCashManualMovement = (
+    type: 'suprimento' | 'sangria',
+    amount: number,
+    description: string,
+    paymentMethod: PaymentMethod = 'dinheiro'
+  ) => {
+    let session = activeCashSession;
+    if (!session) {
+      session = openCashSession('Caixa 01 - Balcão Principal', 0, 'Abertura automática via movimentação');
+    }
+    const cleanAmount = Math.max(0, Number(amount) || 0);
+    const movement: CashRegisterMovement = {
+      id: `cm-${Date.now()}`,
+      sessionId: session.id,
+      type,
+      sourceType: 'manual',
+      description: description || (type === 'suprimento' ? 'Suprimento / Reforço de Caixa' : 'Sangria / Retirada de Caixa'),
+      paymentMethod,
+      grossAmount: cleanAmount,
+      feeAmount: 0,
+      netAmount: cleanAmount,
+      terminalName: session.terminalName,
+      operatorName: currentUser?.name || 'Administrador',
+      createdAt: new Date().toISOString()
+    };
+    setCashMovements(prev => [movement, ...prev]);
+    syncCashMovementToCloud(movement);
+    addAuditLog(
+      type === 'suprimento' ? 'Suprimento de Caixa' : 'Sangria de Caixa',
+      `${movement.description} - Valor: R$ ${cleanAmount.toFixed(2)}`
+    );
+  };
+
+  const sendSaleToPdv = (saleId: string, terminalName: string) => {
+    const nowIso = new Date().toISOString();
+    updateDirectSale(saleId, {
+      pdvTerminal: terminalName,
+      sentToPdvAt: nowIso
+    });
+    addAuditLog('Envio ao Caixa PDV', `Venda ${saleId} encaminhada para fila do terminal ${terminalName}.`);
+  };
+
+  const sendOrderToPdv = (orderId: string, terminalName: string) => {
+    const nowIso = new Date().toISOString();
+    updateServiceOrder(orderId, {
+      pdvTerminal: terminalName,
+      sentToPdvAt: nowIso
+    });
+    addAuditLog('Envio ao Caixa PDV', `OS ${orderId} encaminhada para fila do terminal ${terminalName}.`);
+  };
+
+  const settleSaleInPdv = (
+    saleId: string,
+    params: {
+      payments: PaymentSplit[];
+      paymentMethod: PaymentMethod;
+      amountReceived?: number;
+      changeAmount?: number;
+      nsu?: string;
+      terminalName?: string;
+      saleOverride?: DirectSale;
+    }
+  ): CashRegisterMovement | null => {
+    const sale = params.saleOverride || directSales.find(s => s.id === saleId);
+    if (!sale) return null;
+
+    let session = activeCashSession;
+    if (!session) {
+      session = openCashSession(params.terminalName || 'Caixa 01 - Balcão Principal', 0, 'Abertura automática ao receber venda');
+    }
+
+    const grossAmount = params.payments.reduce((acc, p) => acc + Number(p.amount || 0), 0) || sale.total;
+    const feeAmount = params.payments.reduce((acc, p) => acc + Number(p.rateAmount || 0), 0);
+    const netAmount = params.payments.reduce((acc, p) => acc + Number(p.netAmount || p.amount || 0), 0);
+    const settledAt = new Date().toISOString();
+    const generatedNsu = params.nsu || `PDV-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    updateDirectSale(sale.id, {
+      paymentStatus: 'pago',
+      paymentMethod: params.paymentMethod,
+      payments: params.payments,
+      settledInPdvAt: settledAt,
+      pdvSessionId: session.id,
+      pdvTerminal: params.terminalName || session.terminalName
+    });
+
+    const movement: CashRegisterMovement = {
+      id: `cm-vd-${Date.now()}`,
+      sessionId: session.id,
+      type: 'recebimento_venda',
+      sourceType: 'venda',
+      sourceId: sale.id,
+      sourceCode: sale.code,
+      clientId: sale.clientId,
+      clientName: sale.clientName,
+      description: `Baixa Venda ${sale.code} - ${sale.clientName}`,
+      paymentMethod: params.paymentMethod,
+      payments: params.payments,
+      grossAmount,
+      feeAmount,
+      netAmount,
+      amountReceived: params.amountReceived,
+      changeAmount: params.changeAmount,
+      nsu: generatedNsu,
+      terminalName: params.terminalName || session.terminalName,
+      operatorName: currentUser?.name || 'Operador PDV',
+      createdAt: settledAt
+    };
+
+    setCashMovements(prev => [movement, ...prev]);
+    syncCashMovementToCloud(movement);
+    addAuditLog('Baixa de Venda no Caixa PDV', `Venda ${sale.code} liquidada no caixa ${session.code}. Bruto: R$ ${grossAmount.toFixed(2)} | Líquido: R$ ${netAmount.toFixed(2)}.`);
+    return movement;
+  };
+
+  const settleServiceOrderInPdv = (
+    orderId: string,
+    params: {
+      payments: PaymentSplit[];
+      paymentMethod: PaymentMethod;
+      amountReceived?: number;
+      changeAmount?: number;
+      nsu?: string;
+      terminalName?: string;
+      orderOverride?: ServiceOrder;
+    }
+  ): CashRegisterMovement | null => {
+    const order = params.orderOverride || serviceOrders.find(o => o.id === orderId);
+    if (!order) return null;
+
+    let session = activeCashSession;
+    if (!session) {
+      session = openCashSession(params.terminalName || 'Caixa 01 - Balcão Principal', 0, 'Abertura automática ao receber OS');
+    }
+
+    const srvTotal = order.services.reduce((a, s) => a + Number(s.price || 0), 0);
+    const prtTotal = order.parts.reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
+    const orderGrandTotal = Math.max(0, srvTotal + prtTotal + Number(order.visitFee || 0) - Number(order.calculatedDiscount || 0));
+
+    const grossAmount = params.payments.reduce((acc, p) => acc + Number(p.amount || 0), 0) || orderGrandTotal;
+    const feeAmount = params.payments.reduce((acc, p) => acc + Number(p.rateAmount || 0), 0);
+    const netAmount = params.payments.reduce((acc, p) => acc + Number(p.netAmount || p.amount || 0), 0);
+    const settledAt = new Date().toISOString();
+    const generatedNsu = params.nsu || `OSPDV-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const nextStatus =
+      order.status === 'orcamento_aberto' || order.status === 'aguardando_aprovacao'
+        ? 'aprovada_em_andamento'
+        : order.status;
+
+    updateServiceOrder(order.id, {
+      paymentStatus: 'pago',
+      paymentMethod: params.paymentMethod,
+      payments: params.payments,
+      status: nextStatus,
+      settledInPdvAt: settledAt,
+      pdvSessionId: session.id,
+      pdvTerminal: params.terminalName || session.terminalName
+    });
+
+    const movement: CashRegisterMovement = {
+      id: `cm-os-${Date.now()}`,
+      sessionId: session.id,
+      type: 'recebimento_os',
+      sourceType: 'os',
+      sourceId: order.id,
+      sourceCode: order.code,
+      clientId: order.clientId,
+      clientName: order.clientName,
+      description: `Baixa OS ${order.code} - ${order.clientName}`,
+      paymentMethod: params.paymentMethod,
+      payments: params.payments,
+      grossAmount,
+      feeAmount,
+      netAmount,
+      amountReceived: params.amountReceived,
+      changeAmount: params.changeAmount,
+      nsu: generatedNsu,
+      terminalName: params.terminalName || session.terminalName,
+      operatorName: currentUser?.name || 'Operador PDV',
+      createdAt: settledAt
+    };
+
+    setCashMovements(prev => [movement, ...prev]);
+    syncCashMovementToCloud(movement);
+    addAuditLog('Baixa de OS no Caixa PDV', `Ordem de Serviço ${order.code} liquidada no caixa ${session.code}. Bruto: R$ ${grossAmount.toFixed(2)} | Líquido: R$ ${netAmount.toFixed(2)}.`);
+    return movement;
   };
 
   const addGeneralExpense = (exp: Omit<GeneralExpense, 'id'>) => {
@@ -2931,7 +3326,18 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         deleteServiceOrder,
         convertBudgetToOrderOrSale,
         addDirectSale,
+        updateDirectSale,
         deleteDirectSale,
+        cashSessions,
+        cashMovements,
+        activeCashSession,
+        openCashSession,
+        closeCashSession,
+        addCashManualMovement,
+        sendSaleToPdv,
+        sendOrderToPdv,
+        settleSaleInPdv,
+        settleServiceOrderInPdv,
         addGeneralExpense,
         updateGeneralExpense,
         deleteGeneralExpense,

@@ -28,10 +28,12 @@ import { SystemManualView } from './components/SystemManualView';
 import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
 import { LoginView } from './components/LoginView';
 import { SystemFooter } from './components/SystemFooter';
+import { PdvView } from './components/PdvView';
 
 const VALID_TABS: ActiveTab[] = [
   'dashboard',
   'agenda',
+  'pdv',
   'orders',
   'sales',
   'products',
@@ -130,6 +132,8 @@ const MainLayout: React.FC = () => {
         );
       case 'agenda':
         return <GoogleCalendarView />;
+      case 'pdv':
+        return <PdvView />;
       case 'orders':
         return (
           <ServiceOrdersView 
@@ -189,6 +193,7 @@ const MainLayout: React.FC = () => {
           handleSetActiveTab('orders');
           setIsNewOSModalOpen(true);
         }}
+        onOpenPdv={() => handleSetActiveTab('pdv')}
         onOpenDoc={() => setIsDocModalOpen(true)}
         onOpenAuditLogs={() => setIsAuditModalOpen(true)}
         onOpenHelp={() => setIsHelpModalOpen(true)}

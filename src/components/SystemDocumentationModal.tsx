@@ -13,8 +13,11 @@ import {
   Database,
   Smartphone,
   Server,
-  FileCode
+  FileCode,
+  History
 } from 'lucide-react';
+import { SYSTEM_VERSION, SYSTEM_BUILD, SYSTEM_RELEASE_DATE } from '../constants/version';
+import { SYSTEM_CHANGELOG } from '../constants/changelog';
 
 interface SystemDocumentationModalProps {
   isOpen: boolean;
@@ -37,11 +40,16 @@ export const SystemDocumentationModal: React.FC<SystemDocumentationModalProps> =
               <FileText className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Projeto de Arquitetura de Software & Especificação Funcional
-              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-bold text-slate-900">
+                  Projeto de Arquitetura de Software & Especificação Funcional
+                </h2>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#53383e] text-white">
+                  {SYSTEM_VERSION}
+                </span>
+              </div>
               <p className="text-xs text-slate-500">
-                Padrão Analista de Sistemas Sênior / Arquiteto de Software · Stack Web + PWA Mobile VPS
+                Build {SYSTEM_BUILD} ({SYSTEM_RELEASE_DATE}) · Stack React 19 + TypeScript 7 + Firestore Sync + Exportação MySQL
               </p>
             </div>
           </div>
@@ -200,7 +208,32 @@ export const SystemDocumentationModal: React.FC<SystemDocumentationModalProps> =
             <div>· <strong>Fornecedor</strong> 1:N Contas a Pagar (Compras de Produtos/XML)</div>
             <div>· <strong>Produto/Peça</strong> 1:N Movimentações de Estoque (Kardex) / N:N Ordem de Serviço</div>
             <div>· <strong>Ordem de Serviço</strong> 1:1 Checklist / 1:1 Assinatura Digital / 1:N Imagens / 1:N Formas de Pagamento</div>
+            <div>· <strong>Caixa PDV (Sessão)</strong> 1:N Movimentações de Caixa (Recebimentos de Venda/OS, Suprimentos, Sangrias)</div>
             <div>· <strong>Contas a Receber / Contas a Pagar</strong> vinculadas a Taxas de Cartão por Bandeira e DRE</div>
+          </div>
+
+          {/* 5. Histórico Resumido de Versões */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2.5">
+            <h4 className="font-bold text-xs text-slate-900 flex items-center gap-2">
+              <History className="w-4 h-4 text-[#53383e]" />
+              5. Linha do Tempo de Versões ({SYSTEM_CHANGELOG[SYSTEM_CHANGELOG.length - 1]?.version} → {SYSTEM_VERSION})
+            </h4>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {SYSTEM_CHANGELOG.map((entry) => (
+                <div key={entry.version} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-[11px] px-1.5 py-0.5 rounded bg-[#53383e] text-white">
+                        {entry.version}
+                      </span>
+                      <span className="font-bold text-slate-900 text-xs">{entry.title}</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-slate-500">{entry.date}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1">{entry.summary}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

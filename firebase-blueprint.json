@@ -39,9 +39,53 @@
         "id": { "type": "string" },
         "code": { "type": "string" },
         "clientId": { "type": "string" },
-        "status": { "type": "string" }
+        "status": { "type": "string" },
+        "paymentStatus": { "type": "string" }
       },
       "required": ["id", "code", "clientId", "status"]
+    },
+    "DirectSale": {
+      "title": "DirectSale",
+      "description": "Venda direta ou venda de balcão PDV",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "clientName": { "type": "string" },
+        "total": { "type": "number" },
+        "paymentStatus": { "type": "string" }
+      },
+      "required": ["id", "code", "total", "paymentStatus"]
+    },
+    "CashRegisterSession": {
+      "title": "CashRegisterSession",
+      "description": "Sessão de abertura e fechamento de caixa do PDV",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "terminalName": { "type": "string" },
+        "operatorName": { "type": "string" },
+        "openingBalance": { "type": "number" },
+        "status": { "type": "string" },
+        "openedAt": { "type": "string" }
+      },
+      "required": ["id", "code", "terminalName", "status", "openedAt"]
+    },
+    "CashRegisterMovement": {
+      "title": "CashRegisterMovement",
+      "description": "Movimentação financeira de recebimento, suprimento ou sangria no caixa do PDV",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "grossAmount": { "type": "number" },
+        "netAmount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "sessionId", "type", "grossAmount", "createdAt"]
     },
     "SystemSync": {
       "title": "SystemSync",
@@ -67,6 +111,18 @@
     "/serviceOrders/{orderId}": {
       "schema": "ServiceOrder",
       "description": "Ordens de serviço sincronizadas em tempo real"
+    },
+    "/directSales/{saleId}": {
+      "schema": "DirectSale",
+      "description": "Vendas diretas e de balcão sincronizadas em tempo real"
+    },
+    "/cashSessions/{sessionId}": {
+      "schema": "CashRegisterSession",
+      "description": "Sessões de caixa PDV sincronizadas em tempo real"
+    },
+    "/cashMovements/{movementId}": {
+      "schema": "CashRegisterMovement",
+      "description": "Movimentações de recebimento, suprimento e sangria do PDV sincronizadas em tempo real"
     },
     "/systemSync/{syncId}": {
       "schema": "SystemSync",

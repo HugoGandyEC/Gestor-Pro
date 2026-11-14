@@ -10,7 +10,27 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /suppliers/{supplierId} {
+      allow read, write: if true;
+    }
+
     match /serviceOrders/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /directSales/{saleId} {
+      allow read, write: if true;
+    }
+
+    match /cashSessions/{sessionId} {
+      allow read, write: if true;
+    }
+
+    match /cashMovements/{movementId} {
+      allow read, write: if true;
+    }
+
+    match /appointments/{appointmentId} {
       allow read, write: if true;
     }
 

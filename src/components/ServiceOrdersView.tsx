@@ -83,6 +83,8 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     updateServiceOrder, 
     deleteServiceOrder,
     convertBudgetToOrderOrSale,
+    sendOrderToPdv,
+    settleServiceOrderInPdv,
     currentRole,
     currentUser,
     appointments,
@@ -954,12 +956,16 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
 
   const handleSendToPDVTerminal = () => {
     if (!chargingOS) return;
-    const terminalName = pdvTerminal === 'pdv-01' 
-      ? 'Caixa 01 - Balcão Principal' 
-      : pdvTerminal === 'pdv-02' 
-      ? 'Caixa 02 - Balcão Peças & Rápido' 
-      : 'PDV Móvel - Maquininha Campo';
-    setPdvSuccessMessage(`Fatura ${chargingOS.code} enviada com sucesso para a fila do terminal ${terminalName}! Aguardando liquidação no caixa.`);
+    const terminalName =
+      pdvTerminal === 'caixa_01' || pdvTerminal === 'pdv-01'
+        ? 'Caixa 01 - Balcão Principal'
+        : pdvTerminal === 'caixa_02' || pdvTerminal === 'pdv-02'
+        ? 'Caixa 02 - Vendas Rápidas / Atacado'
+        : pdvTerminal === 'caixa_retirada'
+        ? 'Caixa 03 - Retirada & Assistência Técnica'
+        : 'PDV Móvel - Maquininha Campo';
+    sendOrderToPdv(chargingOS.id, terminalName);
+    setPdvSuccessMessage(`Fatura ${chargingOS.code} enviada com sucesso para a fila do ${terminalName}! Aguardando liquidação no caixa.`);
   };
 
   const handleSettleInPDV = () => {
@@ -968,15 +974,16 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     const prtTotal = chargingOS.parts.reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
     const grandTotal = Math.max(0, srvTotal + prtTotal + Number(chargingOS.visitFee || 0) - Number(chargingOS.calculatedDiscount || 0));
 
+    let ratePct = 0;
     let rateAmount = 0;
     let netAmount = grandTotal;
     if (pdvPaymentMethod === 'cartao_credito') {
       const matchedRate = cardRates.find(r => r.brand === pdvCardBrand);
-      const ratePct = pdvInstallments === 1 
+      ratePct = pdvInstallments === 1 
         ? (matchedRate?.creditSightRate || 3.5) 
         : (matchedRate?.creditInstallmentsRate || 5.2);
-      rateAmount = (grandTotal * ratePct) / 100;
-      netAmount = grandTotal - rateAmount;
+      rateAmount = Number(((grandTotal * ratePct) / 100).toFixed(2));
+      netAmount = Number((grandTotal - rateAmount).toFixed(2));
     }
 
     const finalPayments: PaymentSplit[] = isMultiSplit && pdvSplits.length > 0 
@@ -986,22 +993,35 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
           method: pdvPaymentMethod,
           cardBrand: pdvPaymentMethod.includes('cartao') ? pdvCardBrand : undefined,
           installments: pdvPaymentMethod === 'cartao_credito' ? pdvInstallments : undefined,
+          ratePercentage: ratePct,
           rateAmount,
           amount: grandTotal,
           netAmount
         }];
 
-    updateServiceOrder(chargingOS.id, {
-      paymentStatus: 'pago',
-      paymentMethod: pdvPaymentMethod,
+    const terminalName =
+      pdvTerminal === 'caixa_01' || pdvTerminal === 'pdv-01'
+        ? 'Caixa 01 - Balcão Principal'
+        : pdvTerminal === 'caixa_02' || pdvTerminal === 'pdv-02'
+        ? 'Caixa 02 - Vendas Rápidas / Atacado'
+        : pdvTerminal === 'caixa_retirada'
+        ? 'Caixa 03 - Retirada & Assistência Técnica'
+        : 'PDV Móvel - Maquininha Campo';
+
+    const movement = settleServiceOrderInPdv(chargingOS.id, {
       payments: finalPayments,
-      status: chargingOS.status === 'orcamento_aberto' || chargingOS.status === 'aguardando_aprovacao' ? 'aprovada_em_andamento' : chargingOS.status
+      paymentMethod: pdvPaymentMethod,
+      amountReceived: pdvPaymentMethod === 'dinheiro' ? pdvCashReceived : undefined,
+      changeAmount: pdvPaymentMethod === 'dinheiro' ? Math.max(0, pdvCashReceived - grandTotal) : undefined,
+      nsu: pdvAuthCode || undefined,
+      terminalName,
+      orderOverride: chargingOS
     });
 
-    setPdvSuccessMessage(`Fatura ${chargingOS.code} LIQUIDADA no PDV! Valor: ${formatBRL(grandTotal)}. Autenticação: NSU-${Math.floor(100000 + Math.random() * 900000)}.`);
+    setPdvSuccessMessage(`Fatura ${chargingOS.code} LIQUIDADA no Caixa PDV! Valor: ${formatBRL(grandTotal)}. Autenticação: ${movement?.nsu || `NSU-${Math.floor(100000 + Math.random() * 900000)}`}.`);
     setTimeout(() => {
       setChargingOS(null);
-    }, 2000);
+    }, 1800);
   };
 
   const handleSendWhatsAppInvoice = () => {

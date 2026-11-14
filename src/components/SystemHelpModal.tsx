@@ -48,6 +48,7 @@ import {
   HardDrive
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
+import { SYSTEM_VERSION } from '../constants/version';
 
 interface SystemHelpModalProps {
   isOpen: boolean;
@@ -1161,7 +1162,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         <div className="px-6 py-3.5 bg-slate-50 border-t border-[#d8d8d8] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Manual Oficial GestãoPro v2.0 · Atualizado e em conformidade operacional</span>
+            <span>Manual Oficial GestãoPro {SYSTEM_VERSION} · Atualizado e em conformidade operacional</span>
           </div>
 
           <div className="flex items-center gap-3">

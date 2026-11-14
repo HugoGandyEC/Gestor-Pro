@@ -34,6 +34,8 @@ export const SalesView: React.FC = () => {
     products, 
     addDirectSale, 
     deleteDirectSale,
+    sendSaleToPdv,
+    settleSaleInPdv,
     cardRates,
     currentRole,
     companySettings 
@@ -191,7 +193,7 @@ export const SalesView: React.FC = () => {
     return Number(discountValue) || 0;
   };
 
-  const handleCreateSale = (e: React.FormEvent) => {
+  const handleCreateSale = (e: React.FormEvent, settleImmediately = false) => {
     e.preventDefault();
     const client = clients.find(c => c.id === clientId) || clients[0];
     if (items.length === 0) {
@@ -201,13 +203,14 @@ export const SalesView: React.FC = () => {
 
     const sub = calculateSubtotal();
     const discount = calculateDiscountAmount(sub);
-    const total = sub - discount;
+    const total = Math.max(0, sub - discount);
+    const nowIso = new Date().toISOString();
 
-    addDirectSale({
+    const createdSale = addDirectSale({
       clientId: client?.id,
       clientName: client?.name || 'Venda Balcão Avulsa',
       employeeId,
-      date: new Date().toISOString().split('T')[0],
+      date: nowIso.split('T')[0],
       priceType,
       items: items.filter(it => it.name.trim() !== ''),
       discountType,
@@ -216,8 +219,19 @@ export const SalesView: React.FC = () => {
       total,
       paymentMethod: payments[0]?.method || 'pix',
       payments,
-      paymentStatus: 'pago'
+      paymentStatus: 'pendente',
+      pdvTerminal: 'Caixa 01 - Balcão Principal',
+      sentToPdvAt: nowIso
     });
+
+    if (settleImmediately) {
+      settleSaleInPdv(createdSale.id, {
+        payments: payments.length > 0 ? payments : [{ id: `p-${Date.now()}`, method: 'pix', amount: total, netAmount: total }],
+        paymentMethod: payments[0]?.method || 'pix',
+        terminalName: 'Caixa 01 - Balcão Principal',
+        saleOverride: createdSale
+      });
+    }
 
     setIsModalOpen(false);
     setDiscountValue(0);
@@ -360,6 +374,11 @@ export const SalesView: React.FC = () => {
                           Desc: -{formatBRL(sale.calculatedDiscount)}
                         </div>
                       )}
+                      <div className={`text-[10px] font-sans font-bold mt-0.5 ${
+                        sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'
+                      }`}>
+                        {sale.paymentStatus === 'pago' ? 'Liquidado no Caixa' : 'Aguardando Caixa (PDV)'}
+                      </div>
                     </td>
 
                     <td className="py-3 px-3 text-right">
@@ -633,19 +652,26 @@ export const SalesView: React.FC = () => {
                 ))}
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+              <div className="pt-3 border-t border-slate-200 flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg"
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-xs"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-[#53383e] rounded-lg hover:bg-[#432c32] shadow-xs cursor-pointer"
                 >
-                  Concluir Venda e Baixar Estoque
+                  Enviar para Caixa (PDV)
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleCreateSale(e as any, true)}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-xs cursor-pointer"
+                >
+                  Receber e Dar Baixa no Caixa
                 </button>
               </div>
             </form>
@@ -713,7 +739,14 @@ export const SalesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      setPdvSuccessMessage(`Fatura de ${formatBRL(chargingSale.total)} enviada para a fila do ${pdvTerminal.replace('_', ' ').toUpperCase()}!`);
+                      const terminalName =
+                        pdvTerminal === 'caixa_01'
+                          ? 'Caixa 01 - Balcão Principal'
+                          : pdvTerminal === 'caixa_02'
+                          ? 'Caixa 02 - Vendas Rápidas / Atacado'
+                          : 'PDV Móvel - Maquininha Campo';
+                      sendSaleToPdv(chargingSale.id, terminalName);
+                      setPdvSuccessMessage(`Fatura ${chargingSale.code} (${formatBRL(chargingSale.total)}) enviada para a fila do ${terminalName}!`);
                     }}
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#363739] hover:bg-[#252627] rounded-lg shadow-2xs cursor-pointer"
                   >
@@ -723,14 +756,43 @@ export const SalesView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Payment Method Quick Settlement */}
+              <div className="p-4 bg-white rounded-xl border border-[#d8d8d8] space-y-2">
+                <span className="font-bold text-xs text-[#363739]">Forma de Pagamento para Liquidação Direta:</span>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {[
+                    { id: 'pix', label: 'PIX' },
+                    { id: 'dinheiro', label: 'Dinheiro' },
+                    { id: 'cartao_credito', label: 'Crédito' },
+                    { id: 'cartao_debito', label: 'Débito' },
+                    { id: 'boleto', label: 'Boleto' }
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setPdvMethod(m.id as PaymentMethod)}
+                      className={`py-2 px-2 rounded-lg border text-xs font-bold cursor-pointer ${
+                        pdvMethod === m.id
+                          ? 'bg-[#53383e] text-white border-[#53383e]'
+                          : 'bg-[#f4f5f6] text-[#363739] border-[#d8d8d8]'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Total Summary */}
               <div className="p-4 bg-[#f6eff1] border border-[#53383e]/30 rounded-xl flex items-center justify-between">
                 <div>
                   <span className="text-xs text-[#707174]">Total dos Produtos</span>
                   <div className="text-lg font-black font-mono text-[#53383e]">{formatBRL(chargingSale.total)}</div>
                 </div>
-                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
-                  Pronto para Recebimento
+                <span className={`text-xs font-bold px-2.5 py-1 rounded ${
+                  chargingSale.paymentStatus === 'pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {chargingSale.paymentStatus === 'pago' ? 'Liquidado no Caixa' : 'Pronto para Recebimento'}
                 </span>
               </div>
             </div>
@@ -754,16 +816,44 @@ export const SalesView: React.FC = () => {
                   <span>Baixar</span>
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setChargingSale(null);
-                  setPdvSuccessMessage(null);
-                }}
-                className="px-4 py-1.5 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
-              >
-                Concluir
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChargingSale(null);
+                    setPdvSuccessMessage(null);
+                  }}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-[#5a5b5e] bg-[#f4f5f6] rounded-lg cursor-pointer"
+                >
+                  Fechar
+                </button>
+                {chargingSale.paymentStatus !== 'pago' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const terminalName =
+                        pdvTerminal === 'caixa_01'
+                          ? 'Caixa 01 - Balcão Principal'
+                          : pdvTerminal === 'caixa_02'
+                          ? 'Caixa 02 - Vendas Rápidas / Atacado'
+                          : 'PDV Móvel - Maquininha Campo';
+                      settleSaleInPdv(chargingSale.id, {
+                        payments: [{ id: `pay-${Date.now()}`, method: pdvMethod, amount: chargingSale.total, netAmount: chargingSale.total }],
+                        paymentMethod: pdvMethod,
+                        terminalName
+                      });
+                      setPdvSuccessMessage(`Venda ${chargingSale.code} liquidada e baixada no ${terminalName}!`);
+                      setTimeout(() => {
+                        setChargingSale(null);
+                        setPdvSuccessMessage(null);
+                      }, 1500);
+                    }}
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer"
+                  >
+                    Liquidar e Baixar no Caixa
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -25,7 +25,8 @@ import {
   Menu,
   X,
   LogOut,
-  Calendar
+  Calendar,
+  Store
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SYSTEM_VERSION } from '../constants/version';
@@ -33,6 +34,7 @@ import { SYSTEM_VERSION } from '../constants/version';
 export type ActiveTab = 
   | 'dashboard' 
   | 'agenda'
+  | 'pdv'
   | 'orders' 
   | 'sales' 
   | 'products'
@@ -85,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const { 
     serviceOrders, 
+    directSales,
     currentRole, 
     products, 
     customerTickets,
@@ -126,6 +129,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const lowStockCount = products.filter(p => p.currentStock <= p.minStock).length;
   const openTicketsCount = customerTickets.filter(t => t.status === 'aberto' || t.status === 'em_analise').length;
+  const pendingPdvCount =
+    serviceOrders.filter(o => o.paymentStatus !== 'pago' && o.status !== 'cancelada').length +
+    directSales.filter(s => s.paymentStatus !== 'pago').length;
   const totalRegistrationsCount = clients.length + suppliers.length + products.length + employees.length + vehicles.length + serviceCatalog.length + checklistTemplates.length;
 
   // Simplified and Clean Categorized Navigation Structure
@@ -147,6 +153,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badge: appointments.length > 0 ? `${appointments.length}` : null,
           highlight: true,
           roles: ['admin', 'colaborador', 'tecnico']
+        },
+        {
+          id: 'pdv' as ActiveTab,
+          label: 'PDV / Caixa',
+          icon: Store,
+          badge: pendingPdvCount > 0 ? `${pendingPdvCount} fila` : null,
+          highlight: true,
+          roles: ['admin', 'colaborador', 'vendedor']
         },
         {
           id: 'orders' as ActiveTab,

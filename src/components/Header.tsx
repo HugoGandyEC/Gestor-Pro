@@ -16,13 +16,15 @@ import {
   Palette,
   LogOut,
   ChevronDown,
-  HelpCircle
+  HelpCircle,
+  Store
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, AppTheme } from '../types';
 
 interface HeaderProps {
   onOpenNewOS: () => void;
+  onOpenPdv?: () => void;
   onOpenDoc: () => void;
   onOpenAuditLogs: () => void;
   onOpenHelp?: () => void;
@@ -32,6 +34,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ 
   onOpenNewOS, 
+  onOpenPdv,
   onOpenDoc, 
   onOpenAuditLogs,
   onOpenHelp,
@@ -307,6 +310,19 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">Sair</span>
             </button>
           </div>
+
+          {/* Quick PDV / Caixa Button */}
+          {onOpenPdv && (currentRole === 'admin' || currentRole === 'colaborador' || currentRole === 'vendedor') && (
+            <button
+              type="button"
+              onClick={onOpenPdv}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#53383e] bg-[#f6eff1] hover:bg-[#ebdce0] border border-[#53383e]/30 rounded-lg transition-colors shrink-0 cursor-pointer"
+              title="Abrir Frente de Caixa / PDV"
+            >
+              <Store className="w-3.5 h-3.5" />
+              <span>PDV / Caixa</span>
+            </button>
+          )}
 
           {/* Primary Action Button (se não for cliente) */}
           {currentRole !== 'cliente' && (
