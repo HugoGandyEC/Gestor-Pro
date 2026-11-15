@@ -16,6 +16,35 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.12',
+    date: '14/11/2026',
+    title: 'Interface Mobile Enxuta — Ocultação de Elementos Administrativos e Secundários no Celular',
+    summary:
+      'Refinamento completo de responsividade para telas de celular (< 768px): ocultação de controles administrativos de retaguarda, colunas secundárias de tabelas, subtítulos extensos, rodapé técnico, importadores XML/CSV e ferramentas avançadas que não são relevantes para operação em campo ou balcão móvel, mantendo a experiência desktop 100% intacta.',
+    highlights: [
+      'Cabeçalho & Menu Mobile limpos: ocultação de trocador de perfil, paletas de tema, selos informativos e módulos administrativos de escritório (Fechamento Fiscal, Custos Iniciais, Central Cadastros, Operadoras de Cartão, Google Drive, Configurações e Ajuda) no celular',
+      'Listagens & Tabelas enxutas no celular: colunas secundárias (CPF/CNPJ, Cidade/UF, Datas, Atacado, Cargo/Comissão, Credor/Categoria) ocultadas em telas pequenas para priorizar identificação, status, valor e ação rápida',
+      'Financeiro, PDV, Vendas & BI Mobile: cards de apoio e filtros avançados de BI recolhidos por padrão no celular com botão único de expansão, preservando carregamento imediato dos indicadores e gráficos'
+    ],
+    changes: [
+      {
+        category: 'Alterado',
+        description:
+          'Header, Sidebar e SystemFooter: ocultados no celular seletores de tema/perfil, avatar redundante, subtítulos institucionais, status de nuvem, rodapé de versão e itens administrativos de desktop.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Listagens operacionais (Ordens de Serviço, Clientes, Fornecedores, Produtos, Vendas Diretas e Funcionários): ocultados botões em lote desktop (importação/exportação CSV e XML NF-e), seletores secundários de paginação e colunas acessórias em telas menores que 768px.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Dashboard, PDV, Financeiro (DRE/Receber/Pagar) e Gráficos & BI: ocultados textos descritivos longos, colunas percentuais/secundárias e caixas avançadas recolhidas por botão toggle no celular.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.11',
     date: '14/11/2026',
     title: 'BI Financeiro Completo com Caixas de Filtros, Períodos e Seletor Global de Gráficos',

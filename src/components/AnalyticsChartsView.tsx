@@ -15,7 +15,10 @@ import {
   Wrench,
   CheckSquare,
   Square,
-  RotateCcw
+  RotateCcw,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 
@@ -285,12 +288,12 @@ const FlexibleChartCard: React.FC<FlexibleChartCardProps> = ({
   const labelStride = Math.max(1, Math.ceil(safeData.length / 8));
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between gap-4">
+    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 flex flex-col justify-between gap-4">
       {/* Header + Per-card Model Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-3.5">
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-slate-900 leading-snug">{title}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+          <p className="hidden md:block text-xs text-slate-500 mt-0.5">{subtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 shrink-0">
@@ -299,7 +302,7 @@ const FlexibleChartCard: React.FC<FlexibleChartCardProps> = ({
               {summaryRight}
             </span>
           )}
-          <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          <div className="hidden md:inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
             {CHART_MODELS.map((m) => {
               const Icon = m.icon;
               const isSelected = activeModel === m.id;
@@ -350,7 +353,8 @@ const FlexibleChartCard: React.FC<FlexibleChartCardProps> = ({
         ) : (
           <>
             <span className="text-slate-500 truncate">
-              Passe o mouse ou toque para detalhar os valores
+              <span className="hidden md:inline">Passe o mouse ou toque para detalhar os valores</span>
+              <span className="md:hidden">Toque no gráfico para detalhar</span>
             </span>
             <span className="font-mono font-semibold text-slate-700 tabular-nums shrink-0 ml-2">
               Total: {formatValue(total)}
@@ -758,6 +762,7 @@ export const AnalyticsChartsView: React.FC = () => {
 
   // 4. Caixa de Seleção: Quais Dados Quero Ver
   const [visibleSections, setVisibleSections] = useState<Record<DataSectionKey, boolean>>(ALL_SECTIONS_ON);
+  const [showMobileAdvancedControls, setShowMobileAdvancedControls] = useState(false);
 
   const handleGlobalModelChange = (model: ChartModelType) => {
     setGlobalModel(model);
@@ -1660,7 +1665,7 @@ export const AnalyticsChartsView: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               Gráficos & Indicadores Gerenciais (BI)
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="hidden md:block text-xs text-slate-500 mt-0.5">
               Central financeira e cadastral com filtros por data, período, cliente, produto, serviço e modelo global de gráfico.
             </p>
           </div>
@@ -1932,10 +1937,29 @@ export const AnalyticsChartsView: React.FC = () => {
               </span>
             )}
           </div>
+
+          <div className="md:hidden pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setShowMobileAdvancedControls(prev => !prev)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#53383e]" />
+                <span>Filtros, Painéis & Tipo de Gráfico</span>
+                {activeFiltersCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-[#53383e] text-white text-[10px]">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </span>
+              {showMobileAdvancedControls ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
 
         {/* Caixa 2: Filtros por Cliente, Produto, Serviço, Canal & Situação */}
-        <div className="xl:col-span-6 bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+        <div className={`xl:col-span-6 bg-white border border-slate-200 rounded-xl p-4 space-y-3 ${showMobileAdvancedControls ? 'block' : 'hidden'} md:block`}>
           <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-[#53383e]" />
@@ -2046,7 +2070,7 @@ export const AnalyticsChartsView: React.FC = () => {
       {/* ===================================================================== */}
       {/* CAIXA 3 & 4: DADOS SELECIONÁVEIS + MODELO DE GRÁFICO PARA TUDO        */}
       {/* ===================================================================== */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+      <div className={`${showMobileAdvancedControls ? 'grid' : 'hidden'} md:grid grid-cols-1 xl:grid-cols-12 gap-4`}>
         {/* Caixa 3: Quais Dados Quero Ver */}
         <div className="xl:col-span-7 bg-white border border-slate-200 rounded-xl p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
@@ -2123,7 +2147,7 @@ export const AnalyticsChartsView: React.FC = () => {
                   )}
                   <div className="min-w-0">
                     <div className="text-xs font-bold leading-tight">{sec.label}</div>
-                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">{sec.subtitle}</div>
+                    <div className="hidden md:block text-[11px] text-slate-500 leading-snug mt-0.5">{sec.subtitle}</div>
                   </div>
                 </button>
               );
@@ -2178,7 +2202,7 @@ export const AnalyticsChartsView: React.FC = () => {
                     <div className="min-w-0">
                       <div className="text-xs font-bold leading-tight">{m.label}</div>
                       <div
-                        className={`text-[10px] leading-tight mt-0.5 ${
+                        className={`hidden md:block text-[10px] leading-tight mt-0.5 ${
                           isSelected || isBaseModel ? 'text-white/80' : 'text-slate-500'
                         }`}
                       >
@@ -2191,7 +2215,7 @@ export const AnalyticsChartsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+          <div className="hidden md:block text-[11px] text-slate-500 pt-2 border-t border-slate-100">
             Ao escolher um tipo acima, <strong>todos os gráficos selecionados</strong> assumem imediatamente esse formato. Você também pode ajustar um gráfico individual nos ícones do próprio card.
           </div>
         </div>
@@ -2367,11 +2391,11 @@ export const AnalyticsChartsView: React.FC = () => {
                         ? (Math.abs(row.value) / financialAnalytics.totalRevenue) * 100
                         : 0;
                     return (
-                      <div key={idx} className="py-2 flex items-center justify-between gap-3">
+                      <div key={idx} className="py-2 flex items-center justify-between gap-2 sm:gap-3">
                         <span className="text-slate-700 truncate">{row.label}</span>
-                        <div className="flex items-center gap-3 font-mono tabular-nums shrink-0">
-                          <span className="text-[11px] text-slate-400 w-12 text-right">{pct.toFixed(1)}%</span>
-                          <span className={`w-28 text-right ${row.tone}`}>{formatBRL(row.value)}</span>
+                        <div className="flex items-center gap-2 sm:gap-3 font-mono tabular-nums shrink-0">
+                          <span className="hidden sm:inline text-[11px] text-slate-400 w-12 text-right">{pct.toFixed(1)}%</span>
+                          <span className={`sm:w-28 text-right ${row.tone}`}>{formatBRL(row.value)}</span>
                         </div>
                       </div>
                     );

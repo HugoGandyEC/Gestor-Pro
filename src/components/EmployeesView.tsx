@@ -125,13 +125,13 @@ export const EmployeesView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Quadro de Funcionários & Custos de Folha
+              Funcionários & Equipe
             </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
               Salários · Encargos · Comissões
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="hidden md:block text-xs text-slate-500 mt-1">
             Gestão da equipe técnica e de vendas: remuneração base, provisões trabalhistas e veículos associados.
           </p>
         </div>
@@ -185,12 +185,12 @@ export const EmployeesView: React.FC = () => {
                 <thead>
                   <tr>
                     <th>Colaborador</th>
-                    <th>Cargo</th>
-                    <th>Status</th>
+                    <th className="hidden md:table-cell">Cargo</th>
+                    <th className="hidden md:table-cell">Status</th>
                     <th>Telefone</th>
                     <th className="text-right">Salário Base</th>
-                    <th className="text-center">Comissão</th>
-                    <th>Veículo</th>
+                    <th className="hidden md:table-cell text-center">Comissão</th>
+                    <th className="hidden md:table-cell">Veículo</th>
                     <th className="text-right">Ações</th>
                   </tr>
                 </thead>
@@ -220,16 +220,16 @@ export const EmployeesView: React.FC = () => {
                         onMouseLeave={hideTooltip}
                       >
                         <td className="font-semibold text-slate-900">{emp.name}</td>
-                        <td className="text-blue-700 font-medium">{emp.role}</td>
-                        <td>
+                        <td className="hidden md:table-cell text-blue-700 font-medium">{emp.role}</td>
+                        <td className="hidden md:table-cell">
                           <span className={`font-semibold text-[11px] ${emp.status === 'Ativo' ? 'text-emerald-700' : 'text-slate-500'}`}>
                             {emp.status}
                           </span>
                         </td>
                         <td className="font-mono text-slate-600 tabular-nums">{emp.phone || '—'}</td>
                         <td className="text-right font-mono font-bold text-slate-900 tabular-nums">{formatBRL(emp.baseSalary)}</td>
-                        <td className="text-center font-mono font-bold text-blue-600 tabular-nums">{emp.commissionRate}%</td>
-                        <td className="font-mono text-slate-700">{assignedVeh ? assignedVeh.plate : '—'}</td>
+                        <td className="hidden md:table-cell text-center font-mono font-bold text-blue-600 tabular-nums">{emp.commissionRate}%</td>
+                        <td className="hidden md:table-cell font-mono text-slate-700">{assignedVeh ? assignedVeh.plate : '—'}</td>
                         <td className="text-right">
                           <div className="inline-flex items-center justify-end gap-1">
                             <button

@@ -541,7 +541,7 @@ export const ClientsView: React.FC = () => {
               <h1 className="text-xl font-bold text-[#363739] tracking-tight">
                 Cadastro de Clientes
               </h1>
-              <p className="text-xs text-[#707174] mt-0.5">
+              <p className="hidden md:block text-xs text-[#707174] mt-0.5">
                 Escolha dinâmica entre Pessoa Jurídica (CNPJ) e Pessoa Física (CPF/RG) com suporte a múltiplos endereços identificados por título de referência.
               </p>
             </div>
@@ -558,7 +558,7 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
               setCsvResult(null);
               setIsCsvModalOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-2xs"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-2xs"
           >
             <Upload className="w-3.5 h-3.5 text-[#707174]" />
             Importar CSV
@@ -566,7 +566,7 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
 
           <button
             onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-2xs"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-2xs"
           >
             <Download className="w-3.5 h-3.5 text-[#707174]" />
             Exportar CSV
@@ -681,12 +681,12 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
             <table className="dense-table text-left text-xs">
               <thead>
                 <tr>
-                  <th>Tipo</th>
+                  <th className="hidden md:table-cell">Tipo</th>
                   <th>Cliente</th>
-                  <th>CPF / CNPJ</th>
+                  <th className="hidden md:table-cell">CPF / CNPJ</th>
                   <th>Telefone</th>
-                  <th>Cidade / UF</th>
-                  <th className="text-center">OS</th>
+                  <th className="hidden md:table-cell">Cidade / UF</th>
+                  <th className="hidden md:table-cell text-center">OS</th>
                   <th className="text-right">Ações</th>
                 </tr>
               </thead>
@@ -738,7 +738,7 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                       }
                       onMouseLeave={hideTooltip}
                     >
-                      <td className="font-mono text-[11px]">
+                      <td className="hidden md:table-cell font-mono text-[11px]">
                         <span className={`font-bold ${isPJ ? 'text-indigo-700' : 'text-emerald-700'}`}>
                           {isPJ ? 'PJ' : 'PF'}
                         </span>
@@ -748,10 +748,10 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                         </span>
                       </td>
                       <td className="font-bold text-slate-900">{client.name}</td>
-                      <td className="font-mono text-slate-600 tabular-nums">{client.document || '—'}</td>
+                      <td className="hidden md:table-cell font-mono text-slate-600 tabular-nums">{client.document || '—'}</td>
                       <td className="font-mono text-slate-700 tabular-nums">{client.phone || '—'}</td>
-                      <td className="text-slate-600">{primaryAddress.city}/{primaryAddress.state}</td>
-                      <td className="text-center font-mono font-bold text-slate-700 tabular-nums">{ordersCount}</td>
+                      <td className="hidden md:table-cell text-slate-600">{primaryAddress.city}/{primaryAddress.state}</td>
+                      <td className="hidden md:table-cell text-center font-mono font-bold text-slate-700 tabular-nums">{ordersCount}</td>
                       <td className="text-right">
                         <div className="inline-flex items-center justify-end gap-1">
                           <button

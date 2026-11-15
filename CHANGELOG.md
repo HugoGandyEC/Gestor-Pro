@@ -1,6 +1,16 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.11`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.12`).
+
+---
+
+## [v2.7.12] — 14/11/2026
+**Interface Mobile Enxuta — Ocultação de Elementos Administrativos e Secundários no Celular**
+
+### Alterado
+- **Cabeçalho, Gaveta de Navegação & Rodapé Mobile**: ocultados no celular (`< 768px`) trocador de perfil, paletas de tema, selos informativos, card redundante de usuário, status de nuvem, rodapé técnico de versão e módulos administrativos de retaguarda (**Fechamento Fiscal**, **Custos Iniciais**, **Central Cadastros**, **Operadoras de Cartão**, **Google Drive**, **Configurações** e **Ajuda & Manual**).
+- **Tabelas e Listagens Operacionais**: ocultadas colunas secundárias no celular em **Ordens de Serviço**, **Clientes**, **Fornecedores**, **Produtos & Estoque**, **Vendas Diretas**, **Funcionários** e **Financeiro (Contas a Receber / Contas a Pagar)**, além de botões em lote desktop (CSV, XML NF-e, markup global) e controles de paginação estendidos.
+- **Dashboard, PDV & Gráficos BI**: ocultados subtítulos extensos, cards secundários de apoio, coluna percentual do DRE em telas estreitas e caixas avançadas do BI agrupadas atrás de botão expansível no celular.
 
 ---
 

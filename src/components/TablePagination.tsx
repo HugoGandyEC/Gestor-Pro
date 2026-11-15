@@ -77,7 +77,7 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
         </span>
 
         {onItemsPerPageChange && (
-          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+          <div className="hidden sm:flex items-center gap-1.5 pl-2 border-l border-slate-200">
             <span className="text-slate-500 text-[11px]">Por pág:</span>
             <select
               value={itemsPerPage}
@@ -109,7 +109,7 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
           type="button"
           onClick={() => onPageChange(1)}
           disabled={safeCurrentPage === 1}
-          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          className="hidden sm:inline-flex p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           title="Primeira página"
         >
           <ChevronsLeft className="w-3.5 h-3.5" />
@@ -171,7 +171,7 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
           type="button"
           onClick={() => onPageChange(totalPages)}
           disabled={safeCurrentPage === totalPages || totalPages === 0}
-          className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          className="hidden sm:inline-flex p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           title="Última página"
         >
           <ChevronsRight className="w-3.5 h-3.5" />

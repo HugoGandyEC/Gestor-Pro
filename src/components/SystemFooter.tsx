@@ -16,7 +16,7 @@ export const SystemFooter: React.FC<SystemFooterProps> = ({ onOpenDoc }) => {
   const { companySettings } = useApp();
 
   return (
-    <footer className="mt-8 pt-4 pb-3 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+    <footer className="hidden md:flex mt-8 pt-4 pb-3 border-t border-slate-200/80 flex-row items-center justify-between gap-3 text-xs text-slate-500">
       {/* Esquerda: Identificação do Sistema e Versionamento */}
       <div className="flex items-center gap-2 flex-wrap text-center sm:text-left justify-center sm:justify-start">
         <span className="font-bold text-slate-800 tracking-tight">

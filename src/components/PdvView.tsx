@@ -801,7 +801,7 @@ export const PdvView: React.FC = () => {
               </span>
             )}
           </div>
-          <p className="text-xs text-[#5a5b5e] mt-1">
+          <p className="hidden md:block text-xs text-[#5a5b5e] mt-1">
             Central de recebimento unificada: todas as Ordens de Serviço e Vendas Diretas passam pelo caixa para conferência, baixa de valores e emissão de comprovante.
           </p>
         </div>
@@ -912,7 +912,7 @@ export const PdvView: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white border border-[#d8d8d8]">
+        <div className="hidden md:block p-4 rounded-xl bg-white border border-[#d8d8d8]">
           <div className="flex items-center justify-between text-xs text-[#707174] font-medium">
             <span>Terminal & Operador</span>
             <Store className="w-4 h-4 text-[#53383e]" />

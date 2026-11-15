@@ -137,7 +137,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const totalRegistrationsCount = clients.length + suppliers.length + products.length + employees.length + vehicles.length + serviceCatalog.length + checklistTemplates.length;
 
   // Simplified and Clean Categorized Navigation Structure
-  const navigationCategories = [
+  const navigationCategories: {
+    category: string;
+    desktopOnly?: boolean;
+    items: {
+      id: ActiveTab;
+      label: string;
+      icon: React.ComponentType<{ className?: string }>;
+      badge: string | null;
+      highlight?: boolean;
+      desktopOnly?: boolean;
+      roles: string[];
+    }[];
+  }[] = [
     {
       category: 'OPERAÇÕES',
       items: [
@@ -219,6 +231,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Fechamento Fiscal',
           icon: FileSpreadsheet,
           badge: 'PDF',
+          desktopOnly: true,
           roles: ['admin', 'contador']
         },
         {
@@ -240,6 +253,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Custos Iniciais',
           icon: Calculator,
           badge: null,
+          desktopOnly: true,
           roles: ['admin', 'contador']
         }
       ]
@@ -253,6 +267,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: FolderOpen,
           badge: `${totalRegistrationsCount}`,
           highlight: true,
+          desktopOnly: true,
           roles: ['admin', 'colaborador']
         },
         {
@@ -260,6 +275,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Operadoras de Cartão',
           icon: CreditCard,
           badge: 'Taxas',
+          desktopOnly: true,
           roles: ['admin', 'colaborador', 'contador']
         },
         {
@@ -294,6 +310,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       category: 'SISTEMA',
+      desktopOnly: true,
       items: [
         {
           id: 'googleDrive' as ActiveTab,
@@ -301,6 +318,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: HardDrive,
           badge: 'Nuvem',
           highlight: true,
+          desktopOnly: true,
           roles: ['admin', 'colaborador', 'contador']
         },
         {
@@ -308,6 +326,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Configurações',
           icon: Settings,
           badge: null,
+          desktopOnly: true,
           roles: ['admin']
         },
         {
@@ -316,6 +335,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: BookOpen,
           badge: 'Guia',
           highlight: true,
+          desktopOnly: true,
           roles: ['admin', 'colaborador', 'tecnico', 'contador', 'cliente']
         }
       ]
@@ -402,7 +422,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             const hasActiveItem = visibleItems.some(it => it.id === activeTab);
 
             return (
-              <div key={group.category} className="space-y-1">
+              <div key={group.category} className={`space-y-1 ${group.desktopOnly ? 'hidden md:block' : ''}`}>
                 {isEffectiveCollapsed ? (
                   <div className="my-1.5 border-t border-[#3d3f42]/70 mx-1" title={group.category} />
                 ) : (
@@ -443,7 +463,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           key={item.id}
                           onClick={() => handleSelectTab(item.id)}
                           title={isEffectiveCollapsed ? itemTitle : undefined}
-                          className={`w-full flex items-center ${
+                          className={`${item.desktopOnly ? 'hidden md:flex' : 'flex'} w-full items-center ${
                             isEffectiveCollapsed ? 'justify-center py-2.5 px-0' : 'justify-between px-3 py-2'
                           } rounded-lg text-xs font-medium transition-all cursor-pointer relative group ${
                             isActive
@@ -530,7 +550,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="text-[11px] font-semibold">Sair</span>
               </button>
             </div>
-            <div className="text-[10px] text-[#8e9094] flex items-center justify-between">
+            <div className="hidden md:flex text-[10px] text-[#8e9094] items-center justify-between">
               <span>MP PISCINA ERP · <strong className="text-slate-300 font-mono">{SYSTEM_VERSION}</strong></span>
               <span className="text-emerald-400 font-mono flex items-center gap-1">● Nuvem Sincronizada</span>
             </div>

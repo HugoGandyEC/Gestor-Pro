@@ -266,7 +266,7 @@ export const SuppliersView: React.FC = () => {
               <h1 className="text-xl font-bold text-[#363739] tracking-tight">
                 Cadastro de Fornecedores
               </h1>
-              <p className="text-xs text-[#707174] mt-0.5">
+              <p className="hidden md:block text-xs text-[#707174] mt-0.5">
                 Gestão e homologação de fabricantes de tanques térmicos, bombas, válvulas e insumos com consulta automática de CNPJ e CEP.
               </p>
             </div>
@@ -276,7 +276,7 @@ export const SuppliersView: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-2xs"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-2xs"
           >
             <Download className="w-3.5 h-3.5 text-[#707174]" />
             Exportar CSV
@@ -339,9 +339,9 @@ export const SuppliersView: React.FC = () => {
               <thead>
                 <tr>
                   <th>Fornecedor</th>
-                  <th>CNPJ</th>
+                  <th className="hidden md:table-cell">CNPJ</th>
                   <th>Telefone</th>
-                  <th>Cidade / UF</th>
+                  <th className="hidden md:table-cell">Cidade / UF</th>
                   <th className="text-right">Ações</th>
                 </tr>
               </thead>
@@ -373,9 +373,9 @@ export const SuppliersView: React.FC = () => {
                       onMouseLeave={hideTooltip}
                     >
                       <td className="font-bold text-slate-900">{supplier.tradeName || supplier.name}</td>
-                      <td className="font-mono text-slate-600 tabular-nums">{supplier.cnpj}</td>
+                      <td className="hidden md:table-cell font-mono text-slate-600 tabular-nums">{supplier.cnpj}</td>
                       <td className="font-mono text-slate-700 tabular-nums">{supplier.phone}</td>
-                      <td className="text-slate-600">{supplier.city}/{supplier.state}</td>
+                      <td className="hidden md:table-cell text-slate-600">{supplier.city}/{supplier.state}</td>
                       <td className="text-right">
                         <div className="inline-flex items-center justify-end gap-1">
                           <button

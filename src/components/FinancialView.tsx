@@ -297,11 +297,11 @@ export const FinancialView: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               Módulo Financeiro & DRE Gerencial de Precisão
             </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
               Competência {selectedMonthYear}
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="hidden md:block text-xs text-slate-500 mt-1">
             Controle integrado de Contas a Receber (OS + Vendas), Contas a Pagar (Despesas, Frota e Dívidas) e DRE Oficial com conciliação automática.
           </p>
         </div>
@@ -412,24 +412,24 @@ export const FinancialView: React.FC = () => {
       {/* DRE Gerencial Tab */}
       {activeSubTab === 'dre' && (
         <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
                 Demonstrativo do Resultado do Exercício (DRE) - {selectedMonthYear}
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="hidden md:block text-xs text-slate-500">
                 Estrutura analítica padrão contábil gerencial integrando serviços de campo, vendas de balcão, despesas operacionais e dívidas.
               </p>
             </div>
-            <div className="text-right">
-              <span className="text-xs text-slate-400">Resultado Líquido Operacional</span>
-              <div className={`text-lg font-black font-mono ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <div className="text-right shrink-0">
+              <span className="hidden sm:inline text-xs text-slate-400">Resultado Líquido Operacional</span>
+              <div className={`text-base sm:text-lg font-black font-mono ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {formatBRL(netProfit)}
               </div>
             </div>
           </div>
 
-          <div className="p-6 font-mono text-xs space-y-4">
+          <div className="p-3 sm:p-6 font-mono text-xs space-y-4">
             {/* 1. Receita Bruta */}
             <div className="space-y-1.5">
               <div className="flex justify-between font-bold text-slate-900 text-sm border-b pb-1">
@@ -579,7 +579,7 @@ export const FinancialView: React.FC = () => {
               <h2 className="text-sm font-bold text-slate-900">
                 Contas a Receber Unificadas (Ordens de Serviço & Vendas Diretas)
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="hidden md:block text-xs text-slate-500">
                 Acompanhe e dê baixa nos recebimentos de clientes de serviços e vendas de peças.
               </p>
             </div>
@@ -636,8 +636,8 @@ export const FinancialView: React.FC = () => {
                   <tr>
                     <th className="py-3 px-4">Código / Tipo</th>
                     <th className="py-3 px-4">Cliente & Descrição</th>
-                    <th className="py-3 px-3">Data</th>
-                    <th className="py-3 px-3">Forma de Pagto</th>
+                    <th className="hidden md:table-cell py-3 px-3">Data</th>
+                    <th className="hidden md:table-cell py-3 px-3">Forma de Pagto</th>
                     <th className="py-3 px-3">Status</th>
                     <th className="py-3 px-4 text-right">Valor</th>
                     <th className="py-3 px-4 text-center">Ações</th>
@@ -689,11 +689,11 @@ export const FinancialView: React.FC = () => {
                           <div className="text-[11px] text-slate-500 truncate max-w-xs">{item.description}</div>
                         </td>
 
-                        <td className="py-3 px-3 font-mono text-slate-600">
+                        <td className="hidden md:table-cell py-3 px-3 font-mono text-slate-600">
                           {formatDateBR(item.date)}
                         </td>
 
-                        <td className="py-3 px-3 uppercase font-medium text-slate-600">
+                        <td className="hidden md:table-cell py-3 px-3 uppercase font-medium text-slate-600">
                           {item.paymentMethod.replace('_', ' ')}
                         </td>
 
@@ -735,9 +735,10 @@ export const FinancialView: React.FC = () => {
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-100 font-mono font-bold text-slate-900 border-t-2 border-slate-300">
-                    <td colSpan={5} className="py-3 px-4 font-sans font-bold">
+                    <td colSpan={3} className="py-3 px-4 font-sans font-bold">
                       TOTALIZADOR DE CONTAS A RECEBER
                     </td>
+                    <td colSpan={2} className="hidden md:table-cell"></td>
                     <td className="py-3 px-4 text-right text-emerald-700 font-black tabular-nums">
                       {formatBRL(filteredReceivables.reduce((a, b) => a + b.total, 0))}
                     </td>
@@ -804,7 +805,7 @@ export const FinancialView: React.FC = () => {
               <h2 className="text-sm font-bold text-slate-900">
                 Contas a Pagar Unificadas (Despesas Fixas, Frota e Dívidas da Empresa)
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="hidden md:block text-xs text-slate-500">
                 Controle e dê baixa em aluguel, internet, DAS MEI, salários, parcelas de empréstimos e manutenção veicular.
               </p>
             </div>
@@ -860,9 +861,9 @@ export const FinancialView: React.FC = () => {
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                   <tr>
                     <th className="py-3 px-4">Vencimento</th>
-                    <th className="py-3 px-3">Origem / Categoria</th>
+                    <th className="hidden md:table-cell py-3 px-3">Origem / Categoria</th>
                     <th className="py-3 px-4">Descrição da Conta / Dívida</th>
-                    <th className="py-3 px-3">Credor / Fornecedor</th>
+                    <th className="hidden md:table-cell py-3 px-3">Credor / Fornecedor</th>
                     <th className="py-3 px-3">Status</th>
                     <th className="py-3 px-4 text-right">Valor</th>
                     <th className="py-3 px-4 text-center">Ações</th>
@@ -898,7 +899,7 @@ export const FinancialView: React.FC = () => {
                           {formatDateBR(item.dueDate)}
                         </td>
 
-                        <td className="py-3 px-3">
+                        <td className="hidden md:table-cell py-3 px-3">
                           <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
                             {item.category.replace('_', ' ')}
                           </span>
@@ -911,7 +912,7 @@ export const FinancialView: React.FC = () => {
                           {item.description}
                         </td>
 
-                        <td className="py-3 px-3 text-slate-600 font-medium">
+                        <td className="hidden md:table-cell py-3 px-3 text-slate-600 font-medium">
                           {item.supplier}
                         </td>
 
@@ -951,9 +952,10 @@ export const FinancialView: React.FC = () => {
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-100 font-mono font-bold text-slate-900 border-t-2 border-slate-300">
-                    <td colSpan={5} className="py-3 px-4 font-sans font-bold">
+                    <td colSpan={3} className="py-3 px-4 font-sans font-bold">
                       TOTALIZADOR DE CONTAS A PAGAR
                     </td>
+                    <td colSpan={2} className="hidden md:table-cell"></td>
                     <td className="py-3 px-4 text-right text-rose-700 font-black tabular-nums">
                       {formatBRL(filteredPayables.reduce((a, b) => a + b.cost, 0))}
                     </td>

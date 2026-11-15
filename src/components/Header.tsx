@@ -116,11 +116,11 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-base sm:text-lg font-bold text-[#363739] tracking-tight whitespace-nowrap">
                 {companySettings.tradeName || 'GestãoPro'}
               </span>
-              <span className="hidden xs:inline-block text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
+              <span className="hidden md:inline-block text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
                 ERP · OS
               </span>
             </div>
-            <p className="text-[11px] text-[#5a5b5e] hidden sm:block truncate max-w-[180px]">
+            <p className="text-[11px] text-[#5a5b5e] hidden md:block truncate max-w-[180px]">
               {companySettings.companyName || 'Assistência Técnica & Vendas'}
             </p>
           </div>
@@ -128,10 +128,10 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Controls Zone: Role Switcher, Month, Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Active Persona / Role Switcher - Protegido contra Escalada de Privilégios */}
+          {/* Active Persona / Role Switcher - Oculto no celular para manter o topo limpo */}
           {currentUser && (currentUser.role === 'cliente' || currentUser.role === 'tecnico') ? (
             <div 
-              className="flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8] shadow-xs"
+              className="hidden md:flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8] shadow-xs"
               title="Perfil com acesso estritamente isolado por RBAC e sessão criptografada"
             >
               {getRoleIcon(currentRole)}
@@ -143,7 +143,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8] shadow-xs">
+            <div className="hidden md:flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8] shadow-xs">
               {getRoleIcon(currentRole)}
               <span className="text-[11px] font-medium text-[#707174] hidden md:inline">Perfil:</span>
               <select
@@ -191,8 +191,8 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
 
-          {/* Theme Switcher in Header */}
-          <div className="relative">
+          {/* Theme Switcher in Header (somente desktop/tablet) */}
+          <div className="relative hidden md:block">
             <button
               type="button"
               onClick={() => setIsThemeMenuOpen(prev => !prev)}
@@ -276,8 +276,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* User Profile & Logout */}
-          <div className="flex items-center gap-1.5 pl-1 sm:pl-2 border-l border-[#d8d8d8]">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:pl-2 md:border-l md:border-[#d8d8d8]">
+            <div className="hidden md:flex items-center gap-2">
               {currentUser?.avatar ? (
                 <img
                   src={currentUser.avatar}

@@ -677,11 +677,11 @@ export const ProductsAndStockView: React.FC = () => {
             <h1 className="text-xl font-bold text-[#363739] tracking-tight">
               Catálogo de Produtos, Peças & Taxonomias
             </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
+            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
               Estoque, Marcas, URLs & SEO
             </span>
           </div>
-          <p className="text-xs text-[#707174] mt-1">
+          <p className="hidden md:block text-xs text-[#707174] mt-1">
             Gestão de produtos, reservatórios térmicos, bombas e peças com marcas, URLs amigáveis, tags, meta-tags e listas personalizáveis.
           </p>
         </div>
@@ -689,7 +689,7 @@ export const ProductsAndStockView: React.FC = () => {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setIsTaxonomyModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs cursor-pointer"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs cursor-pointer"
             title="Gerenciar Categorias, Subcategorias, Marcas e Tags salvas no sistema"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#53383e]" />
@@ -703,7 +703,7 @@ export const ProductsAndStockView: React.FC = () => {
                 alert(`Regra aplicada com sucesso! ${res.count} produto(s) atualizado(s) com 55% de margem no Varejo e 35% no Atacado.`);
               }
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-xs cursor-pointer"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-xs cursor-pointer"
             title="Aplica 55% de margem no varejo e 35% no atacado para todos os produtos com custo cadastrado"
           >
             <Percent className="w-3.5 h-3.5 text-emerald-700" />
@@ -712,7 +712,7 @@ export const ProductsAndStockView: React.FC = () => {
 
           <button
             onClick={() => setIsGmailModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors shadow-xs cursor-pointer"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors shadow-xs cursor-pointer"
             title="Buscar e-mails de fornecedores no Gmail com anexos XML de NF-e"
           >
             <Mail className="w-3.5 h-3.5 text-red-600" />
@@ -721,7 +721,7 @@ export const ProductsAndStockView: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('xml')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs cursor-pointer"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs cursor-pointer"
           >
             <Upload className="w-3.5 h-3.5 text-[#53383e]" />
             <span>Importar XML NF-e</span>
@@ -759,7 +759,7 @@ export const ProductsAndStockView: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('xml')}
-          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+          className={`hidden md:inline-flex px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
             activeTab === 'xml' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
           }`}
         >
@@ -804,9 +804,9 @@ export const ProductsAndStockView: React.FC = () => {
                 />
               </div>
 
-              {/* Brand and Subcategory selects */}
+              {/* Brand and Subcategory selects (somente desktop/tablet) */}
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5">
+                <div className="hidden md:flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold text-slate-500">Marca:</span>
                   <select
                     value={brandFilter}
@@ -820,7 +820,7 @@ export const ProductsAndStockView: React.FC = () => {
                   </select>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="hidden md:flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold text-slate-500">Subcategoria:</span>
                   <select
                     value={subcategoryFilter}
@@ -895,10 +895,10 @@ export const ProductsAndStockView: React.FC = () => {
                   <thead>
                     <tr>
                       <th className="w-14 text-center">Foto</th>
-                      <th>Código</th>
+                      <th className="hidden md:table-cell">Código</th>
                       <th>Produto</th>
                       <th className="text-right">Varejo</th>
-                      <th className="text-right">Atacado</th>
+                      <th className="hidden md:table-cell text-right">Atacado</th>
                       <th className="text-center">Estoque</th>
                       <th className="text-right">Ações</th>
                     </tr>
@@ -939,14 +939,14 @@ export const ProductsAndStockView: React.FC = () => {
                               iconClassName="w-4 h-4 text-slate-400"
                             />
                           </td>
-                          <td className="font-mono font-bold text-blue-600">{p.code}</td>
+                          <td className="hidden md:table-cell font-mono font-bold text-blue-600">{p.code}</td>
                           <td className="font-semibold text-slate-900">
-                            <span className="inline-block truncate max-w-[260px] align-bottom">{p.name}</span>
+                            <span className="inline-block truncate max-w-[150px] sm:max-w-[260px] align-bottom">{p.name}</span>
                           </td>
                           <td className="text-right font-mono font-bold text-slate-900 tabular-nums">
                             {formatBRL(p.retailPrice)}
                           </td>
-                          <td className="text-right font-mono font-semibold text-indigo-700 tabular-nums">
+                          <td className="hidden md:table-cell text-right font-mono font-semibold text-indigo-700 tabular-nums">
                             {formatBRL(p.wholesalePrice)}
                           </td>
                           <td className="text-center font-mono tabular-nums">

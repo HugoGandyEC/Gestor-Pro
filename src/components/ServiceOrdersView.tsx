@@ -1604,13 +1604,13 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-[#363739] tracking-tight">
-              Gestão de Ordens de Serviço & Checklists
+              Ordens de Serviço
             </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
+            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
               Checklist com Fotos · Assinatura Digital Touch
             </span>
           </div>
-          <p className="text-xs text-[#707174] mt-1">
+          <p className="hidden md:block text-xs text-[#707174] mt-1">
             Ciclo completo de atendimento técnico para reservatórios térmicos, tanques, bombas e tubulações, com taxa de visita e conversão ágil de orçamento.
           </p>
         </div>
@@ -1618,10 +1618,11 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         {currentRole !== 'tecnico' && (
           <button
             onClick={handleOpenNewOS}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs shrink-0 cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Nova Ordem de Serviço / Orçamento</span>
+            <span className="md:hidden">Nova OS</span>
+            <span className="hidden md:inline">Nova Ordem de Serviço / Orçamento</span>
           </button>
         )}
       </div>
@@ -1708,8 +1709,8 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                 <tr>
                   <th>ID</th>
                   <th>Status da OS</th>
-                  <th>Abertura</th>
-                  <th>Entrega Serviços</th>
+                  <th className="hidden md:table-cell">Abertura</th>
+                  <th className="hidden md:table-cell">Entrega Serviços</th>
                   <th>Cliente / Responsável</th>
                   <th className="text-right">
                     {currentRole === 'tecnico' ? 'A Receber' : 'Total OS'}
@@ -1785,8 +1786,8 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                           <span className={`font-semibold ${statusMeta.className}`}>{statusMeta.label}</span>
                         )}
                       </td>
-                      <td className="font-mono text-slate-600 tabular-nums">{formatDateBR(os.openDate)}</td>
-                      <td>
+                      <td className="hidden md:table-cell font-mono text-slate-600 tabular-nums">{formatDateBR(os.openDate)}</td>
+                      <td className="hidden md:table-cell">
                         {canEditStatus ? (
                           <button
                             type="button"

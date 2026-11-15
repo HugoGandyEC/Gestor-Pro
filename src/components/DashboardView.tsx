@@ -370,7 +370,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           ========================================================================= */}
       <div className="bg-gradient-to-r from-[#2b2c2e] via-[#363739] to-[#53383e] rounded-2xl p-5 sm:p-6 text-white shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6 border border-[#3d3f42]">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden md:flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-[#c2bfb0] border border-[#c2bfb0]/30 uppercase tracking-wider">
               Visão Geral · Serviços & Vendas
             </span>
@@ -381,10 +381,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             </span>
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white mt-2">
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white md:mt-2">
             Controle Executivo de Operações & Vendas
           </h1>
-          <p className="text-xs text-[#d8d8d8] mt-1 max-w-2xl leading-relaxed">
+          <p className="hidden md:block text-xs text-[#d8d8d8] mt-1 max-w-2xl leading-relaxed">
             Painel limpo com indicadores de Ordens de Serviço (em atraso, em andamento, faturadas e pagas), faturamento de serviços vs vendas e ranking dos produtos mais vendidos.
           </p>
         </div>
@@ -594,7 +594,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                 Evolução Comparativa: Serviços Técnicos vs Vendas de Produtos
               </h3>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="hidden md:block text-xs text-slate-500 mt-0.5">
               Receita consolidada de mão de obra técnica/visitas confrontada com venda de peças e equipamentos {periodMode === 'dia' ? 'dia a dia' : periodMode === 'mes' ? 'mês a mês' : 'ano a ano'}.
             </p>
           </div>
@@ -609,7 +609,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
               <span className="w-3 h-3 rounded-sm bg-[#363739]"></span>
               <span className="text-slate-700">Vendas & Peças</span>
             </div>
-            <div className="flex items-center gap-1.5 text-slate-400">
+            <div className="hidden sm:flex items-center gap-1.5 text-slate-400">
               <span className="w-3 h-3 rounded-sm bg-[#d8d8d8]"></span>
               <span>Total</span>
             </div>
@@ -757,7 +757,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                 <h3 className="font-bold text-[#363739] text-sm">
                   Produtos & Peças Mais Vendidos
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="hidden md:block text-[11px] text-slate-500">
                   Ranking por faturamento e unidades movimentadas (OS + Balcão).
                 </p>
               </div>
@@ -825,7 +825,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                 <h3 className="font-bold text-[#363739] text-sm">
                   Serviços Mais Realizados
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="hidden md:block text-[11px] text-slate-500">
                   Ranking de serviços com maior recorrência e receita nas Ordens de Serviço.
                 </p>
               </div>
@@ -884,9 +884,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       </div>
 
       {/* =========================================================================
-          RODAPÉ SINTÉTICO: CUSTOS FIXOS, FROTA & FOLHA
+          RODAPÉ SINTÉTICO: CUSTOS FIXOS, FROTA & FOLHA (Somente Desktop/Tablet)
           ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+      <div className="hidden md:grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
         {/* Frota e Combustível */}
         <div className="bg-white p-4 rounded-xl border border-[#d8d8d8] shadow-2xs space-y-2">
           <div className="flex items-center justify-between">

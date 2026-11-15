@@ -354,13 +354,13 @@ export const SalesView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Vendas Diretas, Orçamentos & Balcão de Peças
+              Vendas & Balcão
             </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
               Varejo & Atacado · Múltiplas Formas
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="hidden md:block text-xs text-slate-500 mt-1">
             Faturamento de reservatórios térmicos, bombas e peças avulsas com desconto flexível e divisão de pagamentos em cartão, Pix e boleto.
           </p>
         </div>
@@ -383,12 +383,12 @@ export const SalesView: React.FC = () => {
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
             {formatBRL(totalSalesVolume)}
           </div>
-          <div className="text-xs text-slate-500 mt-1">
+          <div className="hidden md:block text-xs text-slate-500 mt-1">
             {directSales.length} pedidos faturados com baixa de estoque
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <div className="hidden sm:block p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
           <span className="text-xs font-medium text-slate-500">Ticket Médio por Venda</span>
           <div className="text-2xl font-bold font-mono text-blue-600 mt-1">
             {formatBRL(directSales.length > 0 ? totalSalesVolume / directSales.length : 0)}
@@ -398,7 +398,7 @@ export const SalesView: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
+        <div className="hidden sm:block p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
           <span className="text-xs font-medium text-slate-500">Comissões sobre Vendas</span>
           <div className="text-2xl font-bold font-mono text-emerald-600 mt-1">
             {formatBRL(totalSalesVolume * 0.04)}
@@ -459,8 +459,8 @@ export const SalesView: React.FC = () => {
                 <tr>
                   <th>Código</th>
                   <th>Cliente</th>
-                  <th>Data</th>
-                  <th>Tabela</th>
+                  <th className="hidden md:table-cell">Data</th>
+                  <th className="hidden md:table-cell">Tabela</th>
                   <th>Status</th>
                   <th className="text-right">Total</th>
                   <th className="text-right">Ações</th>
@@ -494,8 +494,8 @@ export const SalesView: React.FC = () => {
                     >
                       <td className="font-mono font-bold text-blue-600">{sale.code}</td>
                       <td className="font-bold text-slate-900">{sale.clientName}</td>
-                      <td className="font-mono text-slate-600 tabular-nums">{formatDateBR(sale.date)}</td>
-                      <td className={sale.priceType === 'atacado' ? 'font-semibold text-purple-700' : 'text-slate-600'}>
+                      <td className="hidden md:table-cell font-mono text-slate-600 tabular-nums">{formatDateBR(sale.date)}</td>
+                      <td className={`hidden md:table-cell ${sale.priceType === 'atacado' ? 'font-semibold text-purple-700' : 'text-slate-600'}`}>
                         {sale.priceType === 'atacado' ? 'Atacado' : 'Varejo'}
                       </td>
                       <td className={`font-semibold ${sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
