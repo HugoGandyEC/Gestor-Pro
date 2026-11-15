@@ -70,6 +70,7 @@ import {
   initialAppointments,
   createSampleAppointments
 } from '../mockData';
+import { buildDemoServiceOrdersDataset } from '../data/demoServiceOrdersDataset';
 import { 
   canModifyClientData, 
   canModifyServiceOrder, 
@@ -339,6 +340,7 @@ interface AppContextType {
   clearSampleAppointments: () => void;
   restoreSampleAppointments: () => void;
   clearAllSystemData: () => void;
+  loadDemoServiceOrdersData: () => { ordersAdded: number; receiptsAdded: number };
 
   resetToDefaults: () => void;
 
@@ -1238,6 +1240,53 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setSelectedMonthYear('2026-10');
     broadcastSync('FULL');
     addAuditLog('Restauração de Sistema', 'Base de dados restaurada para o padrão inicial de fábrica.');
+  };
+
+  const loadDemoServiceOrdersData = (): { ordersAdded: number; receiptsAdded: number } => {
+    const demo = buildDemoServiceOrdersDataset();
+
+    const mergeById = <T extends { id: string }>(prev: T[], incoming: T[]): T[] => {
+      const existingIds = new Set(prev.map(item => item.id));
+      const newItems = incoming.filter(item => !existingIds.has(item.id));
+      return [...newItems, ...prev];
+    };
+
+    const existingOrderIds = new Set(serviceOrders.map(o => o.id));
+    const ordersAdded = demo.serviceOrders.filter(o => !existingOrderIds.has(o.id)).length;
+    const existingReceiptIds = new Set(paymentReceipts.map(r => r.id));
+    const receiptsAdded = demo.paymentReceipts.filter(r => !existingReceiptIds.has(r.id)).length;
+
+    setClients(prev => mergeById(prev, demo.clients));
+    setSuppliers(prev => mergeById(prev, demo.suppliers));
+    setEmployees(prev => mergeById(prev, demo.employees));
+    setVehicles(prev => mergeById(prev, demo.vehicles));
+    setProducts(prev => mergeById(prev, demo.products));
+    setStockMovements(prev => mergeById(prev, demo.stockMovements));
+    setServiceOrders(prev => mergeById(prev, demo.serviceOrders));
+    setVehicleExpenses(prev => mergeById(prev, demo.vehicleExpenses));
+    setGeneralExpenses(prev => mergeById(prev, demo.generalExpenses));
+    setCashSessions(prev => mergeById(prev, demo.cashSessions));
+    setCashMovements(prev => mergeById(prev, demo.cashMovements));
+    setPaymentReceipts(prev => mergeById(prev, demo.paymentReceipts));
+    setServiceCatalog(prev => mergeById(prev, demo.serviceCatalog));
+    setAppointments(prev => mergeById(prev, demo.appointments));
+    setSelectedMonthYear('2026-11');
+
+    demo.clients.forEach(c => syncClientToCloud(c));
+    demo.suppliers.forEach(s => syncSupplierToCloud(s));
+    demo.products.forEach(p => syncProductToCloud(p));
+    demo.serviceOrders.forEach(o => syncOrderToCloud(o));
+    demo.appointments.forEach(a => syncAppointmentToCloud(a));
+    demo.cashSessions.forEach(cs => syncCashSessionToCloud(cs));
+    demo.cashMovements.forEach(cm => syncCashMovementToCloud(cm));
+    demo.paymentReceipts.forEach(pr => syncPaymentReceiptToCloud(pr));
+
+    broadcastSync('FULL');
+    addAuditLog(
+      'Carga de Exemplos de O.S.',
+      `Carregadas ${demo.serviceOrders.length} Ordens de Serviço de demonstração com custos, movimentações de estoque (entradas/saídas), despesas de viagem, caixa e recibos.`
+    );
+    return { ordersAdded, receiptsAdded };
   };
 
   // Google Agenda & Company Appointments Operations
@@ -3889,6 +3938,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         clearSampleAppointments,
         restoreSampleAppointments,
         clearAllSystemData,
+        loadDemoServiceOrdersData,
         resetToDefaults,
         getEmployeeById,
         getVehicleById,

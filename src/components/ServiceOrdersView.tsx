@@ -99,8 +99,14 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     currentRole,
     currentUser,
     appointments,
-    addAppointment
+    addAppointment,
+    stockMovements,
+    generalExpenses,
+    cashMovements,
+    loadDemoServiceOrdersData
   } = useApp();
+
+  const [demoLoadedMsg, setDemoLoadedMsg] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todas');
@@ -1652,17 +1658,50 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
           </p>
         </div>
 
-        {currentRole !== 'tecnico' && (
-          <button
-            onClick={handleOpenNewOS}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="md:hidden">Nova OS</span>
-            <span className="hidden md:inline">Nova Ordem de Serviço / Orçamento</span>
-          </button>
+        {currentRole !== 'tecnico' && currentRole !== 'cliente' && (
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                const res = loadDemoServiceOrdersData();
+                setDemoLoadedMsg(
+                  res.ordersAdded > 0
+                    ? `${res.ordersAdded} O.S. de exemplo carregadas com custos, estoque, entradas e saídas!`
+                    : 'As 5 O.S. de exemplo já estão carregadas na lista.'
+                );
+                setTimeout(() => setDemoLoadedMsg(null), 5000);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#53383e] bg-[#f6eff1] hover:bg-[#eadce0] border border-[#d8d8d8] rounded-lg cursor-pointer"
+              title="Carregar 5 Ordens de Serviço de exemplo com custos, estoque e fluxo financeiro"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Carregar Exemplos</span>
+            </button>
+            <button
+              onClick={handleOpenNewOS}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="md:hidden">Nova OS</span>
+              <span className="hidden md:inline">Nova Ordem de Serviço / Orçamento</span>
+            </button>
+          </div>
         )}
       </div>
+
+      {demoLoadedMsg && (
+        <div className="px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between gap-2">
+          <span>{demoLoadedMsg}</span>
+          <button
+            type="button"
+            onClick={() => setDemoLoadedMsg(null)}
+            className="text-emerald-700 hover:text-emerald-900 cursor-pointer"
+            aria-label="Fechar aviso"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-[#d8d8d8] shadow-xs">
@@ -1736,8 +1775,24 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       {/* Listagem em Linha Única (com Hover de Descrição) ou Grade em Cards */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         {filteredOrders.length === 0 ? (
-          <div className="py-10 px-4 text-center text-xs text-slate-400">
-            Nenhuma Ordem de Serviço encontrada com os filtros selecionados.
+          <div className="py-10 px-4 text-center space-y-3">
+            <p className="text-xs text-slate-500">
+              Nenhuma Ordem de Serviço encontrada com os filtros selecionados.
+            </p>
+            {serviceOrders.length === 0 && currentRole !== 'tecnico' && currentRole !== 'cliente' && (
+              <button
+                type="button"
+                onClick={() => {
+                  const res = loadDemoServiceOrdersData();
+                  setDemoLoadedMsg(`${res.ordersAdded} O.S. de exemplo carregadas com custos, estoque e caixa!`);
+                  setTimeout(() => setDemoLoadedMsg(null), 5000);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Gerar 5 O.S. de Exemplo (Custos, Entradas & Saídas)</span>
+              </button>
+            )}
           </div>
         ) : viewMode === 'list' ? (
           <div className="overflow-x-auto">
@@ -2261,6 +2316,120 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                     </div>
                   </div>
                 )}
+
+                {currentRole !== 'tecnico' && currentRole !== 'cliente' && (() => {
+                  const partsCostCmv = os.parts.reduce(
+                    (acc, p) => acc + Number(p.cost || 0) * Number(p.quantity || 1),
+                    0
+                  );
+                  const totalHours = os.services.reduce((acc, s) => acc + Number(s.hours || 0), 0);
+                  const hourlyRate = Number(os.kmDriven || 0) > 0 ? 85 : 75;
+                  const laborCost = totalHours * hourlyRate;
+                  const commissionCost =
+                    os.paymentStatus === 'pago' && srvTotal > 0
+                      ? Number(((srvTotal * ((tech?.commissionRate || 8) / 100))).toFixed(2))
+                      : 0;
+                  const kmCost = Number(os.kmDriven || 0) * 1.8;
+                  const linkedExpenses = generalExpenses.filter(
+                    ge => ge.invoiceNumber === os.code || ge.description.includes(os.code)
+                  );
+                  const linkedExpensesCost = linkedExpenses.reduce((acc, ge) => acc + Number(ge.cost || 0), 0);
+                  const cardFees = (os.payments || []).reduce((acc, p) => acc + Number(p.rateAmount || 0), 0);
+                  const estimatedTax = Number((grandTotal * 0.085).toFixed(2));
+                  const totalCostsAndExits =
+                    partsCostCmv + laborCost + commissionCost + kmCost + linkedExpensesCost + cardFees + estimatedTax;
+                  const paidViaReceipts = getPaidAmountForSource('os', os.id);
+                  const paidViaSplits = (os.payments || [])
+                    .filter(p => p.status === 'pago')
+                    .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+                  const cashReceived = Math.max(
+                    paidViaReceipts,
+                    paidViaSplits,
+                    os.paymentStatus === 'pago' ? grandTotal : 0
+                  );
+                  const pendingReceivable = Math.max(0, grandTotal - cashReceived);
+                  const netResult = grandTotal - totalCostsAndExits;
+                  const netMargin = grandTotal > 0 ? (netResult / grandTotal) * 100 : 0;
+                  const osStockMoves = stockMovements.filter(m => m.referenceDoc === os.code);
+                  const osCashMoves = cashMovements.filter(m => m.sourceId === os.id || m.sourceCode === os.code);
+
+                  return (
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                          Custos, Entradas & Saídas da O.S.
+                        </h4>
+                        <span
+                          className={`text-xs font-mono font-black px-2 py-0.5 rounded-md border ${
+                            netResult >= 0
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-rose-50 text-rose-800 border-rose-200'
+                          }`}
+                        >
+                          {netResult >= 0 ? 'LUCRO' : 'PREJUÍZO'}: {netResult >= 0 ? '+' : ''}
+                          {formatBRL(netResult)} ({netMargin >= 0 ? '+' : ''}
+                          {netMargin.toFixed(1)}%)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div className="bg-white border border-slate-200 rounded-lg p-2">
+                          <div className="text-[10px] text-slate-500 font-semibold">Entradas (Caixa)</div>
+                          <div className="font-mono font-bold text-emerald-700 tabular-nums">
+                            {formatBRL(cashReceived)}
+                          </div>
+                        </div>
+                        <div className="bg-white border border-slate-200 rounded-lg p-2">
+                          <div className="text-[10px] text-slate-500 font-semibold">A Receber</div>
+                          <div className="font-mono font-bold text-amber-700 tabular-nums">
+                            {formatBRL(pendingReceivable)}
+                          </div>
+                        </div>
+                        <div className="bg-white border border-slate-200 rounded-lg p-2">
+                          <div className="text-[10px] text-slate-500 font-semibold">Saída Estoque (CMV)</div>
+                          <div className="font-mono font-bold text-slate-800 tabular-nums">
+                            {formatBRL(partsCostCmv)}
+                          </div>
+                        </div>
+                        <div className="bg-white border border-slate-200 rounded-lg p-2">
+                          <div className="text-[10px] text-slate-500 font-semibold">Custos Totais</div>
+                          <div className="font-mono font-bold text-rose-700 tabular-nums">
+                            {formatBRL(totalCostsAndExits)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 bg-white border border-slate-200 rounded-lg p-2.5 font-mono tabular-nums">
+                        <div className="flex justify-between">
+                          <span>MO ({totalHours}h × {formatBRL(hourlyRate)}):</span>
+                          <span className="font-semibold text-slate-900">{formatBRL(laborCost)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Comissão Técnica:</span>
+                          <span className="font-semibold text-slate-900">{formatBRL(commissionCost)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Desloc. ({os.kmDriven || 0} km × R$ 1,80):</span>
+                          <span className="font-semibold text-slate-900">{formatBRL(kmCost)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Viagem / Terceiros / Taxas:</span>
+                          <span className="font-semibold text-slate-900">{formatBRL(linkedExpensesCost + cardFees)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Impostos Estimados (8,5%):</span>
+                          <span className="font-semibold text-slate-900">{formatBRL(estimatedTax)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Baixas Estoque / Mov. Caixa:</span>
+                          <span className="font-semibold text-slate-900">
+                            {osStockMoves.length} peça(s) · {osCashMoves.length} entrada(s)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {(() => {
                   const osReceipts = getReceiptsForSource('os', os.id);

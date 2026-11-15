@@ -79,6 +79,7 @@ export const SystemSettingsView: React.FC = () => {
     updateCardRate, 
     restoreDatabaseJson, 
     resetToDefaults,
+    loadDemoServiceOrdersData,
     clearAllSystemData,
     clients,
     products,
@@ -1931,11 +1932,13 @@ export const SystemSettingsView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm('Deseja recarregar a base de dados com todos os dados fictícios de exemplo (clientes, ordens de serviço, produtos e visitas)?')) {
-                    resetToDefaults();
-                    setFormData({ ...companySettings });
-                    setRestoreFeedback({ type: 'success', message: 'Dados fictícios de exemplo restaurados com sucesso!' });
-                  }
+                  resetToDefaults();
+                  loadDemoServiceOrdersData();
+                  setFormData({ ...companySettings });
+                  setRestoreFeedback({
+                    type: 'success',
+                    message: 'Dados de exemplo restaurados com sucesso! Foram carregadas 5 O.S. completas com custos, entradas/saídas de estoque, despesas e recibos.'
+                  });
                 }}
                 className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 title="Recarregar dados de exemplo padrão de fábrica"
@@ -1949,7 +1952,10 @@ export const SystemSettingsView: React.FC = () => {
                 type="button"
                 onClick={() => {
                   if (!restoreJsonInput.trim()) {
-                    alert('Cole o conteúdo JSON na caixa de texto abaixo ou selecione um arquivo de backup para executar a restauração.');
+                    setRestoreFeedback({
+                      type: 'error',
+                      message: 'Cole o conteúdo JSON na caixa de texto abaixo ou selecione um arquivo de backup para executar a restauração.'
+                    });
                     return;
                   }
                   const res = restoreDatabaseJson(restoreJsonInput);
