@@ -22,6 +22,7 @@ import { useApp, formatBRL } from '../context/AppContext';
 import { Supplier, GeneralExpense } from '../types';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
+import { RowHoverDetail } from './RowHoverDetail';
 
 export const SuppliersView: React.FC = () => {
   const { 
@@ -388,139 +389,164 @@ export const SuppliersView: React.FC = () => {
         </div>
       </div>
 
-      {/* Suppliers Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
-              <tr>
-                <th className="px-4 py-3">Fornecedor / Razão Social</th>
-                <th className="px-4 py-3">CNPJ</th>
-                <th className="px-4 py-3">Representante / Contato</th>
-                <th className="px-4 py-3">Contato Comercial</th>
-                <th className="px-4 py-3">Endereço & Localização</th>
-                <th className="px-4 py-3">Linha Fornecida & Obs</th>
-                <th className="px-4 py-3 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredSuppliers.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400">
-                    <Building className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                    Nenhum fornecedor encontrado para a busca realizada.
-                  </td>
-                </tr>
-              ) : (
-                paginatedSuppliers.map((supplier) => {
-                  const payables = getSupplierPayables(supplier.id);
-                  const cleanPhone = supplier.phone.replace(/\D/g, '');
+      {/* Suppliers Table: Compacta no Desktop + Hover Details & Cards no Mobile */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs">
+        {filteredSuppliers.length === 0 ? (
+          <div className="text-center py-12 text-xs text-slate-400">
+            <Building className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+            Nenhum fornecedor encontrado para a busca realizada.
+          </div>
+        ) : (
+          <>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Fornecedor</th>
+                    <th>CNPJ</th>
+                    <th>Telefone</th>
+                    <th>Cidade / UF</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="text-slate-700">
+                  {paginatedSuppliers.map((supplier) => {
+                    const payables = getSupplierPayables(supplier.id);
+                    const cleanPhone = supplier.phone.replace(/\D/g, '');
 
-                  return (
-                    <tr key={supplier.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-900">{supplier.name}</div>
-                        {supplier.tradeName && (
-                          <div className="text-[11px] text-slate-500 font-normal">
-                            Fantasia: {supplier.tradeName}
-                          </div>
-                        )}
-                        {payables.length > 0 && (
-                          <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                            {payables.length} {payables.length === 1 ? 'conta pendente' : 'contas pendentes'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-mono font-semibold text-slate-800">
-                        {supplier.cnpj}
-                      </td>
-                      <td className="px-4 py-3">
-                        {supplier.contactPerson ? (
-                          <div className="flex items-center gap-1.5 text-slate-800 font-medium">
-                            <UserCheck className="w-3.5 h-3.5 text-indigo-500" />
-                            <span>{supplier.contactPerson}</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 italic">Geral / Comercial</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5 text-slate-800">
-                          <Phone className="w-3 h-3 text-slate-400" />
-                          <span>{supplier.phone}</span>
-                          {cleanPhone && (
-                            <a
-                              href={`https://wa.me/55${cleanPhone}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-emerald-600 hover:text-emerald-700 ml-1 p-0.5 rounded hover:bg-emerald-50"
-                              title="Abrir WhatsApp Comercial"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                            </a>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-500 mt-1">
-                          <Mail className="w-3 h-3 text-slate-400" />
-                          <a href={`mailto:${supplier.email}`} className="hover:underline">
-                            {supplier.email}
-                          </a>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 text-slate-800 font-medium">
-                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span>{supplier.city} - {supplier.state}</span>
-                        </div>
-                        {supplier.street && (
-                          <div className="text-[11px] text-slate-500 mt-0.5 pl-4">
-                            {supplier.street}, {supplier.number || 'S/N'}
-                          </div>
-                        )}
-                        {supplier.cep && (
-                          <div className="text-[10px] text-slate-400 font-mono pl-4">
-                            CEP: {supplier.cep}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 max-w-xs">
-                        {supplier.notes ? (
-                          <div className="text-[11px] text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-100">
-                            {supplier.notes}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 italic text-[11px]">Nenhuma observação informada</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleOpenEdit(supplier)}
-                            className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                            title="Editar Cadastro"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Deseja realmente remover o fornecedor "${supplier.name}"?`)) {
-                                deleteSupplier(supplier.id);
+                    return (
+                      <tr key={supplier.id} className="dense-row">
+                        <td>
+                          <RowHoverDetail
+                            title={supplier.name}
+                            subtitle={supplier.tradeName ? `Fantasia: ${supplier.tradeName}` : undefined}
+                            badge={payables.length > 0 ? `${payables.length} pend.` : undefined}
+                            badgeClassName="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800"
+                            fields={[
+                              { label: 'CNPJ', value: supplier.cnpj },
+                              ...(supplier.contactPerson ? [{ label: 'Representante', value: supplier.contactPerson }] : []),
+                              { label: 'Telefone', value: supplier.phone },
+                              ...(supplier.email ? [{ label: 'E-mail', value: supplier.email }] : []),
+                              {
+                                label: 'Endereço',
+                                value: `${supplier.street || 'N/A'}, ${supplier.number || 'S/N'} · ${supplier.city}/${supplier.state}${supplier.cep ? ` · CEP ${supplier.cep}` : ''}`
                               }
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
-                            title="Excluir Fornecedor"
+                            ]}
+                            footer={supplier.notes ? `Obs.: ${supplier.notes}` : undefined}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900 truncate max-w-[260px]">
+                                {supplier.name}
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate max-w-[260px]">
+                                {supplier.tradeName || supplier.contactPerson || 'Comercial'}
+                                {payables.length > 0 ? ` · ${payables.length} conta(s)` : ''}
+                              </div>
+                            </div>
+                          </RowHoverDetail>
+                        </td>
+
+                        <td className="font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap tabular-nums">
+                          {supplier.cnpj}
+                        </td>
+
+                        <td className="whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5 font-mono text-[11px] text-slate-800">
+                            <span>{supplier.phone}</span>
+                            {cleanPhone && (
+                              <a
+                                href={`https://wa.me/55${cleanPhone}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-emerald-600 hover:text-emerald-700 p-1 rounded hover:bg-emerald-50"
+                                title="Abrir WhatsApp Comercial"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="text-slate-600 whitespace-nowrap">
+                          {supplier.city} - {supplier.state}
+                        </td>
+
+                        <td className="text-right whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenEdit(supplier)}
+                              className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                              title="Editar Cadastro"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Deseja realmente remover o fornecedor "${supplier.name}"?`)) {
+                                  deleteSupplier(supplier.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                              title="Excluir Fornecedor"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards Stack */}
+            <div className="md:hidden p-3 space-y-2.5">
+              {paginatedSuppliers.map((supplier) => {
+                const payables = getSupplierPayables(supplier.id);
+                const cleanPhone = supplier.phone.replace(/\D/g, '');
+                return (
+                  <div key={supplier.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-sm">{supplier.name}</div>
+                        <div className="font-mono text-[11px] text-slate-500">{supplier.cnpj}</div>
+                      </div>
+                      {payables.length > 0 && (
+                        <span className="text-[11px] font-semibold text-amber-700 shrink-0">
+                          {payables.length} pend.
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                      <span>{supplier.phone} · {supplier.city}/{supplier.state}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {cleanPhone && (
+                          <a
+                            href={`https://wa.me/55${cleanPhone}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"
+                            title="WhatsApp"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => handleOpenEdit(supplier)}
+                          className="p-2 text-slate-700 bg-slate-100 rounded-lg"
+                          title="Editar"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* Paginação da Tabela de Fornecedores */}
         <TablePagination

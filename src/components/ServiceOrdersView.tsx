@@ -99,6 +99,11 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todas');
   const [selectedOSForDetail, setSelectedOSForDetail] = useState<ServiceOrder | null>(null);
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpandOrder = (orderId: string) => {
+    setExpandedOrderIds(prev => ({ ...prev, [orderId]: !prev[orderId] }));
+  };
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -1504,22 +1509,22 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
     return filteredOrders.slice(start, start + itemsPerPage);
   }, [filteredOrders, currentPage, itemsPerPage]);
 
-  const getStatusBadge = (st: ServiceOrderStatus) => {
+  const getCompactStatusMeta = (st: ServiceOrderStatus) => {
     switch (st) {
       case 'orcamento_aberto':
-        return <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-indigo-100 text-indigo-800">Orçamento Aberto</span>;
+        return { label: 'Orçamento', className: 'text-indigo-700' };
       case 'aguardando_aprovacao':
-        return <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-amber-100 text-amber-800">Aguardando Aprovação</span>;
+        return { label: 'Aprovação', className: 'text-amber-700' };
       case 'aprovada_em_andamento':
-        return <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-blue-100 text-blue-800">Aprovada / Em Andamento</span>;
+        return { label: 'Em Andamento', className: 'text-blue-700' };
       case 'aguardando_pecas':
-        return <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-purple-100 text-purple-800">Aguardando Peças</span>;
+        return { label: 'Aguard. Peças', className: 'text-purple-700' };
       case 'concluida_aguardando_retirada':
-        return <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-cyan-100 text-cyan-800">Concluída / Aguardando Retirada</span>;
+        return { label: 'Concluída', className: 'text-cyan-700' };
       case 'entregue_finalizada':
-        return <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800">Entregue / Finalizada</span>;
+        return { label: 'Finalizada', className: 'text-emerald-700' };
       case 'cancelada':
-        return <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-rose-100 text-rose-800">Cancelada</span>;
+        return { label: 'Cancelada', className: 'text-rose-700' };
     }
   };
 
@@ -1615,364 +1620,556 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         </div>
       </div>
 
-      {/* Orders Table */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold select-none">
-              <tr>
-                {/* 1. Código (Abreviado de Código / Status) */}
-                <th 
-                  className="py-3 px-4 cursor-help group relative"
-                  title="Código: Código único da Ordem de Serviço e status operacional de andamento"
-                >
-                  <div className="inline-flex items-center gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
-                    <span>Código</span>
-                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
-                  </div>
-                  <div className="hidden group-hover:block absolute left-2 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none">
-                    <p className="font-semibold text-blue-300">Código / Status Operacional</p>
-                    <p className="text-slate-300 text-[10px]">Número da OS, orçamento ou venda com badge de andamento</p>
-                  </div>
-                </th>
+      {/* Orders Listing: Desktop Linha Única Compacta + Mobile Cards Empilhados */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
+        {filteredOrders.length === 0 ? (
+          <div className="py-10 px-4 text-center text-xs text-slate-400">
+            Nenhuma Ordem de Serviço encontrada com os filtros selecionados.
+          </div>
+        ) : (
+          <>
+            {/* DESKTOP VIEW: Tabela em Linha Única Compacta + Card Expansível (+) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>ID Curto</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                    <th>Cliente / Responsável</th>
+                    <th className="text-right">
+                      {currentRole === 'tecnico' ? 'Diária / A Receber' : 'Total OS'}
+                    </th>
+                    <th className="text-right">Ações & Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedOrders.map(os => {
+                    const tech = employees.find(e => e.id === os.employeeId);
+                    const veh = vehicles.find(v => v.id === os.vehicleId);
+                    const srvTotal = os.services.reduce((a, b) => a + Number(b.price || 0), 0);
+                    const prtTotal = os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
+                    const grandTotal = srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
 
-                {/* 2. Cliente (Abreviado de Cliente / Equipamento) */}
-                <th 
-                  className="py-3 px-4 cursor-help group relative"
-                  title="Cliente: Dados do cliente solicitante, endereço do atendimento e equipamento em manutenção"
-                >
-                  <div className="inline-flex items-center gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
-                    <span>Cliente</span>
-                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
-                  </div>
-                  <div className="hidden group-hover:block absolute left-4 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none">
-                    <p className="font-semibold text-blue-300">Cliente / Equipamento & Local</p>
-                    <p className="text-slate-300 text-[10px]">Nome do cliente, modelo do equipamento e defeito relatado</p>
-                  </div>
-                </th>
+                    const techRate = (tech?.commissionRate || 8) / 100;
+                    const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
+                    const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
 
-                {/* 3. Técnico (Abreviado de Técnico / Frota) */}
-                <th 
-                  className="py-3 px-3 cursor-help group relative"
-                  title="Técnico: Técnico responsável alocado para a execução e veículo/frota da empresa"
-                >
-                  <div className="inline-flex items-center gap-1 border-b border-dotted border-slate-400 group-hover:border-slate-800 transition-colors">
-                    <span>Técnico</span>
-                    <span className="text-[10px] text-slate-400 font-normal">ⓘ</span>
-                  </div>
-                  <div className="hidden group-hover:block absolute left-3 top-full mt-1.5 z-40 bg-slate-900 text-white text-[11px] font-normal py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap pointer-events-none">
-                    <p className="font-semibold text-blue-300">Técnico / Frota Alocada</p>
-                    <p className="text-slate-300 text-[10px]">Colaborador em campo, placa do veículo e quilometragem</p>
-                  </div>
-                </th>
+                    const todayIso = new Date().toISOString().split('T')[0];
+                    const isUnderWarranty = Boolean(
+                      os.warrantyExpiresAt &&
+                      os.warrantyExpiresAt >= todayIso &&
+                      Number(os.warrantyPeriodDays) > 0
+                    );
+                    const diffMs = os.warrantyExpiresAt ? new Date(os.warrantyExpiresAt).getTime() - new Date(todayIso).getTime() : 0;
+                    const warrantyDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 
-                {currentRole === 'tecnico' ? (
-                  <>
-                    <th className="py-3 px-3">Serviços a Realizar</th>
-                    <th className="py-3 px-4 text-right font-bold text-slate-900">Diária / A Receber</th>
-                  </>
-                ) : (
-                  <>
-                    <th className="py-3 px-3 text-right">Serviços</th>
-                    <th className="py-3 px-3 text-right">Peças</th>
-                    <th className="py-3 px-4 text-right font-bold text-slate-900">Total OS</th>
-                  </>
-                )}
-                <th className="py-3 px-3 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-sans">
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={currentRole === 'tecnico' ? 6 : 7} className="py-8 text-center text-slate-400">
-                    Nenhuma Ordem de Serviço encontrada com os filtros selecionados.
-                  </td>
-                </tr>
-              ) : (
-                paginatedOrders.map(os => {
-                  const tech = employees.find(e => e.id === os.employeeId);
-                  const veh = vehicles.find(v => v.id === os.vehicleId);
-                  const srvTotal = os.services.reduce((a, b) => a + Number(b.price || 0), 0);
-                  const prtTotal = os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
-                  const grandTotal = srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
+                    const statusMeta = getCompactStatusMeta(os.status);
+                    const isExpanded = Boolean(expandedOrderIds[os.id]);
 
-                  // Remuneração técnica (comissão sobre serviços executados + percentual de diária de visita)
-                  const techRate = (tech?.commissionRate || 8) / 100;
-                  const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
+                    return (
+                      <React.Fragment key={os.id}>
+                        <tr className={`os-compact-row ${isExpanded ? 'is-expanded' : ''}`}>
+                          {/* 1. ID Curto */}
+                          <td className="font-mono font-bold text-[#53383e] whitespace-nowrap">
+                            {os.code}
+                          </td>
 
-                  const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
+                          {/* 2. Status compacto */}
+                          <td className={`whitespace-nowrap font-semibold ${statusMeta.className}`}>
+                            {statusMeta.label}
+                          </td>
 
-                  const todayIso = new Date().toISOString().split('T')[0];
-                  const isUnderWarranty = Boolean(
-                    os.warrantyExpiresAt && 
-                    os.warrantyExpiresAt >= todayIso && 
-                    Number(os.warrantyPeriodDays) > 0
-                  );
-                  const diffMs = os.warrantyExpiresAt ? new Date(os.warrantyExpiresAt).getTime() - new Date(todayIso).getTime() : 0;
-                  const warrantyDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+                          {/* 3. Data abreviada */}
+                          <td className="font-mono text-slate-600 whitespace-nowrap tabular-nums">
+                            {formatDateBR(os.openDate)}
+                          </td>
 
-                  return (
-                    <tr key={os.id} className="hover:bg-slate-50 transition-colors">
-                      {/* Código */}
-                      <td 
-                        className="py-3 px-4 font-mono"
-                        title={`OS: ${os.code} · Abertura: ${formatDateBR(os.openDate)} · Status: ${os.status.replace(/_/g, ' ')}`}
-                      >
-                        <div className="font-bold text-blue-600">{os.code}</div>
-                        <div className="mt-1">{getStatusBadge(os.status)}</div>
-                      </td>
+                          {/* 4. Nome Completo do Cliente (sem cortes / truncate) */}
+                          <td className="text-slate-900 font-semibold whitespace-normal break-words">
+                            {os.clientName}
+                          </td>
 
-                      {/* Cliente com alta visibilidade e Card de Garantia Condicional */}
-                      <td 
-                        className="py-3.5 px-4"
-                        title={`Cliente: ${os.clientName} | Fone: ${os.clientPhone || 'N/A'}\nEndereço: ${os.clientAddress || 'N/A'}\nEquipamento: ${os.equipmentType || 'N/A'}\nDefeito: ${os.description || 'N/A'}`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-900 font-bold flex items-center justify-center shrink-0 text-xs border border-blue-200 mt-0.5">
-                            {os.clientName ? os.clientName.charAt(0).toUpperCase() : 'C'}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-slate-950 text-sm tracking-tight">{os.clientName}</span>
-                              {os.clientDocument && (
-                                <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
-                                  {os.clientDocument}
-                                </span>
-                              )}
+                          {/* 5. Valor Total */}
+                          <td className="text-right font-mono font-bold text-emerald-700 whitespace-nowrap tabular-nums">
+                            {currentRole === 'tecnico' ? formatBRL(techEarnings) : formatBRL(grandTotal)}
+                          </td>
+
+                          {/* 6. Ações rápidas + Card Expansível (+) */}
+                          <td className="text-right whitespace-nowrap">
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPDV(os)}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${
+                                  os.paymentStatus === 'pago'
+                                    ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                                    : 'bg-[#53383e] hover:bg-[#432c32] text-white'
+                                }`}
+                                title="Cobrar e enviar fatura ao PDV / Frente de Caixa"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>{os.paymentStatus === 'pago' ? 'Pago' : 'PDV'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandOrder(os.id)}
+                                aria-expanded={isExpanded}
+                                aria-controls={`os-drawer-${os.id}`}
+                                className="os-expand-card-btn"
+                                title={isExpanded ? 'Recolher detalhes da O.S.' : 'Expandir detalhes da O.S.'}
+                              >
+                                {isExpanded ? '−' : '+'}
+                              </button>
                             </div>
+                          </td>
+                        </tr>
 
-                            <div className="flex items-center gap-3 text-xs text-slate-600 mt-1 flex-wrap">
-                              {os.clientPhone && (
-                                <span className="inline-flex items-center gap-1 font-mono text-[11px] text-blue-700 font-semibold bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200/60">
-                                  <Smartphone className="w-3 h-3 text-blue-600" />
-                                  {os.clientPhone}
-                                </span>
-                              )}
-                              {os.clientAddress && (
-                                <span className="inline-flex items-center gap-1 text-[11px] text-slate-600 truncate max-w-xs" title={os.clientAddress}>
-                                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                                  <span className="truncate">{os.clientAddress}</span>
-                                </span>
-                              )}
-                            </div>
+                        {/* Gaveta Expansível Inline da Ordem de Serviço */}
+                        {isExpanded && (
+                          <tr id={`os-drawer-${os.id}`}>
+                            <td colSpan={6} className="os-expanded-drawer">
+                              <div className="space-y-4">
+                                {/* Cabeçalho Técnico & Contato */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                                  <div>
+                                    <div className="text-[11px] font-semibold text-slate-500">Cliente & Contato</div>
+                                    <div className="font-bold text-slate-900 mt-0.5">{os.clientName}</div>
+                                    <div className="text-slate-600 mt-0.5">
+                                      {os.clientPhone || 'Sem telefone'}
+                                      {os.clientDocument ? ` · ${os.clientDocument}` : ''}
+                                    </div>
+                                    {os.clientAddress && (
+                                      <div className="text-[11px] text-slate-500 mt-0.5">{os.clientAddress}</div>
+                                    )}
+                                  </div>
 
-                            {os.equipmentType && (
-                              <div className="mt-1.5 text-xs text-slate-800 font-medium bg-slate-100/90 rounded-md px-2 py-1 inline-flex items-center gap-1.5 border border-slate-200/80">
-                                <span className="text-slate-500 font-semibold text-[10px] uppercase tracking-wider">Aparelho:</span>
-                                <span>{os.equipmentType}</span>
-                              </div>
-                            )}
+                                  <div>
+                                    <div className="text-[11px] font-semibold text-slate-500">Técnico & Deslocamento</div>
+                                    <div className="font-semibold text-slate-900 mt-0.5">{tech?.name || 'Não alocado'}</div>
+                                    <div className="text-slate-600 font-mono text-[11px] mt-0.5">
+                                      {veh ? `${veh.model} (${veh.plate})` : 'Sem veículo'} · {os.kmDriven} km
+                                    </div>
+                                    {os.forecastDate && (
+                                      <div className="text-[11px] text-slate-500 mt-0.5">
+                                        Previsão: {formatDateBR(os.forecastDate)}
+                                      </div>
+                                    )}
+                                  </div>
 
-                            {os.description && (
-                              <div className="text-[11px] text-slate-500 mt-1 line-clamp-1 italic">
-                                Defeito relatado: "{os.description}"
-                              </div>
-                            )}
+                                  <div>
+                                    <div className="text-[11px] font-semibold text-slate-500">Equipamento & Garantia</div>
+                                    <div className="font-semibold text-slate-900 mt-0.5">
+                                      {os.equipmentType || 'Atendimento / Inspeção Técnica'}
+                                    </div>
+                                    {(os.equipmentModel || os.equipmentSerial) && (
+                                      <div className="text-[11px] text-slate-600 font-mono mt-0.5">
+                                        {os.equipmentModel ? `${os.equipmentModel} ` : ''}
+                                        {os.equipmentSerial ? `S/N: ${os.equipmentSerial}` : ''}
+                                      </div>
+                                    )}
+                                    {isUnderWarranty && (
+                                      <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                                        <ShieldCheck className="w-3.5 h-3.5" />
+                                        <span>
+                                          Garantia ativa · {warrantyDaysRemaining} {warrantyDaysRemaining === 1 ? 'dia' : 'dias'} (até {formatDateBR(os.warrantyExpiresAt!)})
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
 
-                            {/* CARD DE GARANTIA ATIVA (Aparece SOMENTE quando em garantia; quando fora da garantia NÃO aparece) */}
-                            {isUnderWarranty ? (
-                              <div className="mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-950 text-xs shadow-2xs">
-                                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-emerald-900">Em Garantia</span>
-                                  <span className="text-emerald-400">·</span>
-                                  <span className="bg-emerald-200/80 text-emerald-950 px-1.5 py-0.5 rounded text-[11px] font-bold">
-                                    {warrantyDaysRemaining} {warrantyDaysRemaining === 1 ? 'dia restante' : 'dias restantes'}
-                                  </span>
-                                  <span className="text-emerald-700 text-[11px]">
-                                    (válida até {formatDateBR(os.warrantyExpiresAt!)})
-                                  </span>
-                                  {os.equipmentSerial && (
-                                    <span className="font-mono text-[10px] font-bold bg-white text-emerald-900 border border-emerald-300 px-1.5 py-0.5 rounded">
-                                      S/N: {os.equipmentSerial}
-                                    </span>
+                                  <div>
+                                    <div className="text-[11px] font-semibold text-slate-500">Resumo Financeiro</div>
+                                    {currentRole === 'tecnico' ? (
+                                      <div className="font-mono font-bold text-emerald-700 text-sm mt-0.5">
+                                        {formatBRL(techEarnings)} <span className="text-[11px] font-sans font-normal text-slate-500">(Diária + Comissão)</span>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-0.5 font-mono text-[11px] mt-0.5 tabular-nums">
+                                        <div className="flex justify-between gap-2 text-slate-600">
+                                          <span>Serviços:</span>
+                                          <span>{formatBRL(srvTotal)}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-2 text-slate-600">
+                                          <span>Peças:</span>
+                                          <span>{formatBRL(prtTotal)}</span>
+                                        </div>
+                                        {Number(os.visitFee || 0) > 0 && (
+                                          <div className="flex justify-between gap-2 text-slate-600">
+                                            <span>Visita:</span>
+                                            <span>{formatBRL(os.visitFee)}</span>
+                                          </div>
+                                        )}
+                                        {os.calculatedDiscount > 0 && (
+                                          <div className="flex justify-between gap-2 text-rose-600">
+                                            <span>Desconto:</span>
+                                            <span>-{formatBRL(os.calculatedDiscount)}</span>
+                                          </div>
+                                        )}
+                                        <div className="flex justify-between gap-2 font-bold text-emerald-700 pt-1 border-t border-slate-200">
+                                          <span>Total:</span>
+                                          <span>{formatBRL(grandTotal)}</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Descrição Técnica, Serviços e Peças */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-3 border-t border-slate-200 text-xs">
+                                  <div>
+                                    <div className="text-[11px] font-semibold text-slate-500 mb-1">Descrição Técnica / Defeito</div>
+                                    <p className="text-slate-700 leading-relaxed">
+                                      {os.description || 'Nenhuma descrição técnica informada.'}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <div className="text-[11px] font-semibold text-slate-500 mb-1">
+                                      Serviços ({os.services.length})
+                                    </div>
+                                    {os.services.length === 0 ? (
+                                      <p className="text-slate-400">Nenhum serviço listado.</p>
+                                    ) : (
+                                      <ul className="space-y-1 text-[11px] text-slate-700">
+                                        {os.services.map((srv, idx) => (
+                                          <li key={srv.id || idx} className="flex justify-between gap-2">
+                                            <span className="truncate">{srv.name}</span>
+                                            {currentRole !== 'tecnico' && (
+                                              <span className="font-mono font-semibold shrink-0 tabular-nums">{formatBRL(srv.price)}</span>
+                                            )}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <div className="text-[11px] font-semibold text-slate-500 mb-1">
+                                      Peças Utilizadas ({os.parts.length})
+                                    </div>
+                                    {os.parts.length === 0 ? (
+                                      <p className="text-slate-400">Nenhuma peça aplicada.</p>
+                                    ) : (
+                                      <ul className="space-y-1 text-[11px] text-slate-700">
+                                        {os.parts.map((prt, idx) => (
+                                          <li key={prt.id || idx} className="flex justify-between gap-2">
+                                            <span className="truncate">{prt.quantity}x {prt.name}</span>
+                                            {currentRole !== 'tecnico' && (
+                                              <span className="font-mono font-semibold shrink-0 tabular-nums">
+                                                {formatBRL(Number(prt.price || 0) * Number(prt.quantity || 1))}
+                                              </span>
+                                            )}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Histórico / Pagamentos Programados */}
+                                {os.payments && os.payments.length > 0 && currentRole !== 'tecnico' && (
+                                  <div className="pt-3 border-t border-slate-200 text-[11px] text-slate-700 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                    <span className="font-semibold text-slate-500">Pagamentos / Parcelas:</span>
+                                    {os.payments.map((p, idx) => (
+                                      <span key={p.id || idx} className="font-mono tabular-nums">
+                                        {p.entryType === 'entrada' ? 'Entrada' : `P${idx + 1}`} ({p.method.replace('_', ' ')}):{' '}
+                                        <strong>{formatBRL(p.amount)}</strong>
+                                        {p.dueDate ? ` · Venc. ${formatDateBR(p.dueDate)}` : ''}
+                                        {p.status === 'pago' ? ' (Pago)' : ' (Pendente)'}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Barra de Ações Completas da O.S. */}
+                                <div className="pt-3 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedOSForDetail(os)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-md cursor-pointer"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                      <span>Ficha Completa</span>
+                                    </button>
+
+                                    {currentRole !== 'tecnico' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEdit(os)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-[#363739] bg-white hover:bg-slate-100 border border-slate-300 rounded-md cursor-pointer"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                        <span>Editar</span>
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePrintOS(os)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-slate-300 rounded-md cursor-pointer"
+                                    >
+                                      <Printer className="w-3.5 h-3.5" />
+                                      <span>Imprimir</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadOS(os)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-slate-300 rounded-md cursor-pointer"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                      <span>Baixar</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleScheduleOSInCalendar(os)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-purple-700 bg-white hover:bg-purple-50 border border-purple-200 rounded-md cursor-pointer"
+                                    >
+                                      <Calendar className="w-3.5 h-3.5" />
+                                      <span>Agendar</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenWhatsAppForOS(os)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-md cursor-pointer"
+                                    >
+                                      <MessageSquare className="w-3.5 h-3.5" />
+                                      <span>WhatsApp</span>
+                                    </button>
+
+                                    {isBudget && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (confirm(`Deseja aprovar e converter o orçamento ${os.code} em Ordem de Serviço em Execução?`)) {
+                                            convertBudgetToOrderOrSale(os.id, 'os_aprovada');
+                                          }
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-md cursor-pointer"
+                                      >
+                                        <ArrowRightCircle className="w-3.5 h-3.5" />
+                                        <span>Aprovar OS</span>
+                                      </button>
+                                    )}
+
+                                    {!os.signature && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSignOrder(os);
+                                          setSignerName(os.clientName);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-white hover:bg-amber-50 border border-amber-200 rounded-md cursor-pointer"
+                                      >
+                                        <PenTool className="w-3.5 h-3.5" />
+                                        <span>Assinar</span>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {currentRole === 'admin' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (confirm(`Excluir a OS ${os.code}?`)) {
+                                          deleteServiceOrder(os.id);
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>Excluir</span>
+                                    </button>
                                   )}
                                 </div>
                               </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-                      {/* Técnico */}
-                      <td 
-                        className="py-3 px-3"
-                        title={`Técnico Responsável: ${tech?.name || 'Não alocado'}\nVeículo: ${veh ? `${veh.model} - ${veh.plate}` : 'Sem veículo'}\nKM Deslocamento: ${os.kmDriven} km`}
+            {/* MOBILE VIEW: Cards Empilhados sem Scroll Horizontal */}
+            <div className="md:hidden p-3 os-mobile-stack">
+              {paginatedOrders.map(os => {
+                const tech = employees.find(e => e.id === os.employeeId);
+                const veh = vehicles.find(v => v.id === os.vehicleId);
+                const srvTotal = os.services.reduce((a, b) => a + Number(b.price || 0), 0);
+                const prtTotal = os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
+                const grandTotal = srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
+                const techRate = (tech?.commissionRate || 8) / 100;
+                const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
+                const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
+                const statusMeta = getCompactStatusMeta(os.status);
+                const isExpanded = Boolean(expandedOrderIds[os.id]);
+
+                return (
+                  <div key={os.id} className={`os-mobile-card ${isExpanded ? 'is-expanded border-[#53383e]/40' : ''}`}>
+                    {/* Topo compacto do card: ID · Data · Status */}
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <div className="flex items-center gap-1.5 font-mono tabular-nums">
+                        <span className="font-bold text-[#53383e]">{os.code}</span>
+                        <span aria-hidden="true" className="text-slate-300">·</span>
+                        <span className="text-slate-500">{formatDateBR(os.openDate)}</span>
+                      </div>
+                      <span className={`font-semibold ${statusMeta.className}`}>{statusMeta.label}</span>
+                    </div>
+
+                    {/* Nome Completo do Cliente + Botão Card (+) */}
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-bold text-slate-900 leading-snug break-words">
+                          {os.clientName}
+                        </div>
+                        <div className="text-xs font-mono font-bold text-emerald-700 mt-1 tabular-nums">
+                          {currentRole === 'tecnico' ? formatBRL(techEarnings) : formatBRL(grandTotal)}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandOrder(os.id)}
+                        aria-expanded={isExpanded}
+                        aria-controls={`os-mobile-drawer-${os.id}`}
+                        className="os-expand-card-btn"
+                        title={isExpanded ? 'Recolher detalhes da O.S.' : 'Expandir detalhes da O.S.'}
                       >
-                        <div className="text-slate-800 font-medium">{tech?.name || 'Não alocado'}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          {veh ? `${veh.plate} (${os.kmDriven} km)` : 'Sem veículo'}
+                        {isExpanded ? '−' : '+'}
+                      </button>
+                    </div>
+
+                    {/* Gaveta Expansível Mobile */}
+                    {isExpanded && (
+                      <div id={`os-mobile-drawer-${os.id}`} className="mt-3 pt-3 border-t border-slate-200 space-y-3 text-xs">
+                        <div>
+                          <div className="text-[11px] font-semibold text-slate-500">Técnico & Aparelho</div>
+                          <div className="font-medium text-slate-800 mt-0.5">
+                            {tech?.name || 'Não alocado'}{veh ? ` · ${veh.plate} (${os.kmDriven} km)` : ''}
+                          </div>
+                          {os.equipmentType && (
+                            <div className="text-slate-600 mt-0.5">{os.equipmentType}</div>
+                          )}
                         </div>
-                      </td>
 
-                      {currentRole === 'tecnico' ? (
-                        <>
-                          <td className="py-3 px-3 text-xs text-slate-700 max-w-xs">
-                            <div className="font-medium truncate">
-                              {os.services.length > 0 ? os.services.map(s => s.name).join(', ') : 'Manutenção / Inspeção Geral'}
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              {os.services.reduce((acc, s) => acc + (s.hours || 1), 0)}h estimadas
-                            </div>
-                          </td>
+                        {os.description && (
+                          <div>
+                            <div className="text-[11px] font-semibold text-slate-500">Descrição Técnica</div>
+                            <p className="text-slate-700 mt-0.5">{os.description}</p>
+                          </div>
+                        )}
 
-                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
-                            {formatBRL(techEarnings)}
-                            <div className="text-[10px] text-slate-500 font-normal">
-                              Diária + Comis.
-                            </div>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="py-3 px-3 text-right font-mono text-slate-700" title={`Mão de obra e serviços: ${formatBRL(srvTotal)}`}>
-                            {formatBRL(srvTotal)}
-                          </td>
-
-                          <td className="py-3 px-3 text-right font-mono text-slate-500" title={`Peças e insumos aplicados: ${formatBRL(prtTotal)}`}>
-                            {formatBRL(prtTotal)}
-                          </td>
-
-                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700" title={`Valor Total da OS: ${formatBRL(grandTotal)}`}>
-                            {formatBRL(grandTotal)}
-                            {os.calculatedDiscount > 0 && (
-                              <div className="text-[10px] text-rose-600 font-normal">
-                                Desc: -{formatBRL(os.calculatedDiscount)}
+                        {(os.services.length > 0 || os.parts.length > 0) && (
+                          <div className="grid grid-cols-1 gap-2">
+                            {os.services.length > 0 && (
+                              <div>
+                                <div className="text-[11px] font-semibold text-slate-500">Serviços</div>
+                                <ul className="mt-0.5 space-y-0.5 text-[11px] text-slate-700">
+                                  {os.services.map((srv, i) => (
+                                    <li key={srv.id || i} className="flex justify-between gap-2">
+                                      <span>{srv.name}</span>
+                                      {currentRole !== 'tecnico' && (
+                                        <span className="font-mono tabular-nums">{formatBRL(srv.price)}</span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
                               </div>
                             )}
-                          </td>
-                        </>
-                      )}
+                            {os.parts.length > 0 && (
+                              <div>
+                                <div className="text-[11px] font-semibold text-slate-500">Peças</div>
+                                <ul className="mt-0.5 space-y-0.5 text-[11px] text-slate-700">
+                                  {os.parts.map((prt, i) => (
+                                    <li key={prt.id || i} className="flex justify-between gap-2">
+                                      <span>{prt.quantity}x {prt.name}</span>
+                                      {currentRole !== 'tecnico' && (
+                                        <span className="font-mono tabular-nums">
+                                          {formatBRL(Number(prt.price || 0) * Number(prt.quantity || 1))}
+                                        </span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1 flex-wrap">
-                          {/* 1. Cobrar (Mandar fatura ao PDV) */}
+                        <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-2">
                           <button
+                            type="button"
                             onClick={() => handleOpenPDV(os)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md shadow-2xs transition-all cursor-pointer ${
-                              os.paymentStatus === 'pago'
-                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
-                                : 'bg-[#53383e] hover:bg-[#432c32] text-white border border-[#53383e]'
-                            }`}
-                            title="Cobrar e enviar fatura ao PDV / Frente de Caixa"
+                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg bg-[#53383e] text-white"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
                             <span>{os.paymentStatus === 'pago' ? 'PDV Pago' : 'Cobrar (PDV)'}</span>
                           </button>
-
-                          {/* 2. Editar */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOSForDetail(os)}
+                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-slate-300 rounded-lg text-slate-700 bg-white"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Ficha</span>
+                          </button>
                           {currentRole !== 'tecnico' && (
                             <button
+                              type="button"
                               onClick={() => handleOpenEdit(os)}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-[#363739] hover:text-[#53383e] hover:bg-[#d8d8d8]/50 border border-[#d8d8d8] rounded-md transition-colors cursor-pointer"
-                              title="Editar Ordem de Serviço, Itens e Garantia"
+                              className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-slate-300 rounded-lg text-slate-700 bg-white"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
-                              <span className="hidden xl:inline">Editar</span>
+                              <span>Editar</span>
                             </button>
                           )}
-
-                          {/* 3. Imprimir */}
                           <button
+                            type="button"
                             onClick={() => handlePrintOS(os)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-[#363739] hover:text-blue-700 hover:bg-blue-50 border border-[#d8d8d8] rounded-md transition-colors cursor-pointer"
-                            title="Imprimir Ordem de Serviço e Termo de Garantia"
+                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-slate-300 rounded-lg text-blue-700 bg-white"
                           >
                             <Printer className="w-3.5 h-3.5" />
-                            <span className="hidden xl:inline">Imprimir</span>
+                            <span>Imprimir</span>
                           </button>
-
-                          {/* 4. Baixar (Download de Fatura/Recibo) */}
                           <button
-                            onClick={() => handleDownloadOS(os)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-[#363739] hover:text-emerald-700 hover:bg-emerald-50 border border-[#d8d8d8] rounded-md transition-colors cursor-pointer"
-                            title="Baixar Fatura e Comprovante em HTML/PDF"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span className="hidden xl:inline">Baixar</span>
-                          </button>
-
-                          {/* 5. Agendar no Google Agenda */}
-                          <button
-                            onClick={() => handleScheduleOSInCalendar(os)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-purple-700 hover:text-purple-900 hover:bg-purple-50 border border-purple-200 rounded-md transition-colors cursor-pointer"
-                            title="Agendar atendimento desta OS no Google Agenda"
-                          >
-                            <Calendar className="w-3.5 h-3.5 text-purple-600" />
-                            <span className="hidden xl:inline">Agendar</span>
-                          </button>
-
-                          {/* 6. WhatsApp */}
-                          <button
+                            type="button"
                             onClick={() => handleOpenWhatsAppForOS(os)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 border border-emerald-300 rounded-md transition-colors cursor-pointer"
-                            title="Enviar orçamento, status ou comprovante desta OS pelo WhatsApp"
+                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-emerald-300 rounded-lg text-emerald-700 bg-white"
                           >
-                            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                            <span className="hidden xl:inline">WhatsApp</span>
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>WhatsApp</span>
                           </button>
-
-                          {/* Ver Detalhes */}
-                          <button
-                            onClick={() => setSelectedOSForDetail(os)}
-                            className="p-1.5 text-[#707174] hover:text-[#363739] hover:bg-[#d8d8d8]/40 rounded-md transition-colors cursor-pointer"
-                            title="Visualizar laudo técnico, fotos e detalhes completos"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-
-                          {/* Conversão rápida de Orçamento em Venda ou OS Aprovada */}
                           {isBudget && (
                             <button
+                              type="button"
                               onClick={() => {
                                 if (confirm(`Deseja aprovar e converter o orçamento ${os.code} em Ordem de Serviço em Execução?`)) {
                                   convertBudgetToOrderOrSale(os.id, 'os_aprovada');
                                 }
                               }}
-                              className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md font-bold text-[11px] cursor-pointer"
-                              title="Aprovar e Converter em OS"
+                              className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-indigo-200 rounded-lg text-indigo-700 bg-white"
                             >
-                              <ArrowRightCircle className="w-4 h-4" />
-                            </button>
-                          )}
-
-                          {/* Coletar Assinatura Digital Touch */}
-                          {!os.signature && (
-                            <button
-                              onClick={() => {
-                                setSignOrder(os);
-                                setSignerName(os.clientName);
-                              }}
-                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md cursor-pointer"
-                              title="Coletar assinatura digital touch do cliente"
-                            >
-                              <PenTool className="w-4 h-4" />
-                            </button>
-                          )}
-
-                          {/* Excluir */}
-                          {currentRole === 'admin' && (
-                            <button
-                              onClick={() => {
-                                if (confirm(`Excluir a OS ${os.code}?`)) {
-                                  deleteServiceOrder(os.id);
-                                }
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer"
-                              title="Excluir Ordem de Serviço"
-                            >
-                              <Trash2 className="w-4 h-4" />
+                              <ArrowRightCircle className="w-3.5 h-3.5" />
+                              <span>Aprovar</span>
                             </button>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* Paginação da Tabela de Ordens de Serviço */}
         <TablePagination

@@ -1,6 +1,19 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.4`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.5`).
+
+---
+
+## [v2.7.5] — 14/11/2026
+**Padronização Global de Tabelas Compactas, Hover de Detalhes e O.S. em Linha Única Expansível (+)**
+
+### Adicionado
+- **Arquitetura Modular de Listagens & Hover (`src/index.css`, `src/utils/uiPatterns.ts`, `src/components/RowHoverDetail.tsx`)**: classes CSS globais `.dense-table`, `.dense-row`, `.hover-detail-trigger`, `.hover-detail-card`, `.os-compact-row`, `.os-expand-card-btn`, `.os-expanded-drawer` e `.os-mobile-stack`, além dos controladores Vanilla JS `setupExpandableServiceOrders` e `setupDenseRowTooltips`.
+- **Busca Dinâmica no Histórico de Vendas**: adicionado `<LiveSearchInput />` na barra do histórico de **Vendas Diretas** (`SalesView`) para localizar faturamentos por código, cliente ou vendedor.
+
+### Alterado
+- **Ordens de Serviço (`ServiceOrdersView`)**: no desktop, cada O.S. ocupa **estritamente uma única linha compacta** (ID curto, status, data, **nome completo do cliente/responsável sem corte**, total e botão card **`+`** que expande a gaveta com peças, descrição técnica, serviços, parcelas e ações). No mobile (`< 768px`), converte-se em cards empilhados sem scroll horizontal com botão `+` acessível ao toque (`>= 44px`).
+- **Listas Densas com Hover (`ClientsView`, `ProductsAndStockView`, `SalesView`, `SuppliersView`, `MasterRegistrationsView`)**: linhas enxutas exibindo apenas dados essenciais/abreviados, revelando documento, contatos, endereços, margens, salários/encargos, itens e observações em card flutuante elegante ao passar o mouse (`hover`), mais cards empilhados no celular.
 
 ---
 

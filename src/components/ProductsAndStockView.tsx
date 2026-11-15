@@ -51,6 +51,7 @@ import {
 import { DuplicateUploadModal } from './DuplicateUploadModal';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
+import { RowHoverDetail } from './RowHoverDetail';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -873,191 +874,186 @@ export const ProductsAndStockView: React.FC = () => {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">Código / Categoria</th>
-                    <th className="py-3 px-4">Descrição do Produto / Peça</th>
-                    <th className="py-3 px-3">NCM / Imposto</th>
-                    <th className="py-3 px-3 text-right">Custo Compra</th>
-                    <th className="py-3 px-3 text-right">Venda Varejo</th>
-                    <th className="py-3 px-3 text-right">Venda Atacado</th>
-                    <th className="py-3 px-3 text-center">Estoque Atual</th>
-                    {currentRole !== 'tecnico' && <th className="py-3 px-3 text-center">Ações</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-sans">
-                  {filteredProducts.length === 0 ? (
-                    <tr>
-                      <td colSpan={currentRole !== 'tecnico' ? 8 : 7} className="py-12 text-center text-slate-400">
-                        <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                        Nenhum produto encontrado com os filtros selecionados.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedProducts.map(p => {
+          {/* Table: Compacta no Desktop + Hover Details & Cards no Mobile */}
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
+            {filteredProducts.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-400">
+                <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                Nenhum produto encontrado com os filtros selecionados.
+              </div>
+            ) : (
+              <>
+                {/* Desktop Dense Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="dense-table text-left text-xs">
+                    <thead>
+                      <tr>
+                        <th>Código</th>
+                        <th>Produto / Marca</th>
+                        <th className="text-right">Custo</th>
+                        <th className="text-right">Varejo</th>
+                        <th className="text-right">Atacado</th>
+                        <th className="text-center">Estoque</th>
+                        {currentRole !== 'tecnico' && <th className="text-right">Ações</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedProducts.map(p => {
+                        const isLow = p.currentStock <= p.minStock;
+                        return (
+                          <tr key={p.id} className="dense-row">
+                            <td className="whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                {p.photos && p.photos.length > 0 ? (
+                                  <img
+                                    src={p.photos[0]}
+                                    alt={p.name}
+                                    referrerPolicy="no-referrer"
+                                    className="w-8 h-8 rounded-md object-cover border border-slate-200 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                                    <Package className="w-4 h-4 text-slate-400" />
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="font-mono font-bold text-blue-600">{p.code}</div>
+                                  <div className="text-[10px] text-slate-400 truncate max-w-[110px]">{p.category}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td>
+                              <RowHoverDetail
+                                title={p.name}
+                                subtitle={`${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}`}
+                                badge={p.brand || p.unit}
+                                fields={[
+                                  { label: 'Código / SKU', value: `${p.code}${p.sku ? ` · ${p.sku}` : ''}` },
+                                  ...(p.barcode ? [{ label: 'EAN / Código Barras', value: p.barcode }] : []),
+                                  ...(p.model ? [{ label: 'Modelo', value: p.model }] : []),
+                                  ...(p.serialNumber ? [{ label: 'Nº de Série', value: p.serialNumber }] : []),
+                                  { label: 'NCM / ICMS', value: `${p.ncm} · ${p.icmsRate}%` },
+                                  {
+                                    label: 'Custo / Margem',
+                                    value: `${formatBRL(p.costPrice)}${p.profitMarginPercent !== undefined ? ` (+${p.profitMarginPercent}%)` : ''}`
+                                  },
+                                  { label: 'Varejo / Atacado', value: `${formatBRL(p.retailPrice)} / ${formatBRL(p.wholesalePrice)}` },
+                                  { label: 'Estoque (Mín)', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` }
+                                ]}
+                                footer={p.tags && p.tags.length > 0 ? `Tags: ${p.tags.join(', ')}` : undefined}
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-slate-900 truncate max-w-[260px]">
+                                    {p.name}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 truncate max-w-[260px]">
+                                    {p.brand ? `${p.brand} · ` : ''}{p.unit} · NCM {p.ncm}
+                                  </div>
+                                </div>
+                              </RowHoverDetail>
+                            </td>
+
+                            <td className="text-right font-mono text-slate-500 whitespace-nowrap tabular-nums">
+                              {formatBRL(p.costPrice)}
+                            </td>
+
+                            <td className="text-right font-mono font-bold text-slate-900 whitespace-nowrap tabular-nums">
+                              {formatBRL(p.retailPrice)}
+                            </td>
+
+                            <td className="text-right font-mono font-semibold text-indigo-700 whitespace-nowrap tabular-nums">
+                              {formatBRL(p.wholesalePrice)}
+                            </td>
+
+                            <td className="text-center font-mono whitespace-nowrap tabular-nums">
+                              <span className={`font-bold ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                {p.currentStock} {p.unit}
+                              </span>
+                            </td>
+
+                            {currentRole !== 'tecnico' && (
+                              <td className="text-right whitespace-nowrap">
+                                <div className="inline-flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => handleOpenHistory(p)}
+                                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                                    title="Histórico Total e Kardex do Produto"
+                                  >
+                                    <History className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDuplicateProduct(p)}
+                                    className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                                    title="Duplicar produto no estoque"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenEdit(p)}
+                                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                    title="Editar produto"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Excluir produto ${p.name}?`)) {
+                                        deleteProduct(p.id);
+                                      }
+                                    }}
+                                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                    title="Excluir produto"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards Stack */}
+                <div className="md:hidden p-3 space-y-2.5">
+                  {paginatedProducts.map(p => {
                     const isLow = p.currentStock <= p.minStock;
                     return (
-                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
-                            {p.photos && p.photos.length > 0 ? (
-                              <img
-                                src={p.photos[0]}
-                                alt={p.name}
-                                className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 shadow-2xs"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
-                                <Package className="w-5 h-5 text-slate-300" />
-                              </div>
-                            )}
-                            <div>
-                              <div className="font-mono font-bold text-blue-600 flex items-center gap-1.5 flex-wrap">
-                                <span>{p.code}</span>
-                                {p.barcode && (
-                                  <span className="text-[10px] font-mono font-normal text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
-                                    {p.barcode}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-slate-500 font-sans flex items-center gap-1">
-                                <span>{p.category}</span>
-                                {p.subcategory && (
-                                  <>
-                                    <span className="text-slate-300">/</span>
-                                    <span className="text-slate-400">{p.subcategory}</span>
-                                  </>
-                                )}
-                              </div>
+                      <div key={p.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-mono text-[11px] font-bold text-blue-600">
+                              {p.code} · {p.category}
                             </div>
+                            <div className="font-bold text-slate-900 text-sm leading-snug">{p.name}</div>
                           </div>
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-slate-900">{p.name}</span>
-                            {p.brand && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                {p.brand}
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap mt-0.5">
-                            <span>Unidade: <strong>{p.unit}</strong></span>
-                            {p.model && (
-                              <span>• Modelo: <strong className="text-slate-700">{p.model}</strong></span>
-                            )}
-                            {p.serialNumber && (
-                              <span>• Série: <strong className="font-mono text-slate-700">{p.serialNumber}</strong></span>
-                            )}
-                            {p.slug && (
-                              <span className="text-[10px] text-slate-400 font-mono flex items-center gap-0.5">
-                                <Link2 className="w-2.5 h-2.5 text-slate-400" />
-                                /{p.slug}
-                              </span>
-                            )}
-                          </div>
-
-                          {p.tags && p.tags.length > 0 && (
-                            <div className="flex items-center gap-1 flex-wrap mt-1">
-                              {p.tags.slice(0, 4).map((t, idx) => (
-                                <span
-                                  key={idx}
-                                  className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200"
-                                >
-                                  #{t}
-                                </span>
-                              ))}
-                              {p.tags.length > 4 && (
-                                <span className="text-[9px] text-slate-400 font-mono">
-                                  +{p.tags.length - 4}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-3 font-mono text-slate-600">
-                          <div>NCM: {p.ncm}</div>
-                          <div className="text-[10px] text-slate-400">ICMS: {p.icmsRate}%</div>
-                        </td>
-
-                        <td className="py-3 px-3 text-right font-mono text-slate-500">
-                          {formatBRL(p.costPrice)}
-                        </td>
-
-                        <td className="py-3 px-3 text-right font-mono">
-                          <div className="font-bold text-slate-900">{formatBRL(p.retailPrice)}</div>
-                          {p.profitMarginPercent !== undefined && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                              +{p.profitMarginPercent}% margem
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-3 text-right font-mono font-semibold text-indigo-700">
-                          {formatBRL(p.wholesalePrice)}
-                        </td>
-
-                        <td className="py-3 px-3 text-center font-mono">
-                          <span className={`px-2 py-0.5 rounded font-bold ${
-                            isLow ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800'
-                          }`}>
+                          <span className={`font-mono font-bold text-xs shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
                             {p.currentStock} {p.unit}
                           </span>
-                          <div className="text-[10px] text-slate-400 mt-0.5">Mín: {p.minStock}</div>
-                        </td>
-
-                        {currentRole !== 'tecnico' && (
-                          <td className="py-3 px-3 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => handleOpenHistory(p)}
-                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
-                                title="Histórico Total e Kardex do Produto"
-                              >
-                                <History className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDuplicateProduct(p)}
-                                className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
-                                title="Duplicar produto no estoque"
-                              >
-                                <Copy className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleOpenEdit(p)}
-                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                                title="Editar produto"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Excluir produto ${p.name}?`)) {
-                                    deleteProduct(p.id);
-                                  }
-                                }}
-                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
-                                title="Excluir produto"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                          <div className="font-mono text-[11px] tabular-nums">
+                            Varejo: <strong>{formatBRL(p.retailPrice)}</strong> · Atac: <strong className="text-indigo-700">{formatBRL(p.wholesalePrice)}</strong>
+                          </div>
+                          {currentRole !== 'tecnico' && (
+                            <button
+                              onClick={() => handleOpenEdit(p)}
+                              className="p-2 text-slate-700 bg-slate-100 rounded-lg"
+                              title="Editar"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     );
-                  })
-                )}
-              </tbody>
-              </table>
-            </div>
+                  })}
+                </div>
+              </>
+            )}
 
             {/* Paginação da Tabela de Produtos */}
             <TablePagination

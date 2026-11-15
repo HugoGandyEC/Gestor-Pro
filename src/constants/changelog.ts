@@ -16,6 +16,41 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.5',
+    date: '14/11/2026',
+    title: 'Padronização Global de Tabelas Compactas, Hover de Detalhes e O.S. em Linha Única Expansível (+)',
+    summary:
+      'Refatoração completa de UX/UI nas telas de Ordens de Serviço, Clientes, Produtos & Estoque, Vendas Diretas, Fornecedores e Equipe/Funcionários: tabelas densas compactas com card flutuante de detalhes ao passar o mouse (hover), listagem de O.S. em linha única com nome completo do cliente + card expansível (+), cards empilhados no mobile sem scroll horizontal e busca dinâmica em Vendas.',
+    highlights: [
+      'Ordens de Serviço em linha única compacta com nome completo do cliente sem cortes e botão card expansível (+)',
+      'Gaveta expansível na própria linha da OS exibindo técnico, veículo, equipamento, serviços, peças, parcelas e ações rápidas',
+      'Tabelas compactas (.dense-table) com card flutuante (<RowHoverDetail />) em Clientes, Produtos, Vendas, Fornecedores e Equipe',
+      'Cards empilhados no mobile (< 768px) com área de toque >= 44px e campo LiveSearchInput no Histórico de Vendas'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Criado componente React <RowHoverDetail /> (src/components/RowHoverDetail.tsx) com React Portal seguro contra cortes de overflow, e utilitários modulares Vanilla JS setupExpandableServiceOrders e setupDenseRowTooltips (src/utils/uiPatterns.ts) com classes CSS padronizadas (.dense-table, .hover-detail-card, .os-compact-row, .os-expand-card-btn, .os-expanded-drawer, .os-mobile-stack).'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Refatorada a listagem de Ordens de Serviço (ServiceOrdersView) para exibir estritamente 1 linha compacta por OS no desktop (ID curto, status, data, nome completo do cliente/responsável sem truncate, total e botão card +), além de cards empilhados responsivos no mobile com botão + >= 44px.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Compactadas as tabelas de Clientes (ClientsView), Produtos & Estoque (ProductsAndStockView), Vendas Diretas (SalesView), Fornecedores (SuppliersView) e Cadastro Geral / Equipe & Técnicos (MasterRegistrationsView), exibindo dados completos ao passar o mouse (hover) e cards empilhados no celular.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Incluída barra de Busca Dinâmica (<LiveSearchInput />) diretamente no cabeçalho do Histórico de Vendas Faturadas (SalesView) para filtrar pedidos em tempo real por código, cliente ou vendedor.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.4',
     date: '14/11/2026',
     title: 'Padronização Global de Busca Dinâmica em Tempo Real (Desktop e Mobile)',
