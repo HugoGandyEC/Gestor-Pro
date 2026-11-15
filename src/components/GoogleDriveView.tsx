@@ -9,7 +9,6 @@ import {
   Download, 
   ExternalLink, 
   Trash2, 
-  Search, 
   RefreshCw, 
   HardDrive, 
   AlertCircle, 
@@ -39,6 +38,7 @@ import {
 } from '../services/googleDriveService';
 import { useApp, formatBRL } from '../context/AppContext';
 import { GoogleIntegrationModal } from './GoogleIntegrationModal';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 
 export const GoogleDriveView: React.FC = () => {
   const { 
@@ -99,6 +99,21 @@ export const GoogleDriveView: React.FC = () => {
 
     return () => unsubscribe();
   }, []);
+
+  const searchDebounceInitializedRef = useRef(false);
+  useEffect(() => {
+    if (!searchDebounceInitializedRef.current) {
+      searchDebounceInitializedRef.current = true;
+      return;
+    }
+    if (!token) return;
+    const trimmed = searchQuery.trim();
+    if (trimmed.length > 0 && trimmed.length < 2) return;
+    const timer = setTimeout(() => {
+      loadFiles(token, currentFolderId, trimmed, mimeFilter);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const showFeedback = (success: boolean, message: string) => {
     setFeedback({ success, message });
@@ -620,7 +635,7 @@ Documento gerado e salvo automaticamente no Google Drive pelo ERP GestãoPro.
           </div>
 
           {/* Explorer Section */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs">
             {/* Toolbar */}
             <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
               {/* Breadcrumb Navigation */}
@@ -674,17 +689,51 @@ Documento gerado e salvo automaticamente no Google Drive pelo ERP GestãoPro.
 
             {/* Filter & Search Bar */}
             <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Buscar arquivos no Drive..."
+              <div className="w-full sm:flex-1 sm:max-w-sm">
+                <LiveSearchInput
                   value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    if (token) loadFiles(token, currentFolderId, e.target.value, mimeFilter);
+                  onChange={setSearchQuery}
+                  placeholder="Buscar arquivos no Drive..."
+                  emptyLabel="Nenhum arquivo"
+                  inputClassName="w-full pl-9 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                  getOptions={async (query) => {
+                    if (token) {
+                      const res = await listDriveFiles(token, {
+                        folderId: currentFolderId,
+                        searchQuery: query,
+                        mimeTypeFilter: mimeFilter
+                      });
+                      return res.files.map((file): LiveSearchOption<DriveFile> => {
+                        const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
+                        return {
+                          id: file.id,
+                          title: file.name,
+                          subtitle: isFolder ? 'Pasta no Google Drive' : file.mimeType.split('/').pop() || 'Arquivo',
+                          badgeText: isFolder ? 'Pasta' : 'Arquivo',
+                          icon: getFileIcon(file.mimeType),
+                          data: file
+                        };
+                      });
+                    }
+                    const q = query.toLowerCase();
+                    return files
+                      .filter(f => f.name.toLowerCase().includes(q))
+                      .map((file): LiveSearchOption<DriveFile> => ({
+                        id: file.id,
+                        title: file.name,
+                        subtitle: file.mimeType,
+                        icon: getFileIcon(file.mimeType),
+                        data: file
+                      }));
                   }}
-                  className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                  onSelect={(opt) => {
+                    const file = opt.data;
+                    if (file.mimeType === 'application/vnd.google-apps.folder') {
+                      handleOpenFolder(file);
+                    } else {
+                      setSearchQuery(file.name);
+                    }
+                  }}
                 />
               </div>
 

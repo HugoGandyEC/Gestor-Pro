@@ -22,6 +22,7 @@ import {
   Search
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
+import { LiveSearchInput } from './LiveSearchInput';
 
 export const FinancialView: React.FC = () => {
   const { 
@@ -568,7 +569,7 @@ export const FinancialView: React.FC = () => {
 
       {/* Contas a Receber Tab */}
       {activeSubTab === 'receber' && (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
           <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
@@ -580,15 +581,33 @@ export const FinancialView: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Buscar código ou cliente..."
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+              <div className="w-full sm:w-56">
+                <LiveSearchInput
                   value={receivableSearch}
-                  onChange={(e) => setReceivableSearch(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onChange={setReceivableSearch}
+                  placeholder="Buscar código ou cliente..."
+                  emptyLabel="Nenhum recebível"
+                  inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                  getOptions={(query) => {
+                    const q = query.toLowerCase();
+                    return unifiedReceivables
+                      .filter(
+                        r =>
+                          r.code.toLowerCase().includes(q) ||
+                          r.clientName.toLowerCase().includes(q) ||
+                          r.description.toLowerCase().includes(q)
+                      )
+                      .map(r => ({
+                        id: `${r.type}-${r.id}`,
+                        title: `${r.code} · ${r.clientName}`,
+                        subtitle: `${r.type === 'os' ? 'OS' : 'Venda'} · ${formatDateBR(r.date)}`,
+                        priceText: formatBRL(r.total),
+                        badgeText: r.paymentStatus === 'pago' ? 'Pago' : 'Pendente',
+                        data: r
+                      }));
+                  }}
+                  onSelect={(opt) => setReceivableSearch(opt.data.code)}
                 />
               </div>
 
@@ -708,7 +727,7 @@ export const FinancialView: React.FC = () => {
 
       {/* Contas a Pagar Tab */}
       {activeSubTab === 'pagar' && (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
           <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
@@ -720,15 +739,33 @@ export const FinancialView: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Buscar conta ou credor..."
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+              <div className="w-full sm:w-56">
+                <LiveSearchInput
                   value={payableSearch}
-                  onChange={(e) => setPayableSearch(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onChange={setPayableSearch}
+                  placeholder="Buscar conta ou credor..."
+                  emptyLabel="Nenhuma conta"
+                  inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                  getOptions={(query) => {
+                    const q = query.toLowerCase();
+                    return unifiedPayables
+                      .filter(
+                        p =>
+                          p.description.toLowerCase().includes(q) ||
+                          (p.supplier || '').toLowerCase().includes(q) ||
+                          p.category.toLowerCase().includes(q)
+                      )
+                      .map(p => ({
+                        id: p.id,
+                        title: p.description,
+                        subtitle: `${p.category.replace(/_/g, ' ')}${p.supplier ? ` · ${p.supplier}` : ''}`,
+                        priceText: formatBRL(p.cost),
+                        badgeText: p.isPaid ? 'Quitado' : 'A Pagar',
+                        data: p
+                      }));
+                  }}
+                  onSelect={(opt) => setPayableSearch(opt.data.description)}
                 />
               </div>
 

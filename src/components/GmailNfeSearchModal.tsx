@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Mail, 
-  Search, 
   FileCode, 
   Download, 
   CheckCircle2, 
@@ -28,6 +27,7 @@ import {
 } from '../services/googleAuthService';
 import { useApp, formatBRL } from '../context/AppContext';
 import { ParsedXmlNFe } from '../types';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 
 interface GmailNfeSearchModalProps {
   isOpen: boolean;
@@ -45,7 +45,7 @@ export const GmailNfeSearchModal: React.FC<GmailNfeSearchModalProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('mppiscina2004@gmail.com');
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('filename:xml');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<GmailNfeAttachment[]>([]);
@@ -161,7 +161,8 @@ export const GmailNfeSearchModal: React.FC<GmailNfeSearchModalProps> = ({
     setIsSearching(true);
     setFeedback(null);
     try {
-      const result = await searchGmailNfeInvoices(searchQuery);
+      const effectiveQuery = searchQuery.trim() || 'filename:xml';
+      const result = await searchGmailNfeInvoices(effectiveQuery);
       if (result.success) {
         setAttachments(result.attachments);
         setFeedback(result.message);
@@ -267,15 +268,50 @@ export const GmailNfeSearchModal: React.FC<GmailNfeSearchModalProps> = ({
         </div>
 
         {/* Search Input Box */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Buscar termos (ex: filename:xml, TermoMax, nota fiscal)..."
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex-1">
+            <LiveSearchInput
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={setSearchQuery}
+              placeholder="Buscar termos no Gmail (ex: filename:xml, nota fiscal, TermoMax)..."
+              emptyLabel="Nenhum anexo ou sugestão"
+              inputClassName="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              getOptions={(query) => {
+                const q = query.toLowerCase();
+                const attOptions: LiveSearchOption<{ kind: 'att'; att: GmailNfeAttachment } | { kind: 'preset'; query: string }>[] = attachments
+                  .filter(
+                    att =>
+                      att.filename.toLowerCase().includes(q) ||
+                      att.sender.toLowerCase().includes(q) ||
+                      att.subject.toLowerCase().includes(q)
+                  )
+                  .map((att, idx) => ({
+                    id: `att-${att.attachmentId || idx}`,
+                    title: att.filename,
+                    subtitle: `De: ${att.sender} · ${att.subject}`,
+                    badgeText: 'XML',
+                    data: { kind: 'att', att }
+                  }));
+
+                const presets = ['filename:xml', 'filename:xml nota fiscal', 'nfe fornecedor', 'danfe xml']
+                  .filter(p => p.toLowerCase().includes(q))
+                  .map((p): LiveSearchOption<{ kind: 'att'; att: GmailNfeAttachment } | { kind: 'preset'; query: string }> => ({
+                    id: `preset-${p}`,
+                    title: p,
+                    subtitle: 'Filtro sugerido de pesquisa no Gmail',
+                    badgeText: 'Filtro',
+                    data: { kind: 'preset', query: p }
+                  }));
+
+                return [...attOptions, ...presets];
+              }}
+              onSelect={(opt) => {
+                if (opt.data.kind === 'att') {
+                  handleImportAttachment(opt.data.att);
+                } else {
+                  setSearchQuery(opt.data.query);
+                }
+              }}
             />
           </div>
           <button

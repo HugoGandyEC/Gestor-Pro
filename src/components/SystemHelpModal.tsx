@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { 
   HelpCircle, 
-  Search, 
   X, 
   ArrowRight, 
   CheckCircle2, 
@@ -49,6 +48,7 @@ import {
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 import { SYSTEM_VERSION } from '../constants/version';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 
 interface SystemHelpModalProps {
   isOpen: boolean;
@@ -789,23 +789,45 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
 
         {/* Barra de Pesquisa Rápida */}
         <div className="px-5 py-3 bg-[#fafafa] border-b border-[#d8d8d8] flex items-center justify-between gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-[#707174] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
+          <div className="flex-1 min-w-0">
+            <LiveSearchInput
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={setSearchQuery}
               placeholder="Pesquisar por assunto ou módulo (ex: folha A4, garantia por número de série, pagbank, trocar senha, técnico, código de barras)..."
-              className="w-full pl-10 pr-10 py-2 bg-white border border-[#d8d8d8] rounded-xl text-xs sm:text-sm font-medium text-[#363739] focus:outline-hidden focus:ring-2 focus:ring-[#53383e] shadow-xs"
+              emptyLabel="Nenhum módulo"
+              inputClassName="w-full pl-9 pr-9 py-2 bg-white border border-[#d8d8d8] rounded-xl text-xs sm:text-sm font-medium text-[#363739] focus:outline-hidden focus:ring-2 focus:ring-[#53383e] shadow-xs"
+              getOptions={(query) => {
+                const q = query.toLowerCase();
+                const items: LiveSearchOption<{ categoryId: string; module: ManualModule }>[] = [];
+                manualCategories.forEach(cat => {
+                  cat.modules.forEach(mod => {
+                    const match =
+                      mod.title.toLowerCase().includes(q) ||
+                      mod.summary.toLowerCase().includes(q) ||
+                      mod.objective.toLowerCase().includes(q) ||
+                      mod.howToUse.some(s => s.toLowerCase().includes(q)) ||
+                      (mod.tips && mod.tips.toLowerCase().includes(q)) ||
+                      cat.title.toLowerCase().includes(q);
+                    if (match) {
+                      items.push({
+                        id: `${cat.id}-${mod.id}`,
+                        title: mod.title,
+                        subtitle: `${cat.title} · ${mod.summary}`,
+                        badgeText: mod.badge,
+                        data: { categoryId: cat.id, module: mod }
+                      });
+                    }
+                  });
+                });
+                return items;
+              }}
+              onSelect={(opt) => {
+                setSelectedCategory(opt.data.categoryId);
+                setExpandedModuleId(opt.data.module.id);
+                setViewMode('manual');
+                setSearchQuery('');
+              }}
             />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#707174] hover:text-[#363739]"
-              >
-                Limpar
-              </button>
-            )}
           </div>
 
           <div className="hidden md:flex items-center gap-1.5 text-xs text-[#707174]">

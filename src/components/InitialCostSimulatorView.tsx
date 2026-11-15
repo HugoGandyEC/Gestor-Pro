@@ -23,13 +23,13 @@ import {
   Receipt,
   AlertCircle,
   Check,
-  Search,
   Filter,
   ArrowRight,
   Briefcase
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { InitialSetupCostItem, CostRecurrenceType } from '../types';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 
 interface CategoryConfig {
   label: string;
@@ -581,7 +581,7 @@ export const InitialCostSimulatorView: React.FC = () => {
       </div>
 
       {/* Main Table Container */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
         {/* Table Filter Tabs */}
         <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
@@ -628,15 +628,39 @@ export const InitialCostSimulatorView: React.FC = () => {
           </div>
 
           {/* Search & Category Filter */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Buscar conta ou credor..."
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+            <div className="w-full sm:w-64">
+              <LiveSearchInput
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-44 sm:w-56 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onChange={setSearchTerm}
+                placeholder="Buscar conta ou credor..."
+                emptyLabel="Nenhuma conta"
+                inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                getOptions={(query) => {
+                  const q = query.toLowerCase();
+                  return setupCosts
+                    .filter(
+                      s =>
+                        s.name.toLowerCase().includes(q) ||
+                        (s.creditor || '').toLowerCase().includes(q) ||
+                        (CATEGORY_MAP[s.category]?.label || s.category).toLowerCase().includes(q)
+                    )
+                    .map((item): LiveSearchOption<InitialSetupCostItem> => {
+                      const catCfg = CATEGORY_MAP[item.category] || CATEGORY_MAP.outros;
+                      const value =
+                        item.costType === 'parcelado'
+                          ? item.installmentValue || item.actualCost || item.estimatedCost
+                          : item.actualCost || item.estimatedCost;
+                      return {
+                        id: item.id,
+                        title: item.name,
+                        subtitle: item.creditor ? `${item.creditor} · ${catCfg.label}` : catCfg.label,
+                        priceText: formatBRL(value),
+                        data: item
+                      };
+                    });
+                }}
+                onSelect={(opt) => setSearchTerm(opt.data.name)}
               />
             </div>
 

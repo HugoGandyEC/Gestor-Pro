@@ -50,6 +50,7 @@ import {
 } from '../services/fileUploadTracker';
 import { DuplicateUploadModal } from './DuplicateUploadModal';
 import { TablePagination } from './TablePagination';
+import { LiveSearchInput } from './LiveSearchInput';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -764,14 +765,35 @@ export const ProductsAndStockView: React.FC = () => {
           {/* Filter Bar */}
           <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Buscar por código, nome, NCM, marca ou tags..."
+              <div className="flex-1 w-full">
+                <LiveSearchInput
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e]"
+                  onChange={setSearchTerm}
+                  placeholder="Buscar por código, nome, NCM, marca ou tags..."
+                  emptyLabel="Nenhum produto"
+                  inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
+                  getOptions={(query) => {
+                    const q = query.toLowerCase();
+                    return products
+                      .filter(
+                        p =>
+                          p.name.toLowerCase().includes(q) ||
+                          p.code.toLowerCase().includes(q) ||
+                          (p.ncm || '').toLowerCase().includes(q) ||
+                          (p.brand || '').toLowerCase().includes(q) ||
+                          (p.sku || '').toLowerCase().includes(q) ||
+                          (p.tags || []).some(t => t.toLowerCase().includes(q))
+                      )
+                      .map(p => ({
+                        id: p.id,
+                        title: p.name,
+                        subtitle: `${p.code}${p.brand ? ` · ${p.brand}` : ''} · Estoque: ${p.currentStock} ${p.unit}`,
+                        priceText: formatBRL(p.retailPrice),
+                        thumbnailUrl: p.photos?.[0],
+                        data: p
+                      }));
+                  }}
+                  onSelect={(opt) => setSearchTerm(opt.data.code)}
                 />
               </div>
 

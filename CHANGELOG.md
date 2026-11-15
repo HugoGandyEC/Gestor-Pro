@@ -1,6 +1,19 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.3`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.4`).
+
+---
+
+## [v2.7.4] — 14/11/2026
+**Padronização Global de Busca Dinâmica em Tempo Real (Desktop e Mobile)**
+
+### Adicionado
+- **Arquitetura Modular de Busca Global**: criados o padrão CSS responsivo (`.global-search-container`, `.search-modal`, `.search-item` em `src/index.css`), o utilitário agnóstico Vanilla JS `setupLiveSearch` (`src/utils/liveSearch.ts`) com `AbortController` e template HTML reutilizável, além do componente React `<LiveSearchInput />` (`src/components/LiveSearchInput.tsx`).
+- **UX e Acessibilidade**: ativação a partir de **2 caracteres**, **debounce obrigatório >= 300ms**, indicador visual **"Buscando..."**, destaque do termo encontrado, navegação por teclado (`ArrowDown`, `ArrowUp`, `Enter`, `Escape`) e fechamento automático ao clicar fora ou limpar o campo.
+- **Responsividade Mobile Segura**: container de resultados preso ao elemento pai (`width: 100%`, `left: 0; right: 0; max-width: calc(100vw - 1rem)`), altura máxima `60vh` no celular para conviver com o teclado virtual, `z-index: 1050` e itens com altura mínima >= `48px`/`52px` para toque confortável.
+
+### Alterado
+- Todos os campos de busca do sistema (PDV, Vendas, Estoque/Produtos, Clientes, Ordens de Serviço, Fornecedores, Financeiro, Painel do Técnico, Cadastro Geral, Google Agenda, Custos Iniciais, Manual, Modal de Ajuda, Google Drive e Busca XML Gmail) foram padronizados com o `<LiveSearchInput />` e tiveram o `overflow-hidden` de seus cards pais ajustado para nunca cortar o dropdown flutuante.
 
 ---
 

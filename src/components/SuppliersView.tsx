@@ -21,6 +21,7 @@ import {
 import { useApp, formatBRL } from '../context/AppContext';
 import { Supplier, GeneralExpense } from '../types';
 import { TablePagination } from './TablePagination';
+import { LiveSearchInput } from './LiveSearchInput';
 
 export const SuppliersView: React.FC = () => {
   const { 
@@ -356,14 +357,33 @@ export const SuppliersView: React.FC = () => {
 
       {/* Filters and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-        <div className="relative w-full md:w-96">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Buscar por razão social, fantasia, CNPJ, contato ou cidade..."
+        <div className="w-full md:w-96">
+          <LiveSearchInput
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+            onChange={setSearchTerm}
+            placeholder="Buscar por razão social, fantasia, CNPJ, contato ou cidade..."
+            emptyLabel="Nenhum fornecedor"
+            inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+            getOptions={(query) => {
+              const q = query.toLowerCase();
+              return suppliers
+                .filter(
+                  s =>
+                    s.name.toLowerCase().includes(q) ||
+                    (s.tradeName || '').toLowerCase().includes(q) ||
+                    (s.cnpj || '').toLowerCase().includes(q) ||
+                    (s.contactPerson || '').toLowerCase().includes(q) ||
+                    (s.city || '').toLowerCase().includes(q)
+                )
+                .map(s => ({
+                  id: s.id,
+                  title: s.tradeName || s.name,
+                  subtitle: `${s.cnpj || s.phone}${s.city ? ` · ${s.city}/${s.state}` : ''}`,
+                  badgeText: s.state || 'Fornecedor',
+                  data: s
+                }));
+            }}
+            onSelect={(opt) => setSearchTerm(opt.data.name)}
           />
         </div>
       </div>

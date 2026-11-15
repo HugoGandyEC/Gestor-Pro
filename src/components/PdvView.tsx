@@ -40,6 +40,7 @@ import {
   Product,
   ServiceOrder
 } from '../types';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 
 type PdvSubTab = 'fila' | 'balcao' | 'movimentacoes' | 'fechamentos';
 type QueueFilter = 'todos' | 'enviados' | 'os' | 'vendas';
@@ -961,7 +962,7 @@ export const PdvView: React.FC = () => {
 
       {/* SUBTAB 1: FILA DE RECEBIMENTOS */}
       {subTab === 'fila' && (
-        <div className="bg-white border border-[#d8d8d8] rounded-xl overflow-hidden">
+        <div className="bg-white border border-[#d8d8d8] rounded-xl">
           <div className="p-4 border-b border-[#d8d8d8] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
@@ -985,14 +986,46 @@ export const PdvView: React.FC = () => {
               ))}
             </div>
 
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-[#707174] absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Buscar código, cliente, terminal..."
+            <div className="w-full sm:w-72">
+              <LiveSearchInput
                 value={queueSearch}
-                onChange={(e) => setQueueSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e]"
+                onChange={setQueueSearch}
+                placeholder="Buscar código, cliente, terminal..."
+                emptyLabel="Nenhum recebimento"
+                inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
+                getOptions={(query) => {
+                  const q = query.toLowerCase();
+                  return pendingQueue
+                    .filter(
+                      item =>
+                        item.code.toLowerCase().includes(q) ||
+                        item.clientName.toLowerCase().includes(q) ||
+                        (item.pdvTerminal || '').toLowerCase().includes(q)
+                    )
+                    .map((item): LiveSearchOption<typeof item> => ({
+                      id: `${item.kind}-${item.id}`,
+                      title: `${item.code} · ${item.clientName}`,
+                      subtitle: `${item.statusLabel}${item.pdvTerminal ? ` · ${item.pdvTerminal}` : ''}`,
+                      priceText: formatBRL(item.total),
+                      badgeText: item.kind === 'order' ? 'OS' : 'Venda',
+                      data: item
+                    }));
+                }}
+                onSelect={(opt) => {
+                  const item = opt.data;
+                  openCheckoutForTarget({
+                    kind: item.kind,
+                    id: item.id,
+                    code: item.code,
+                    clientId: item.clientId,
+                    clientName: item.clientName,
+                    total: item.total,
+                    terminalName: item.pdvTerminal || activeCashSession?.terminalName,
+                    summaryLines: item.summaryLines,
+                    saleObj: item.rawSale,
+                    orderObj: item.rawOrder
+                  });
+                }}
               />
             </div>
           </div>
@@ -1097,14 +1130,43 @@ export const PdvView: React.FC = () => {
           {/* Product Catalog Picker */}
           <div className="lg:col-span-7 bg-white border border-[#d8d8d8] rounded-xl p-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-[#707174] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Buscar produto por nome, código, SKU ou código de barras..."
+              <div className="flex-1 w-full">
+                <LiveSearchInput
                   value={posSearch}
-                  onChange={(e) => setPosSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e]"
+                  onChange={setPosSearch}
+                  placeholder="Buscar produto por nome, código, SKU ou código de barras..."
+                  emptyLabel="Nenhum produto"
+                  clearOnSelect
+                  inputClassName="w-full pl-9 pr-8 py-2 text-xs bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
+                  getOptions={(query) => {
+                    const q = query.toLowerCase();
+                    return products
+                      .filter(
+                        p =>
+                          p.name.toLowerCase().includes(q) ||
+                          p.code.toLowerCase().includes(q) ||
+                          (p.barcode || '').toLowerCase().includes(q) ||
+                          (p.sku || '').toLowerCase().includes(q)
+                      )
+                      .map((prod): LiveSearchOption<Product> => {
+                        const unitPrice =
+                          effectivePosPriceType === 'atacado' ? prod.wholesalePrice : prod.retailPrice;
+                        return {
+                          id: prod.id,
+                          title: prod.name,
+                          subtitle: `${prod.code} · Estoque: ${prod.currentStock} ${prod.unit}`,
+                          priceText: formatBRL(unitPrice),
+                          thumbnailUrl: prod.photos?.[0],
+                          badgeText: effectivePosPriceType === 'atacado' ? 'Atacado' : 'Varejo',
+                          badgeClassName:
+                            effectivePosPriceType === 'atacado'
+                              ? 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800'
+                              : 'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600',
+                          data: prod
+                        };
+                      });
+                  }}
+                  onSelect={(opt) => handleAddToPosCart(opt.data)}
                 />
               </div>
               <div className="flex rounded-lg border border-[#d8d8d8] overflow-hidden bg-[#f4f5f6] p-0.5 text-xs shrink-0">
@@ -1257,71 +1319,52 @@ export const PdvView: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <div className="relative mb-1.5">
-                    <Search className="w-3.5 h-3.5 text-[#707174] absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Buscar cliente por nome, CPF/CNPJ ou telefone..."
+                  <div className="mb-1.5">
+                    <LiveSearchInput
                       value={posClientSearch}
-                      onChange={(e) => setPosClientSearch(e.target.value)}
-                      className="w-full pl-8 pr-7 py-1.5 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-[#53383e]"
-                    />
-                    {posClientSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setPosClientSearch('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[#707174] hover:text-[#363739] cursor-pointer"
-                        title="Limpar busca"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  {posClientSearch.trim() && (
-                    <div className="mb-1.5 max-h-32 overflow-y-auto rounded-lg border border-[#d8d8d8] bg-white divide-y divide-[#ececef]">
-                      {filteredPosClients.length === 0 ? (
-                        <div className="p-2.5 text-[11px] text-[#707174] text-center space-y-1.5">
-                          <div>Nenhum cliente encontrado para "{posClientSearch}".</div>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenQuickClientModal(posClientSearch)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#53383e] hover:bg-[#432c32] text-white font-bold text-[11px] cursor-pointer"
-                          >
-                            <UserPlus className="w-3 h-3" />
-                            <span>Cadastrar "{posClientSearch.trim()}" agora</span>
-                          </button>
-                        </div>
-                      ) : (
-                        filteredPosClients.slice(0, 8).map(c => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                              handleSelectPosClient(c.id);
-                              setPosClientSearch('');
-                            }}
-                            className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2 hover:bg-[#f4f5f6] cursor-pointer ${
-                              posClientId === c.id ? 'bg-[#f6eff1]' : ''
-                            }`}
-                          >
-                            <div className="min-w-0">
-                              <div className="font-semibold text-[#363739] truncate">{c.name}</div>
-                              <div className="text-[10px] text-[#707174] font-mono truncate">
-                                {c.document || c.phone}
-                              </div>
-                            </div>
-                            <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      onChange={setPosClientSearch}
+                      placeholder="Buscar cliente por nome, CPF/CNPJ ou telefone..."
+                      emptyLabel="Nenhum cliente"
+                      clearOnSelect
+                      inputClassName="w-full pl-9 pr-8 py-1.5 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
+                      getOptions={(query) => {
+                        const q = query.toLowerCase();
+                        return clients
+                          .filter(
+                            c =>
+                              c.name.toLowerCase().includes(q) ||
+                              (c.tradeName || '').toLowerCase().includes(q) ||
+                              (c.document || '').toLowerCase().includes(q) ||
+                              (c.phone || '').toLowerCase().includes(q)
+                          )
+                          .map((c) => ({
+                            id: c.id,
+                            title: c.name,
+                            subtitle: `${c.document || c.phone || 'Sem documento'}${c.city ? ` · ${c.city}` : ''}`,
+                            badgeText: c.customerType === 'atacado' ? 'Atacadista' : 'Varejista',
+                            badgeClassName:
                               c.customerType === 'atacado'
-                                ? 'bg-purple-100 text-purple-800'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {c.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
-                            </span>
-                          </button>
-                        ))
+                                ? 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800'
+                                : 'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600',
+                            data: c
+                          }));
+                      }}
+                      onSelect={(opt) => handleSelectPosClient(opt.data.id)}
+                      emptyAction={(query, close) => (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            close();
+                            handleOpenQuickClientModal(query);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#53383e] hover:bg-[#432c32] text-white font-bold text-[11px] cursor-pointer"
+                        >
+                          <UserPlus className="w-3 h-3" />
+                          <span>Cadastrar &quot;{query}&quot; agora</span>
+                        </button>
                       )}
-                    </div>
-                  )}
+                    />
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <select
                       value={posClientId}

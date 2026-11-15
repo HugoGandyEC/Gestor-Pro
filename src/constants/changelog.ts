@@ -16,6 +16,41 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.4',
+    date: '14/11/2026',
+    title: 'Padronização Global de Busca Dinâmica em Tempo Real (Desktop e Mobile)',
+    summary:
+      'Implementação padronizada de Busca Dinâmica com Lista Suspensa (Autocomplete/Dropdown) em todos os campos de busca e pesquisa do sistema, com debounce de 300ms, ativação a partir de 2 caracteres, navegação completa por teclado e responsividade móvel travada ao viewport.',
+    highlights: [
+      'Componente global LiveSearchInput + utilitário modular Vanilla JS setupLiveSearch (.global-search-container)',
+      'Ativação automática com >= 2 caracteres, debounce mínimo de 300ms e estado visual de carregamento (Buscando...)',
+      'Navegação por teclado (ArrowDown, ArrowUp, Enter, Escape), fechamento ao clicar fora e destaque do termo buscado',
+      'CSS mobile-first com largura segura (100% / max-width: calc(100vw - 1rem)), altura máxima 60vh e tap targets >= 44px'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Criado padrão global de estilos responsivos (.global-search-container, .search-modal, .search-item, .search-highlight) em src/index.css com z-index 1050, rolagem interna max-height: 60vh no mobile e áreas de toque mínimas de 48px-52px.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Implementado utilitário framework-agnostic setupLiveSearch (src/utils/liveSearch.ts) com AbortController, debounce >= 300ms, cache de requisições, Escape/clique fora e template HTML reutilizável (LIVE_SEARCH_HTML_TEMPLATE).'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Criado componente React reutilizável LiveSearchInput (src/components/LiveSearchInput.tsx) com thumbnail, título destacado, subtítulo, preço/valor alinhado à direita e mensagem amigável de nenhum resultado encontrado.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Substituídos todos os campos de busca do sistema (PDV Balcão e Fila, Vendas Diretas, Produtos & Estoque, Clientes, Ordens de Serviço, Fornecedores, Financeiro, Painel do Técnico, Cadastro Geral, Google Agenda, Custos Iniciais, Manual, Ajuda, Google Drive e Busca XML Gmail) pelo padrão global LiveSearchInput, removendo overflow-hidden de containers pais para evitar cortes no dropdown.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.3',
     date: '14/11/2026',
     title: 'Calculadora de Parcelas e Edição Individual de Pagamentos na Modal de OS',

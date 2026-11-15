@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { UniversalDataImportView } from './UniversalDataImportView';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 import { 
   Client, 
   Supplier, 
@@ -425,14 +426,50 @@ export const MasterRegistrationsView: React.FC = () => {
       {/* Search and Filters Bar */}
       {activeSubTab !== 'import' && (
         <div className="bg-white p-3.5 border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-xs">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder={`Filtrar ${tabsConfig.find(t => t.id === activeSubTab)?.label.toLowerCase()} por nome, código ou documento...`}
+          <div className="flex-1 w-full md:max-w-md">
+            <LiveSearchInput
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              onChange={setSearchTerm}
+              placeholder={`Filtrar ${tabsConfig.find(t => t.id === activeSubTab)?.label.toLowerCase()} por nome, código ou documento...`}
+              emptyLabel="Nenhum registro"
+              inputClassName="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white"
+              getOptions={(query): LiveSearchOption<string>[] => {
+                const q = query.toLowerCase();
+                if (activeSubTab === 'clients') {
+                  return clients
+                    .filter(c => c.name.toLowerCase().includes(q) || (c.document || '').toLowerCase().includes(q))
+                    .map(c => ({ id: c.id, title: c.name, subtitle: c.document || c.phone, badgeText: c.customerType === 'atacado' ? 'Atacadista' : 'Varejista', data: c.name }));
+                }
+                if (activeSubTab === 'suppliers') {
+                  return suppliers
+                    .filter(s => s.name.toLowerCase().includes(q) || (s.cnpj || '').toLowerCase().includes(q))
+                    .map(s => ({ id: s.id, title: s.name, subtitle: s.cnpj || s.phone, data: s.name }));
+                }
+                if (activeSubTab === 'products') {
+                  return products
+                    .filter(p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
+                    .map(p => ({ id: p.id, title: p.name, subtitle: `${p.code} · Estoque: ${p.currentStock}`, priceText: formatBRL(p.retailPrice), thumbnailUrl: p.photos?.[0], data: p.code }));
+                }
+                if (activeSubTab === 'employees') {
+                  return employees
+                    .filter(e => e.name.toLowerCase().includes(q) || e.role.toLowerCase().includes(q))
+                    .map(e => ({ id: e.id, title: e.name, subtitle: e.role, data: e.name }));
+                }
+                if (activeSubTab === 'fleet') {
+                  return vehicles
+                    .filter(v => v.model.toLowerCase().includes(q) || v.plate.toLowerCase().includes(q))
+                    .map(v => ({ id: v.id, title: v.model, subtitle: v.plate, data: v.plate }));
+                }
+                if (activeSubTab === 'services') {
+                  return serviceCatalog
+                    .filter(sv => sv.name.toLowerCase().includes(q) || sv.code.toLowerCase().includes(q))
+                    .map(sv => ({ id: sv.id, title: sv.name, subtitle: sv.code, priceText: formatBRL(sv.standardPrice), data: sv.name }));
+                }
+                return checklistTemplates
+                  .filter(t => t.title.toLowerCase().includes(q))
+                  .map(t => ({ id: t.id, title: t.title, subtitle: t.equipmentType, data: t.title }));
+              }}
+              onSelect={(opt) => setSearchTerm(opt.data)}
             />
           </div>
           <div className="text-xs text-slate-500 hidden sm:block">

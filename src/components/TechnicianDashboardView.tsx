@@ -30,6 +30,7 @@ import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { ActiveTab } from './Sidebar';
 import { ServiceOrder, ServiceOrderStatus } from '../types';
 import { getTechnicianEmployeeId } from '../security/rbac';
+import { LiveSearchInput } from './LiveSearchInput';
 
 interface TechnicianDashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
@@ -343,14 +344,32 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
 
       {/* Controles de Filtro e Busca */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Buscar por código da OS, cliente, endereço ou equipamento..."
+        <div className="flex-1 w-full">
+          <LiveSearchInput
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-slate-700 font-sans"
+            onChange={setSearchTerm}
+            placeholder="Buscar por código da OS, cliente, endereço ou equipamento..."
+            emptyLabel="Nenhuma OS"
+            inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-slate-700 focus:bg-white font-sans"
+            getOptions={(query) => {
+              const q = query.toLowerCase();
+              return techOrders
+                .filter(
+                  o =>
+                    o.code.toLowerCase().includes(q) ||
+                    o.clientName.toLowerCase().includes(q) ||
+                    (o.clientAddress || '').toLowerCase().includes(q) ||
+                    (o.equipmentType || '').toLowerCase().includes(q)
+                )
+                .map(o => ({
+                  id: o.id,
+                  title: `OS ${o.code} · ${o.clientName}`,
+                  subtitle: o.equipmentType || o.clientAddress || 'Atendimento Técnico',
+                  badgeText: formatDateBR(o.forecastDate),
+                  data: o
+                }));
+            }}
+            onSelect={(opt) => setSearchTerm(opt.data.code)}
           />
         </div>
 

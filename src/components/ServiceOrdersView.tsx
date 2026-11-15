@@ -61,6 +61,7 @@ import { ServiceOrderPrintTemplate } from './ServiceOrderPrintTemplate';
 import { getScopedServiceOrders } from '../security/secureDataAccess';
 import { WhatsAppModal } from './WhatsAppModal';
 import { TablePagination } from './TablePagination';
+import { LiveSearchInput } from './LiveSearchInput';
 
 interface ServiceOrdersViewProps {
   isNewModalOpen: boolean;
@@ -1553,14 +1554,42 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-[#d8d8d8] shadow-xs">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#707174] absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Buscar por código, cliente, S/N do equipamento ou laudo..."
+        <div className="flex-1 w-full">
+          <LiveSearchInput
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e]"
+            onChange={setSearchTerm}
+            placeholder="Buscar por código, cliente, S/N do equipamento ou laudo..."
+            emptyLabel="Nenhuma OS"
+            inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
+            getOptions={(query) => {
+              const q = query.toLowerCase();
+              return scopedOrders
+                .filter(
+                  o =>
+                    o.code.toLowerCase().includes(q) ||
+                    o.clientName.toLowerCase().includes(q) ||
+                    (o.equipmentSerial && o.equipmentSerial.toLowerCase().includes(q)) ||
+                    (o.description || '').toLowerCase().includes(q)
+                )
+                .map(o => {
+                  const srv = o.services.reduce((a, s) => a + Number(s.price || 0), 0);
+                  const prt = o.parts.reduce((a, p) => a + Number(p.price || 0) * Number(p.quantity || 1), 0);
+                  const total = Math.max(0, srv + prt + Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0));
+                  return {
+                    id: o.id,
+                    title: `OS ${o.code} · ${o.clientName}`,
+                    subtitle: `${o.equipmentType || o.description || 'Atendimento Técnico'}`,
+                    priceText: formatBRL(total),
+                    badgeText: o.paymentStatus === 'pago' ? 'Pago' : 'Pendente',
+                    badgeClassName:
+                      o.paymentStatus === 'pago'
+                        ? 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800'
+                        : 'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800',
+                    data: o
+                  };
+                });
+            }}
+            onSelect={(opt) => setSelectedOSForDetail(opt.data)}
           />
         </div>
 

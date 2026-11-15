@@ -27,6 +27,7 @@ import {
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { SaleItem, PaymentMethod, PaymentSplit, CardBrand, DirectSale } from '../types';
 import { WhatsAppModal } from './WhatsAppModal';
+import { LiveSearchInput } from './LiveSearchInput';
 
 export const SalesView: React.FC = () => {
   const { 
@@ -593,62 +594,37 @@ export const SalesView: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
-                      value={clientSearch}
-                      onChange={(e) => setClientSearch(e.target.value)}
-                      className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                    />
-                    {clientSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setClientSearch('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  {clientSearch.trim() && (
-                    <div className="max-h-32 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
-                      {filteredClients.length === 0 ? (
-                        <div className="p-2 text-[11px] text-slate-400 text-center">
-                          Nenhum cliente encontrado.
-                        </div>
-                      ) : (
-                        filteredClients.slice(0, 8).map(c => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                              handleSelectClient(c.id);
-                              setClientSearch('');
-                            }}
-                            className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 cursor-pointer ${
-                              clientId === c.id ? 'bg-blue-50/70' : ''
-                            }`}
-                          >
-                            <div className="min-w-0">
-                              <div className="font-semibold text-slate-900 truncate">{c.name}</div>
-                              <div className="text-[10px] text-slate-500 font-mono truncate">
-                                {c.document || c.phone}
-                              </div>
-                            </div>
-                            <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              c.customerType === 'atacado'
-                                ? 'bg-purple-100 text-purple-800'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {c.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
-                            </span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
+                  <LiveSearchInput
+                    value={clientSearch}
+                    onChange={setClientSearch}
+                    placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
+                    emptyLabel="Nenhum cliente"
+                    clearOnSelect
+                    inputClassName="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                    getOptions={(query) => {
+                      const q = query.toLowerCase();
+                      return clients
+                        .filter(
+                          c =>
+                            c.name.toLowerCase().includes(q) ||
+                            (c.tradeName || '').toLowerCase().includes(q) ||
+                            (c.document || '').toLowerCase().includes(q) ||
+                            (c.phone || '').toLowerCase().includes(q)
+                        )
+                        .map(c => ({
+                          id: c.id,
+                          title: c.name,
+                          subtitle: c.document || c.phone || 'Sem documento',
+                          badgeText: c.customerType === 'atacado' ? 'Atacadista' : 'Varejista',
+                          badgeClassName:
+                            c.customerType === 'atacado'
+                              ? 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800'
+                              : 'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600',
+                          data: c
+                        }));
+                    }}
+                    onSelect={(opt) => handleSelectClient(opt.data.id)}
+                  />
                   <select
                     value={clientId}
                     onChange={(e) => handleSelectClient(e.target.value)}

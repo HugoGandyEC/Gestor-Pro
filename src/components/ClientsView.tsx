@@ -28,6 +28,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { Client, ClientAddress } from '../types';
 import { TablePagination } from './TablePagination';
+import { LiveSearchInput } from './LiveSearchInput';
 
 export const ClientsView: React.FC = () => {
   const { 
@@ -643,14 +644,37 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
       {/* Filters and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
         <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
-          <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Buscar por nome, fantasia, CPF/CNPJ, RG, contato ou título de endereço..."
+          <div className="w-full md:w-96">
+            <LiveSearchInput
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              onChange={setSearchTerm}
+              placeholder="Buscar por nome, fantasia, CPF/CNPJ, RG, contato ou título de endereço..."
+              emptyLabel="Nenhum cliente"
+              inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              getOptions={(query) => {
+                const q = query.toLowerCase();
+                return clients
+                  .filter(
+                    c =>
+                      c.name.toLowerCase().includes(q) ||
+                      (c.tradeName || '').toLowerCase().includes(q) ||
+                      (c.document || '').toLowerCase().includes(q) ||
+                      (c.phone || '').toLowerCase().includes(q) ||
+                      (c.city || '').toLowerCase().includes(q)
+                  )
+                  .map(c => ({
+                    id: c.id,
+                    title: c.name,
+                    subtitle: `${c.document || c.phone || 'Sem documento'}${c.city ? ` · ${c.city}/${c.state}` : ''}`,
+                    badgeText: c.customerType === 'atacado' ? 'Atacadista' : 'Varejista',
+                    badgeClassName:
+                      c.customerType === 'atacado'
+                        ? 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800'
+                        : 'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600',
+                    data: c
+                  }));
+              }}
+              onSelect={(opt) => setSearchTerm(opt.data.name)}
             />
           </div>
 

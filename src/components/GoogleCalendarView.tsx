@@ -13,7 +13,6 @@ import {
   Truck, 
   ExternalLink, 
   Filter, 
-  Search, 
   AlertCircle, 
   Check, 
   ChevronLeft, 
@@ -48,6 +47,7 @@ import {
   listGoogleCalendarEvents
 } from '../services/googleCalendarService';
 import { User as FirebaseUser } from 'firebase/auth';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 
 export const GoogleCalendarView: React.FC = () => {
   const { 
@@ -562,8 +562,8 @@ export const GoogleCalendarView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Banner / Integration Card */}
-      <div className="bg-white rounded-xl shadow-xs border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-[#53383e] to-[#76321A] p-5 sm:p-6 text-white">
+      <div className="bg-white rounded-xl shadow-xs border border-gray-200">
+        <div className="bg-gradient-to-r from-[#53383e] to-[#76321A] p-5 sm:p-6 text-white rounded-t-xl">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium tracking-wide uppercase mb-2">
@@ -734,18 +734,41 @@ export const GoogleCalendarView: React.FC = () => {
         </div>
 
         {/* Filter bar */}
-        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white">
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white rounded-b-xl">
           {/* Search Input */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Buscar título, cliente, OS, local..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#53383e] focus:border-transparent"
-            />
-          </div>
+          <LiveSearchInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar título, cliente, OS, local..."
+            emptyLabel="Nenhum agendamento"
+            inputClassName="w-full pl-9 pr-8 py-2 text-xs border border-gray-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#53383e] focus:border-transparent bg-white"
+            getOptions={(query) => {
+              const q = query.toLowerCase();
+              return appointments
+                .filter(
+                  a =>
+                    a.title.toLowerCase().includes(q) ||
+                    (a.clientName || '').toLowerCase().includes(q) ||
+                    (a.location || '').toLowerCase().includes(q) ||
+                    (a.serviceOrderCode || '').toLowerCase().includes(q) ||
+                    (a.description || '').toLowerCase().includes(q)
+                )
+                .map((apt): LiveSearchOption<CompanyAppointment> => {
+                  const statusBadge = getStatusBadge(apt.status);
+                  return {
+                    id: apt.id,
+                    title: apt.title,
+                    subtitle: `${formatDateBR(apt.startDate)} ${apt.startTime || ''}${apt.clientName ? ` · ${apt.clientName}` : ''}`,
+                    badgeText: statusBadge.label,
+                    badgeClassName: `shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${statusBadge.bg}`,
+                    data: apt
+                  };
+                });
+            }}
+            onSelect={(opt) => {
+              setViewDetailsAppointment(opt.data);
+            }}
+          />
 
           {/* Filter Type */}
           <select

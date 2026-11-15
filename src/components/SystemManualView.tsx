@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   BookOpen, 
-  Search, 
   Printer, 
   ClipboardList, 
   ShoppingBag, 
@@ -30,7 +29,8 @@ import {
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 import { SYSTEM_VERSION, SYSTEM_BUILD, SYSTEM_RELEASE_DATE } from '../constants/version';
-import { SYSTEM_CHANGELOG, ChangeCategory } from '../constants/changelog';
+import { SYSTEM_CHANGELOG, ChangeCategory, ChangelogEntry } from '../constants/changelog';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 
 interface SystemManualViewProps {
   onNavigate?: (tab: ActiveTab) => void;
@@ -561,14 +561,32 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
                 </button>
               ))}
             </div>
-            <div className="relative w-full sm:w-72">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Filtrar versão, PDV, MySQL, Firestore..."
+            <div className="w-full sm:w-72">
+              <LiveSearchInput
                 value={changelogSearch}
-                onChange={(e) => setChangelogSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#53383e]"
+                onChange={setChangelogSearch}
+                placeholder="Filtrar versão, PDV, MySQL, Firestore..."
+                emptyLabel="Nenhuma versão"
+                inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
+                getOptions={(query) => {
+                  const q = query.toLowerCase();
+                  return SYSTEM_CHANGELOG
+                    .filter(
+                      entry =>
+                        entry.version.toLowerCase().includes(q) ||
+                        entry.title.toLowerCase().includes(q) ||
+                        entry.summary.toLowerCase().includes(q) ||
+                        entry.changes.some(ch => ch.description.toLowerCase().includes(q))
+                    )
+                    .map((entry): LiveSearchOption<ChangelogEntry> => ({
+                      id: entry.version,
+                      title: `${entry.version} — ${entry.title}`,
+                      subtitle: entry.summary,
+                      badgeText: entry.date,
+                      data: entry
+                    }));
+                }}
+                onSelect={(opt) => setChangelogSearch(opt.data.version)}
               />
             </div>
           </div>
@@ -613,16 +631,36 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
       ) : (
         <>
       {/* Search Bar */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          placeholder="Pesquisar por assunto, tela, regra de negócio ou fórmula (ex: PDV, DRE, NF-e, 55%, checklist, parcelas)..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#53383e] shadow-xs"
-        />
-      </div>
+      <LiveSearchInput
+        value={searchTerm}
+        onChange={setSearchTerm}
+        placeholder="Pesquisar por assunto, tela, regra de negócio ou fórmula (ex: PDV, DRE, NF-e, 55%, checklist, parcelas)..."
+        emptyLabel="Nenhum capítulo"
+        inputClassName="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#53383e] shadow-xs"
+        getOptions={(query) => {
+          const q = query.toLowerCase();
+          return sections
+            .filter(
+              sec =>
+                sec.title.toLowerCase().includes(q) ||
+                sec.summary.toLowerCase().includes(q) ||
+                sec.badge.toLowerCase().includes(q) ||
+                sec.steps.some(st => st.toLowerCase().includes(q)) ||
+                sec.rules.some(rl => rl.toLowerCase().includes(q))
+            )
+            .map((sec): LiveSearchOption<ManualSection> => ({
+              id: sec.id,
+              title: sec.title,
+              subtitle: sec.summary,
+              badgeText: sec.badge,
+              data: sec
+            }));
+        }}
+        onSelect={(opt) => {
+          setSelectedSectionId(opt.data.id);
+          setSearchTerm('');
+        }}
+      />
 
       {/* Main Content Layout: Sidebar of Sections + Section Content */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
