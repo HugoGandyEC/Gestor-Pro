@@ -27,6 +27,7 @@ export interface WhatsAppModalProps {
   recipientName?: string;
   defaultTemplateId?: string;
   contextVariables?: Record<string, string | number | undefined>;
+  initialCustomMessage?: string;
 }
 
 export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
@@ -35,12 +36,14 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
   recipientPhone = '',
   recipientName = '',
   defaultTemplateId = 'os_orcamento',
-  contextVariables = {}
+  contextVariables = {},
+  initialCustomMessage
 }) => {
   const { companySettings } = useApp();
   const [phone, setPhone] = useState(recipientPhone);
   const [selectedTemplateId, setSelectedTemplateId] = useState(defaultTemplateId);
   const [copied, setCopied] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   // Merge context variables with company defaults
   const allVariables: Record<string, string | number | undefined> = {
@@ -55,7 +58,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
 
   // Initial computed message text
   const [customMessage, setCustomMessage] = useState<string>(() => {
-    return renderWhatsAppTemplate(currentTemplate.template, allVariables);
+    return initialCustomMessage || renderWhatsAppTemplate(currentTemplate.template, allVariables);
   });
 
   // When selected template changes, re-render message
@@ -67,14 +70,23 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
     }
   };
 
-  // Sync recipientPhone if prop changes
+  // Sync recipientPhone and initialCustomMessage when modal opens
   React.useEffect(() => {
-    if (recipientPhone) setPhone(recipientPhone);
-  }, [recipientPhone]);
+    if (isOpen) {
+      setPhoneError(null);
+      if (recipientPhone) setPhone(recipientPhone);
+      if (initialCustomMessage) {
+        setCustomMessage(initialCustomMessage);
+      } else {
+        const tmpl = defaultWhatsAppTemplates.find(t => t.id === defaultTemplateId) || defaultWhatsAppTemplates[0];
+        setCustomMessage(renderWhatsAppTemplate(tmpl.template, allVariables));
+      }
+    }
+  }, [isOpen, recipientPhone, initialCustomMessage, defaultTemplateId]);
 
   // Copy message to clipboard
   const handleCopy = () => {
-    navigator.clipboard.writeText(customMessage);
+    navigator.clipboard?.writeText(customMessage);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -82,9 +94,10 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
   // Send WhatsApp message
   const handleSend = () => {
     if (!phone.trim()) {
-      alert('Informe o número de WhatsApp do cliente com DDD (ex: 11 99999-8888).');
+      setPhoneError('Informe o número de WhatsApp do cliente com DDD (ex: 11 99999-8888).');
       return;
     }
+    setPhoneError(null);
     sendWhatsAppMessage(phone, customMessage, 'api');
     onClose();
   };
@@ -144,10 +157,18 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                   type="text"
                   placeholder="(11) 99999-8888"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    if (phoneError) setPhoneError(null);
+                  }}
                   className="w-full pl-9 pr-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono"
                 />
               </div>
+              {phoneError && (
+                <span className="text-[11px] text-rose-600 font-semibold mt-1 block">
+                  {phoneError}
+                </span>
+              )}
               {formattedNum && (
                 <span className="text-[10px] text-gray-400 font-mono mt-0.5 block">
                   Número formatado: +{formattedNum}

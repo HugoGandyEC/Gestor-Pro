@@ -26,6 +26,7 @@ import { AuditLogsModal } from './components/AuditLogsModal';
 import { SystemHelpModal } from './components/SystemHelpModal';
 import { SystemManualView } from './components/SystemManualView';
 import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
+import { PaymentReceiptModal } from './components/PaymentReceiptModal';
 import { LoginView } from './components/LoginView';
 import { SystemFooter } from './components/SystemFooter';
 import { PdvView } from './components/PdvView';
@@ -71,7 +72,7 @@ const getInitialTab = (): ActiveTab => {
 };
 
 const MainLayout: React.FC = () => {
-  const { currentRole } = useApp();
+  const { currentRole, activeReceiptModal, closeReceiptModal } = useApp();
   const [activeTab, setActiveTabState] = useState<ActiveTab>(getInitialTab);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState(false);
@@ -251,6 +252,9 @@ const MainLayout: React.FC = () => {
 
       {/* Logout Confirmation Modal */}
       <LogoutConfirmationModal />
+
+      {/* Global Auto Payment Receipt Modal */}
+      <PaymentReceiptModal receipt={activeReceiptModal} onClose={closeReceiptModal} />
     </div>
   );
 };

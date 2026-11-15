@@ -42,6 +42,9 @@ export const SalesView: React.FC = () => {
     deleteDirectSale,
     sendSaleToPdv,
     settleSaleInPdv,
+    getReceiptsForSource,
+    getPaidAmountForSource,
+    openReceiptModal,
     cardRates,
     currentRole,
     companySettings 
@@ -50,6 +53,8 @@ export const SalesView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<DirectSale | null>(null);
   const [chargingSale, setChargingSale] = useState<DirectSale | null>(null);
+  const [salePayMode, setSalePayMode] = useState<'full' | 'partial'>('full');
+  const [salePartialAmount, setSalePartialAmount] = useState<number>(0);
   const [pdvSuccessMessage, setPdvSuccessMessage] = useState<string | null>(null);
   const [pdvTerminal, setPdvTerminal] = useState('caixa_01');
   const [pdvMethod, setPdvMethod] = useState<PaymentMethod>('pix');
@@ -737,6 +742,20 @@ export const SalesView: React.FC = () => {
                   <Download className="w-3.5 h-3.5" />
                   <span>Baixar</span>
                 </button>
+                {(() => {
+                  const saleReceipts = getReceiptsForSource('venda', sale.id);
+                  if (saleReceipts.length === 0) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => openReceiptModal(saleReceipts[0])}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Ver Recibo ({saleReceipts[0].receiptNumber})</span>
+                    </button>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => {
@@ -1158,18 +1177,91 @@ export const SalesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Total Summary */}
-              <div className="p-4 bg-[#f6eff1] border border-[#53383e]/30 rounded-xl flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-[#707174]">Total dos Produtos</span>
-                  <div className="text-lg font-black font-mono text-[#53383e]">{formatBRL(chargingSale.total)}</div>
-                </div>
-                <span className={`text-xs font-bold px-2.5 py-1 rounded ${
-                  chargingSale.paymentStatus === 'pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {chargingSale.paymentStatus === 'pago' ? 'Liquidado no Caixa' : 'Pronto para Recebimento'}
-                </span>
-              </div>
+              {/* Total & Partial Summary */}
+              {(() => {
+                const paidSoFar = getPaidAmountForSource('venda', chargingSale.id);
+                const remaining = Math.max(0, Number((chargingSale.total - paidSoFar).toFixed(2))) || chargingSale.total;
+                const amountToPay =
+                  salePayMode === 'partial'
+                    ? Math.max(0.01, Math.min(remaining, Number(salePartialAmount) || remaining * 0.5))
+                    : remaining;
+
+                return (
+                  <div className="space-y-3">
+                    <div className="p-4 bg-[#f6eff1] border border-[#53383e]/30 rounded-xl flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <span className="text-xs text-[#707174]">
+                          {paidSoFar > 0 ? `Saldo Restante (Já pago: ${formatBRL(paidSoFar)} / ${formatBRL(chargingSale.total)})` : 'Total dos Produtos'}
+                        </span>
+                        <div className="text-lg font-black font-mono text-[#53383e]">{formatBRL(amountToPay)}</div>
+                      </div>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded ${
+                        chargingSale.paymentStatus === 'pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {chargingSale.paymentStatus === 'pago' ? 'Liquidado no Caixa' : 'Pronto para Recebimento'}
+                      </span>
+                    </div>
+
+                    {chargingSale.paymentStatus !== 'pago' && (
+                      <div className="p-3 bg-[#f4f5f6] border border-[#d8d8d8] rounded-xl space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSalePayMode('full');
+                              setSalePartialAmount(remaining);
+                            }}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                              salePayMode === 'full'
+                                ? 'bg-emerald-600 text-white border-emerald-700'
+                                : 'bg-white text-[#363739] border-[#d8d8d8]'
+                            }`}
+                          >
+                            Quitação Total ({formatBRL(remaining)})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSalePayMode('partial');
+                              setSalePartialAmount(Number((remaining * 0.5).toFixed(2)));
+                            }}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                              salePayMode === 'partial'
+                                ? 'bg-amber-600 text-white border-amber-700'
+                                : 'bg-white text-[#363739] border-[#d8d8d8]'
+                            }`}
+                          >
+                            Entrada / Parcial
+                          </button>
+                        </div>
+
+                        {salePayMode === 'partial' && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-center">
+                            <div>
+                              <label className="block text-[10px] font-bold text-[#363739] mb-1">Valor Pago Agora (R$)</label>
+                              <input
+                                type="number"
+                                min="0.01"
+                                max={remaining}
+                                step="0.01"
+                                value={salePartialAmount}
+                                onChange={(e) => setSalePartialAmount(Math.max(0, Math.min(remaining, Number(e.target.value) || 0)))}
+                                className="w-full p-2 bg-white border border-amber-400 rounded-lg font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                              <div className="text-[10px] text-amber-800 font-bold uppercase">Falta Restante</div>
+                              <div className="text-sm font-black font-mono text-amber-900">
+                                {formatBRL(Math.max(0, remaining - amountToPay))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="sticky bottom-0 bg-white px-5 py-3 border-t border-[#d8d8d8] flex items-center justify-between gap-2 z-10">
@@ -1212,20 +1304,25 @@ export const SalesView: React.FC = () => {
                           : pdvTerminal === 'caixa_02'
                           ? 'Caixa 02 - Vendas Rápidas / Atacado'
                           : 'PDV Móvel - Maquininha Campo';
+                      const paidSoFar = getPaidAmountForSource('venda', chargingSale.id);
+                      const remaining = Math.max(0, Number((chargingSale.total - paidSoFar).toFixed(2))) || chargingSale.total;
+                      const amountToPay =
+                        salePayMode === 'partial'
+                          ? Math.max(0.01, Math.min(remaining, Number(salePartialAmount) || remaining))
+                          : remaining;
                       settleSaleInPdv(chargingSale.id, {
-                        payments: [{ id: `pay-${Date.now()}`, method: pdvMethod, amount: chargingSale.total, netAmount: chargingSale.total }],
+                        payments: [{ id: `pay-${Date.now()}`, method: pdvMethod, amount: amountToPay, netAmount: amountToPay }],
                         paymentMethod: pdvMethod,
-                        terminalName
+                        terminalName,
+                        saleOverride: chargingSale,
+                        paidAmount: amountToPay
                       });
-                      setPdvSuccessMessage(`Venda ${chargingSale.code} liquidada e baixada no ${terminalName}!`);
-                      setTimeout(() => {
-                        setChargingSale(null);
-                        setPdvSuccessMessage(null);
-                      }, 1500);
+                      setChargingSale(null);
+                      setPdvSuccessMessage(null);
                     }}
                     className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer"
                   >
-                    Liquidar e Baixar no Caixa
+                    Confirmar & Gerar Recibo
                   </button>
                 )}
               </div>

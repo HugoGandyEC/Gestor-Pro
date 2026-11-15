@@ -93,6 +93,9 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     convertBudgetToOrderOrSale,
     sendOrderToPdv,
     settleServiceOrderInPdv,
+    getReceiptsForSource,
+    getPaidAmountForSource,
+    openReceiptModal,
     currentRole,
     currentUser,
     appointments,
@@ -297,6 +300,10 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [copiedPix, setCopiedPix] = useState(false);
   const [isMultiSplit, setIsMultiSplit] = useState(false);
   const [pdvSplits, setPdvSplits] = useState<PaymentSplit[]>([]);
+  const [pdvPayMode, setPdvPayMode] = useState<'full' | 'partial' | 'installment'>('full');
+  const [pdvPartialAmount, setPdvPartialAmount] = useState<number>(0);
+  const [pdvSelectedSplitId, setPdvSelectedSplitId] = useState<string | null>(null);
+  const [pdvReceiptNotes, setPdvReceiptNotes] = useState<string>('');
 
   // Catalog & Custom Services in OS State
   const [serviceAddMode, setServiceAddMode] = useState<'catalogo' | 'avulso' | 'novo_vinculado'>('catalogo');
@@ -1278,7 +1285,9 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const handleOpenPDV = (os: ServiceOrder) => {
     setChargingOS(os);
     setPdvSuccessMessage(null);
-    const firstPending = os.payments?.find(p => p.status !== 'pago') || os.payments?.[0];
+    setPdvReceiptNotes('');
+    const pendingSplits = (os.payments || []).filter(p => p.status !== 'pago');
+    const firstPending = pendingSplits[0] || os.payments?.[0];
     setPdvPaymentMethod(firstPending?.method || os.paymentMethod || 'pix');
     setPdvCardBrand(firstPending?.cardBrand || 'visa');
     setPdvInstallments(firstPending?.installments || 1);
@@ -1288,15 +1297,20 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     const srvTotal = os.services.reduce((a, s) => a + Number(s.price || 0), 0);
     const prtTotal = os.parts.reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
     const grandTotal = Math.max(0, srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0));
+    const paidSoFar = getPaidAmountForSource('os', os.id);
+    const remaining = Math.max(0, Number((grandTotal - paidSoFar).toFixed(2))) || grandTotal;
 
-    setPdvCashReceived(grandTotal);
-    if (os.payments && os.payments.length > 0) {
+    setPdvPayMode('full');
+    setPdvPartialAmount(remaining);
+    setPdvSelectedSplitId(firstPending?.id || null);
+    setPdvCashReceived(remaining);
+    if (os.payments && os.payments.length > 0 && paidSoFar <= 0) {
       setIsMultiSplit(os.payments.length > 1);
       setPdvSplits(os.payments);
     } else {
       setIsMultiSplit(false);
       setPdvSplits([
-        { id: 'split-1', method: 'pix', amount: grandTotal, netAmount: grandTotal }
+        { id: 'split-1', method: firstPending?.method || 'pix', amount: remaining, netAmount: remaining }
       ]);
     }
   };
@@ -1320,20 +1334,30 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     const srvTotal = chargingOS.services.reduce((a, s) => a + Number(s.price || 0), 0);
     const prtTotal = chargingOS.parts.reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
     const grandTotal = Math.max(0, srvTotal + prtTotal + Number(chargingOS.visitFee || 0) - Number(chargingOS.calculatedDiscount || 0));
+    const paidSoFar = getPaidAmountForSource('os', chargingOS.id);
+    const remaining = Math.max(0, Number((grandTotal - paidSoFar).toFixed(2))) || grandTotal;
+
+    let amountToSettle = remaining;
+    if (pdvPayMode === 'partial') {
+      amountToSettle = Math.max(0.01, Math.min(remaining, Number(pdvPartialAmount) || remaining));
+    } else if (pdvPayMode === 'installment' && pdvSelectedSplitId) {
+      const sp = (chargingOS.payments || []).find(p => p.id === pdvSelectedSplitId);
+      if (sp) amountToSettle = Math.min(remaining, Number(sp.amount || remaining));
+    }
 
     let ratePct = 0;
     let rateAmount = 0;
-    let netAmount = grandTotal;
+    let netAmount = amountToSettle;
     if (pdvPaymentMethod === 'cartao_credito') {
       const matchedRate = cardRates.find(r => r.brand === pdvCardBrand);
       ratePct = pdvInstallments === 1 
         ? (matchedRate?.creditSightRate || 3.5) 
         : (matchedRate?.creditInstallmentsRate || 5.2);
-      rateAmount = Number(((grandTotal * ratePct) / 100).toFixed(2));
-      netAmount = Number((grandTotal - rateAmount).toFixed(2));
+      rateAmount = Number(((amountToSettle * ratePct) / 100).toFixed(2));
+      netAmount = Number((amountToSettle - rateAmount).toFixed(2));
     }
 
-    const finalPayments: PaymentSplit[] = isMultiSplit && pdvSplits.length > 0 
+    const finalPayments: PaymentSplit[] = isMultiSplit && pdvSplits.length > 0 && pdvPayMode === 'full'
       ? pdvSplits 
       : [{
           id: `pay-${Date.now()}`,
@@ -1342,7 +1366,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
           installments: pdvPaymentMethod === 'cartao_credito' ? pdvInstallments : undefined,
           ratePercentage: ratePct,
           rateAmount,
-          amount: grandTotal,
+          amount: amountToSettle,
           netAmount
         }];
 
@@ -1355,20 +1379,33 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
         ? 'Caixa 03 - Retirada & Assistência Técnica'
         : 'PDV Móvel - Maquininha Campo';
 
-    const movement = settleServiceOrderInPdv(chargingOS.id, {
+    const paymentKind =
+      pdvPayMode === 'installment'
+        ? 'parcela'
+        : amountToSettle >= remaining - 0.01
+        ? paidSoFar > 0
+          ? 'quitacao'
+          : 'vista'
+        : paidSoFar <= 0
+        ? 'entrada'
+        : 'parcial';
+
+    settleServiceOrderInPdv(chargingOS.id, {
       payments: finalPayments,
       paymentMethod: pdvPaymentMethod,
       amountReceived: pdvPaymentMethod === 'dinheiro' ? pdvCashReceived : undefined,
-      changeAmount: pdvPaymentMethod === 'dinheiro' ? Math.max(0, pdvCashReceived - grandTotal) : undefined,
+      changeAmount: pdvPaymentMethod === 'dinheiro' ? Math.max(0, pdvCashReceived - amountToSettle) : undefined,
       nsu: pdvAuthCode || undefined,
       terminalName,
-      orderOverride: chargingOS
+      orderOverride: chargingOS,
+      paidAmount: amountToSettle,
+      splitId: pdvPayMode === 'installment' ? pdvSelectedSplitId || undefined : undefined,
+      paymentKind,
+      notes: pdvReceiptNotes.trim() || undefined
     });
 
-    setPdvSuccessMessage(`Fatura ${chargingOS.code} LIQUIDADA no Caixa PDV! Valor: ${formatBRL(grandTotal)}. Autenticação: ${movement?.nsu || `NSU-${Math.floor(100000 + Math.random() * 900000)}`}.`);
-    setTimeout(() => {
-      setChargingOS(null);
-    }, 1800);
+    setChargingOS(null);
+    setPdvSuccessMessage(null);
   };
 
   const handleSendWhatsAppInvoice = () => {
@@ -2224,6 +2261,48 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                     </div>
                   </div>
                 )}
+
+                {(() => {
+                  const osReceipts = getReceiptsForSource('os', os.id);
+                  if (osReceipts.length === 0 || currentRole === 'tecnico') return null;
+                  return (
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                        Recibos de Pagamento Emitidos ({osReceipts.length})
+                      </h4>
+                      <div className="space-y-1.5">
+                        {osReceipts.map(rec => (
+                          <div
+                            key={rec.id}
+                            className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-slate-200 bg-white text-xs"
+                          >
+                            <div className="min-w-0">
+                              <span className="font-mono font-bold text-[#53383e]">{rec.receiptNumber}</span>
+                              <span className="text-slate-500 ml-2">
+                                {new Date(rec.createdAt).toLocaleDateString('pt-BR')} · Pago {formatBRL(rec.amountPaidNow)}
+                              </span>
+                              {!rec.isFullyPaid ? (
+                                <span className="ml-2 text-[10px] font-bold text-amber-700">
+                                  (Resta {formatBRL(rec.remainingBalance)})
+                                </span>
+                              ) : (
+                                <span className="ml-2 text-[10px] font-bold text-emerald-700">(QUITADO)</span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => openReceiptModal(rec)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-md cursor-pointer shrink-0"
+                            >
+                              <Receipt className="w-3 h-3" />
+                              <span>Ver Recibo</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             }
             actions={
@@ -4406,35 +4485,162 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                 </div>
               </div>
 
-              {/* Financial Breakdown Summary */}
+              {/* Financial Breakdown & Partial/Installment Mode */}
               {(() => {
                 const servicesTotal = chargingOS.services.reduce((acc, s) => acc + s.price, 0);
                 const partsTotal = chargingOS.parts.reduce((acc, p) => acc + p.quantity * p.price, 0);
                 const visitFee = Number(chargingOS.visitFee || 0);
                 const discount = Number(chargingOS.calculatedDiscount || 0);
-                const grandTotal = servicesTotal + partsTotal + visitFee - discount;
+                const grandTotal = Math.max(0, servicesTotal + partsTotal + visitFee - discount);
+                const paidSoFar = getPaidAmountForSource('os', chargingOS.id);
+                const remainingBalance = Math.max(0, Number((grandTotal - paidSoFar).toFixed(2))) || grandTotal;
+                const pendingSplits = (chargingOS.payments || []).filter(p => p.status !== 'pago');
+                const currentPayAmount =
+                  pdvPayMode === 'partial'
+                    ? Math.max(0, Math.min(remainingBalance, Number(pdvPartialAmount) || 0))
+                    : pdvPayMode === 'installment' && pdvSelectedSplitId
+                    ? Math.min(remainingBalance, Number(pendingSplits.find(s => s.id === pdvSelectedSplitId)?.amount || remainingBalance))
+                    : remainingBalance;
 
                 return (
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 bg-white border border-[#d8d8d8] rounded-xl text-center">
-                    <div className="p-2 bg-[#f4f5f6] rounded-lg">
-                      <div className="text-[10px] text-[#707174] font-semibold uppercase">Serviços</div>
-                      <div className="text-xs font-bold font-mono text-[#363739] mt-0.5">{formatBRL(servicesTotal)}</div>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 bg-white border border-[#d8d8d8] rounded-xl text-center">
+                      <div className="p-2 bg-[#f4f5f6] rounded-lg">
+                        <div className="text-[10px] text-[#707174] font-semibold uppercase">Serviços</div>
+                        <div className="text-xs font-bold font-mono text-[#363739] mt-0.5">{formatBRL(servicesTotal)}</div>
+                      </div>
+                      <div className="p-2 bg-[#f4f5f6] rounded-lg">
+                        <div className="text-[10px] text-[#707174] font-semibold uppercase">Peças / Estoque</div>
+                        <div className="text-xs font-bold font-mono text-[#363739] mt-0.5">{formatBRL(partsTotal)}</div>
+                      </div>
+                      <div className="p-2 bg-[#f4f5f6] rounded-lg">
+                        <div className="text-[10px] text-[#707174] font-semibold uppercase">Total da OS</div>
+                        <div className="text-xs font-bold font-mono text-[#363739] mt-0.5">{formatBRL(grandTotal)}</div>
+                      </div>
+                      <div className="p-2 bg-emerald-50 rounded-lg">
+                        <div className="text-[10px] text-emerald-700 font-semibold uppercase">Já Pago</div>
+                        <div className="text-xs font-bold font-mono text-emerald-700 mt-0.5">{formatBRL(paidSoFar)}</div>
+                      </div>
+                      <div className="col-span-2 sm:col-span-1 p-2 bg-[#f6eff1] border border-[#53383e]/30 rounded-lg">
+                        <div className="text-[10px] text-[#53383e] font-bold uppercase">Saldo a Pagar</div>
+                        <div className="text-sm font-black font-mono text-[#53383e] mt-0.5">{formatBRL(currentPayAmount)}</div>
+                      </div>
                     </div>
-                    <div className="p-2 bg-[#f4f5f6] rounded-lg">
-                      <div className="text-[10px] text-[#707174] font-semibold uppercase">Peças / Estoque</div>
-                      <div className="text-xs font-bold font-mono text-[#363739] mt-0.5">{formatBRL(partsTotal)}</div>
-                    </div>
-                    <div className="p-2 bg-[#f4f5f6] rounded-lg">
-                      <div className="text-[10px] text-[#707174] font-semibold uppercase">Taxa de Visita</div>
-                      <div className="text-xs font-bold font-mono text-[#363739] mt-0.5">{formatBRL(visitFee)}</div>
-                    </div>
-                    <div className="p-2 bg-[#f4f5f6] rounded-lg">
-                      <div className="text-[10px] text-rose-700 font-semibold uppercase">Desconto</div>
-                      <div className="text-xs font-bold font-mono text-rose-600 mt-0.5">-{formatBRL(discount)}</div>
-                    </div>
-                    <div className="col-span-2 sm:col-span-1 p-2 bg-[#f6eff1] border border-[#53383e]/30 rounded-lg">
-                      <div className="text-[10px] text-[#53383e] font-bold uppercase">Total a Cobrar</div>
-                      <div className="text-sm font-black font-mono text-[#53383e] mt-0.5">{formatBRL(grandTotal)}</div>
+
+                    <div className="p-3 bg-[#f4f5f6] border border-[#d8d8d8] rounded-xl space-y-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold text-[#363739] mr-1">Tipo de Baixa:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPdvPayMode('full');
+                            setPdvPartialAmount(remainingBalance);
+                            setPdvCashReceived(remainingBalance);
+                          }}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                            pdvPayMode === 'full'
+                              ? 'bg-emerald-600 text-white border-emerald-700'
+                              : 'bg-white text-[#363739] border-[#d8d8d8]'
+                          }`}
+                        >
+                          Quitação Total ({formatBRL(remainingBalance)})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPdvPayMode('partial');
+                            const suggested = Number((remainingBalance * 0.5).toFixed(2));
+                            setPdvPartialAmount(suggested);
+                            setPdvCashReceived(suggested);
+                          }}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                            pdvPayMode === 'partial'
+                              ? 'bg-amber-600 text-white border-amber-700'
+                              : 'bg-white text-[#363739] border-[#d8d8d8]'
+                          }`}
+                        >
+                          Entrada / Parcial
+                        </button>
+                        {pendingSplits.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPdvPayMode('installment');
+                              setPdvSelectedSplitId(pendingSplits[0].id);
+                              setPdvPaymentMethod(pendingSplits[0].method);
+                              setPdvCashReceived(pendingSplits[0].amount);
+                            }}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                              pdvPayMode === 'installment'
+                                ? 'bg-indigo-600 text-white border-indigo-700'
+                                : 'bg-white text-[#363739] border-[#d8d8d8]'
+                            }`}
+                          >
+                            Parcela ({pendingSplits.length})
+                          </button>
+                        )}
+                      </div>
+
+                      {pdvPayMode === 'partial' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#363739] mb-1">Valor Recebido Agora (R$)</label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              max={remainingBalance}
+                              step="0.01"
+                              value={pdvPartialAmount}
+                              onChange={(e) => {
+                                const val = Math.max(0, Math.min(remainingBalance, Number(e.target.value) || 0));
+                                setPdvPartialAmount(val);
+                                setPdvCashReceived(val);
+                              }}
+                              className="w-full p-2 bg-white border border-amber-400 rounded-lg font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#363739] mb-1">Observação do Recibo</label>
+                            <input
+                              type="text"
+                              value={pdvReceiptNotes}
+                              onChange={(e) => setPdvReceiptNotes(e.target.value)}
+                              placeholder="Ex: Sinal de entrada OS"
+                              className="w-full p-2 bg-white border border-[#d8d8d8] rounded-lg text-xs"
+                            />
+                          </div>
+                          <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div className="text-[10px] text-amber-800 font-bold uppercase">Saldo Restante</div>
+                            <div className="text-sm font-black font-mono text-amber-900">
+                              {formatBRL(Math.max(0, remainingBalance - currentPayAmount))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {pdvPayMode === 'installment' && pendingSplits.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {pendingSplits.map((sp, idx) => (
+                            <button
+                              key={sp.id}
+                              type="button"
+                              onClick={() => {
+                                setPdvSelectedSplitId(sp.id);
+                                setPdvPaymentMethod(sp.method);
+                                setPdvCashReceived(sp.amount);
+                              }}
+                              className={`p-2 rounded-lg border text-left flex items-center justify-between cursor-pointer ${
+                                pdvSelectedSplitId === sp.id
+                                  ? 'bg-indigo-50 border-indigo-500 text-indigo-900 font-bold'
+                                  : 'bg-white border-[#d8d8d8]'
+                              }`}
+                            >
+                              <span>{sp.entryType === 'entrada' ? 'Entrada' : `Parcela ${idx + 1}`} · {sp.method.replace('_', ' ')}</span>
+                              <span className="font-mono font-bold">{formatBRL(sp.amount)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -4751,7 +4957,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs transition-colors cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
-                  <span>Liquidar & Baixar no PDV</span>
+                  <span>Confirmar & Gerar Recibo</span>
                 </button>
               </div>
             </div>

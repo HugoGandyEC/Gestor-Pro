@@ -43,8 +43,9 @@ import {
 import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 import { ProductPhotoThumb } from './ProductPhotoThumb';
 import { useRowHoverTooltip } from './RowHoverTooltip';
+import { downloadReceiptPdf, RECEIPT_KIND_LABELS } from '../utils/receiptPdfGenerator';
 
-type PdvSubTab = 'fila' | 'balcao' | 'movimentacoes' | 'fechamentos';
+type PdvSubTab = 'fila' | 'balcao' | 'movimentacoes' | 'recibos' | 'fechamentos';
 type QueueFilter = 'todos' | 'enviados' | 'os' | 'vendas';
 
 interface CheckoutTarget {
@@ -53,9 +54,12 @@ interface CheckoutTarget {
   code: string;
   clientId?: string;
   clientName: string;
-  total: number;
+  total: number; // Saldo restante a cobrar
+  orderTotal: number;
+  alreadyPaid: number;
   terminalName?: string;
   summaryLines: { label: string; qty: number; total: number }[];
+  plannedSplits?: PaymentSplit[];
   saleObj?: DirectSale;
   orderObj?: ServiceOrder;
 }
@@ -98,6 +102,9 @@ export const PdvView: React.FC = () => {
     cashSessions,
     cashMovements,
     activeCashSession,
+    paymentReceipts,
+    openReceiptModal,
+    getPaidAmountForSource,
     openCashSession,
     closeCashSession,
     addCashManualMovement,
@@ -112,6 +119,8 @@ export const PdvView: React.FC = () => {
   const [subTab, setSubTab] = useState<PdvSubTab>('fila');
   const [queueFilter, setQueueFilter] = useState<QueueFilter>('todos');
   const [queueSearch, setQueueSearch] = useState('');
+  const [receiptSearch, setReceiptSearch] = useState('');
+  const [receiptStatusFilter, setReceiptStatusFilter] = useState<'todos' | 'quitados' | 'parciais'>('todos');
   const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Open / Close / Supply / Bleed Modals
@@ -130,6 +139,10 @@ export const PdvView: React.FC = () => {
 
   // Checkout Modal State
   const [checkoutTarget, setCheckoutTarget] = useState<CheckoutTarget | null>(null);
+  const [payMode, setPayMode] = useState<'full' | 'partial' | 'installment'>('full');
+  const [partialAmountInput, setPartialAmountInput] = useState('');
+  const [selectedSplitId, setSelectedSplitId] = useState<string | null>(null);
+  const [checkoutNotes, setCheckoutNotes] = useState('');
   const [isMultiSplit, setIsMultiSplit] = useState(false);
   const [payMethod, setPayMethod] = useState<PaymentMethod>('pix');
   const [cardBrand, setCardBrand] = useState<CardBrand>('visa');
@@ -139,7 +152,7 @@ export const PdvView: React.FC = () => {
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
   const [copiedPix, setCopiedPix] = useState(false);
 
-  // Receipt Modal after settlement
+  // Receipt Modal fallback for non-payment cash moves (suprimento / sangria)
   const [receiptMovement, setReceiptMovement] = useState<CashRegisterMovement | null>(null);
 
   // Balcao POS Quick Sale State
@@ -385,10 +398,13 @@ export const PdvView: React.FC = () => {
       clientName: string;
       date: string;
       total: number;
+      orderTotal: number;
+      alreadyPaid: number;
       sentToPdvAt?: string;
       pdvTerminal?: string;
       statusLabel: string;
       summaryLines: { label: string; qty: number; total: number }[];
+      plannedSplits?: PaymentSplit[];
       rawSale?: DirectSale;
       rawOrder?: ServiceOrder;
     }[] = [];
@@ -398,7 +414,9 @@ export const PdvView: React.FC = () => {
       .forEach(o => {
         const srvTotal = (o.services || []).reduce((a, s) => a + Number(s.price || 0), 0);
         const prtTotal = (o.parts || []).reduce((a, p) => a + Number(p.price || 0) * Number(p.quantity || 1), 0);
-        const total = Math.max(0, srvTotal + prtTotal + Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0));
+        const orderTotal = Math.max(0, srvTotal + prtTotal + Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0));
+        const alreadyPaid = getPaidAmountForSource('os', o.id);
+        const remaining = Math.max(0, Number((orderTotal - alreadyPaid).toFixed(2)));
 
         const lines: { label: string; qty: number; total: number }[] = [
           ...(o.services || []).map(s => ({ label: `Serviço: ${s.name}`, qty: 1, total: Number(s.price || 0) })),
@@ -415,11 +433,14 @@ export const PdvView: React.FC = () => {
           clientId: o.clientId,
           clientName: o.clientName,
           date: o.openDate,
-          total,
+          total: remaining > 0 ? remaining : orderTotal,
+          orderTotal,
+          alreadyPaid,
           sentToPdvAt: o.sentToPdvAt,
           pdvTerminal: o.pdvTerminal,
           statusLabel: o.type === 'orcamento' ? 'Orçamento' : 'Ordem de Serviço',
           summaryLines: lines,
+          plannedSplits: o.payments,
           rawOrder: o
         });
       });
@@ -427,6 +448,10 @@ export const PdvView: React.FC = () => {
     directSales
       .filter(s => s.paymentStatus !== 'pago')
       .forEach(s => {
+        const orderTotal = Number(s.total || 0);
+        const alreadyPaid = getPaidAmountForSource('venda', s.id);
+        const remaining = Math.max(0, Number((orderTotal - alreadyPaid).toFixed(2)));
+
         items.push({
           kind: 'sale',
           id: s.id,
@@ -434,7 +459,9 @@ export const PdvView: React.FC = () => {
           clientId: s.clientId,
           clientName: s.clientName,
           date: s.date,
-          total: s.total,
+          total: remaining > 0 ? remaining : orderTotal,
+          orderTotal,
+          alreadyPaid,
           sentToPdvAt: s.sentToPdvAt,
           pdvTerminal: s.pdvTerminal,
           statusLabel: `Venda (${s.priceType === 'atacado' ? 'Atacado' : 'Varejo'})`,
@@ -443,6 +470,7 @@ export const PdvView: React.FC = () => {
             qty: it.quantity,
             total: Number(it.price || 0) * Number(it.quantity || 1)
           })),
+          plannedSplits: s.payments,
           rawSale: s
         });
       });
@@ -453,7 +481,7 @@ export const PdvView: React.FC = () => {
       if (!a.sentToPdvAt && b.sentToPdvAt) return 1;
       return (b.sentToPdvAt || b.date).localeCompare(a.sentToPdvAt || a.date);
     });
-  }, [serviceOrders, directSales]);
+  }, [serviceOrders, directSales, paymentReceipts]);
 
   const filteredQueue = useMemo(() => {
     return pendingQueue.filter(item => {
@@ -499,17 +527,32 @@ export const PdvView: React.FC = () => {
   const openCheckoutForTarget = (target: CheckoutTarget) => {
     setCheckoutTarget(target);
     setCheckoutError(null);
-    const planned = target.orderObj?.payments;
-    const firstPlanned = planned?.[0];
+    setCheckoutNotes('');
+    const planned = (target.plannedSplits || target.orderObj?.payments || target.saleObj?.payments || []).filter(
+      p => p.status !== 'pago'
+    );
+    const firstPlanned = planned[0];
+
+    setPayMode('full');
+    setSelectedSplitId(firstPlanned?.id || null);
+    setPartialAmountInput(target.total.toFixed(2));
     setPayMethod(firstPlanned?.method || 'pix');
     setCardBrand(firstPlanned?.cardBrand || 'visa');
     setInstallments(firstPlanned?.installments || 1);
     setCashReceived(String(target.total.toFixed(2)));
     setNsuCode('');
     setCopiedPix(false);
-    if (planned && planned.length > 0) {
-      setIsMultiSplit(planned.length > 1);
-      setSplits(planned);
+
+    if (planned.length > 0 && target.alreadyPaid <= 0) {
+      setIsMultiSplit(false);
+      setSplits([
+        {
+          id: `sp-${Date.now()}`,
+          method: firstPlanned?.method || 'pix',
+          amount: target.total,
+          netAmount: target.total
+        }
+      ]);
     } else {
       setIsMultiSplit(false);
       setSplits([
@@ -523,10 +566,31 @@ export const PdvView: React.FC = () => {
     }
   };
 
-  // Confirm settlement in Caixa
+  // Effective amount being settled in current checkout
+  const effectiveCheckoutAmount = useMemo(() => {
+    if (!checkoutTarget) return 0;
+    if (payMode === 'partial') {
+      return Math.max(0, Math.min(checkoutTarget.total, Number(partialAmountInput) || 0));
+    }
+    if (payMode === 'installment' && selectedSplitId) {
+      const sp = (checkoutTarget.plannedSplits || checkoutTarget.orderObj?.payments || checkoutTarget.saleObj?.payments || []).find(
+        p => p.id === selectedSplitId
+      );
+      if (sp) return Math.min(checkoutTarget.total, Number(sp.amount || 0));
+    }
+    return checkoutTarget.total;
+  }, [checkoutTarget, payMode, partialAmountInput, selectedSplitId]);
+
+  // Confirm settlement in Caixa (auto-generates and pops PaymentReceiptModal)
   const handleConfirmSettlement = () => {
     if (!checkoutTarget) return;
     setCheckoutError(null);
+
+    const amountToSettle = effectiveCheckoutAmount;
+    if (amountToSettle <= 0) {
+      setCheckoutError('Informe um valor válido maior que zero para registrar o recebimento.');
+      return;
+    }
 
     let finalPayments: PaymentSplit[] = [];
     let primaryMethod: PaymentMethod = payMethod;
@@ -535,8 +599,8 @@ export const PdvView: React.FC = () => {
 
     if (isMultiSplit) {
       const splitSum = splits.reduce((acc, s) => acc + Number(s.amount || 0), 0);
-      if (Math.abs(splitSum - checkoutTarget.total) > 0.05) {
-        setCheckoutError(`A soma das parcelas divididas (${formatBRL(splitSum)}) precisa ser igual ao total a cobrar (${formatBRL(checkoutTarget.total)}).`);
+      if (Math.abs(splitSum - amountToSettle) > 0.05) {
+        setCheckoutError(`A soma das formas divididas (${formatBRL(splitSum)}) precisa ser igual ao valor que está sendo pago (${formatBRL(amountToSettle)}).`);
         return;
       }
       finalPayments = splits.map(s => {
@@ -552,17 +616,17 @@ export const PdvView: React.FC = () => {
       primaryMethod = finalPayments[0]?.method || 'pix';
     } else {
       const ratePct = getFeePercentage(payMethod, cardBrand, installments);
-      const rateAmt = Number(((checkoutTarget.total * ratePct) / 100).toFixed(2));
-      const netAmt = Number((checkoutTarget.total - rateAmt).toFixed(2));
+      const rateAmt = Number(((amountToSettle * ratePct) / 100).toFixed(2));
+      const netAmt = Number((amountToSettle - rateAmt).toFixed(2));
 
       if (payMethod === 'dinheiro') {
-        const received = Number(cashReceived) || checkoutTarget.total;
-        if (received < checkoutTarget.total) {
-          setCheckoutError(`Valor recebido em dinheiro (${formatBRL(received)}) é menor que o total (${formatBRL(checkoutTarget.total)}).`);
+        const received = Number(cashReceived) || amountToSettle;
+        if (received < amountToSettle) {
+          setCheckoutError(`Valor recebido em dinheiro (${formatBRL(received)}) é menor que o valor pago (${formatBRL(amountToSettle)}).`);
           return;
         }
         amountRec = received;
-        changeAmt = Number((received - checkoutTarget.total).toFixed(2));
+        changeAmt = Number((received - amountToSettle).toFixed(2));
       }
 
       finalPayments = [
@@ -573,39 +637,54 @@ export const PdvView: React.FC = () => {
           installments: payMethod === 'cartao_credito' ? installments : undefined,
           ratePercentage: ratePct,
           rateAmount: rateAmt,
-          amount: checkoutTarget.total,
+          amount: amountToSettle,
           netAmount: netAmt
         }
       ];
     }
 
-    let createdMovement: CashRegisterMovement | null = null;
+    const paymentKind =
+      payMode === 'installment'
+        ? 'parcela'
+        : amountToSettle >= checkoutTarget.total - 0.01
+        ? checkoutTarget.alreadyPaid > 0
+          ? 'quitacao'
+          : 'vista'
+        : checkoutTarget.alreadyPaid <= 0
+        ? 'entrada'
+        : 'parcial';
+
     if (checkoutTarget.kind === 'sale') {
-      createdMovement = settleSaleInPdv(checkoutTarget.id, {
+      settleSaleInPdv(checkoutTarget.id, {
         payments: finalPayments,
         paymentMethod: primaryMethod,
         amountReceived: amountRec,
         changeAmount: changeAmt,
         nsu: nsuCode.trim() || undefined,
         terminalName: checkoutTarget.terminalName || activeCashSession?.terminalName,
-        saleOverride: checkoutTarget.saleObj
+        saleOverride: checkoutTarget.saleObj,
+        paidAmount: amountToSettle,
+        splitId: payMode === 'installment' ? selectedSplitId || undefined : undefined,
+        paymentKind,
+        notes: checkoutNotes.trim() || undefined
       });
     } else {
-      createdMovement = settleServiceOrderInPdv(checkoutTarget.id, {
+      settleServiceOrderInPdv(checkoutTarget.id, {
         payments: finalPayments,
         paymentMethod: primaryMethod,
         amountReceived: amountRec,
         changeAmount: changeAmt,
         nsu: nsuCode.trim() || undefined,
         terminalName: checkoutTarget.terminalName || activeCashSession?.terminalName,
-        orderOverride: checkoutTarget.orderObj
+        orderOverride: checkoutTarget.orderObj,
+        paidAmount: amountToSettle,
+        splitId: payMode === 'installment' ? selectedSplitId || undefined : undefined,
+        paymentKind,
+        notes: checkoutNotes.trim() || undefined
       });
     }
 
     setCheckoutTarget(null);
-    if (createdMovement) {
-      setReceiptMovement(createdMovement);
-    }
   };
 
   // POS Quick Cart Functions
@@ -715,6 +794,8 @@ export const PdvView: React.FC = () => {
         clientId: createdSale.clientId,
         clientName: createdSale.clientName,
         total: createdSale.total,
+        orderTotal: createdSale.total,
+        alreadyPaid: 0,
         terminalName: activeCashSession?.terminalName || TERMINALS[0],
         summaryLines: createdSale.items.map(it => ({
           label: it.name,
@@ -933,7 +1014,8 @@ export const PdvView: React.FC = () => {
         {[
           { id: 'fila' as PdvSubTab, label: 'Fila de Recebimentos (Vendas & OS)', count: pendingQueue.length, icon: Receipt },
           { id: 'balcao' as PdvSubTab, label: 'Balcão PDV Rápido', count: posCart.length || null, icon: ShoppingBag },
-          { id: 'movimentacoes' as PdvSubTab, label: 'Extrato do Caixa', count: activeCashSession ? activeSessionMoves.length : cashMovements.length, icon: FileText },
+          { id: 'recibos' as PdvSubTab, label: 'Recibos Emitidos', count: paymentReceipts.length, icon: FileText },
+          { id: 'movimentacoes' as PdvSubTab, label: 'Extrato do Caixa', count: activeCashSession ? activeSessionMoves.length : cashMovements.length, icon: Banknote },
           { id: 'fechamentos' as PdvSubTab, label: 'Histórico de Fechamentos', count: cashSessions.filter(s => s.status === 'fechado').length, icon: History }
         ].map(tab => {
           const Icon = tab.icon;
@@ -1023,8 +1105,11 @@ export const PdvView: React.FC = () => {
                     clientId: item.clientId,
                     clientName: item.clientName,
                     total: item.total,
+                    orderTotal: item.orderTotal,
+                    alreadyPaid: item.alreadyPaid,
                     terminalName: item.pdvTerminal || activeCashSession?.terminalName,
                     summaryLines: item.summaryLines,
+                    plannedSplits: item.plannedSplits,
                     saleObj: item.rawSale,
                     orderObj: item.rawOrder
                   });
@@ -1093,7 +1178,12 @@ export const PdvView: React.FC = () => {
                         {formatDateBR(item.date)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono tabular-nums font-bold text-[#363739]">
-                        {formatBRL(item.total)}
+                        <div>{formatBRL(item.total)}</div>
+                        {item.alreadyPaid > 0 && (
+                          <div className="text-[10px] font-normal text-emerald-700">
+                            Já pago: {formatBRL(item.alreadyPaid)} / {formatBRL(item.orderTotal)}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
@@ -1106,8 +1196,11 @@ export const PdvView: React.FC = () => {
                               clientId: item.clientId,
                               clientName: item.clientName,
                               total: item.total,
+                              orderTotal: item.orderTotal,
+                              alreadyPaid: item.alreadyPaid,
                               terminalName: item.pdvTerminal || activeCashSession?.terminalName,
                               summaryLines: item.summaryLines,
+                              plannedSplits: item.plannedSplits,
                               saleObj: item.rawSale,
                               orderObj: item.rawOrder
                             })
@@ -1648,19 +1741,186 @@ export const PdvView: React.FC = () => {
                           {isOut ? '-' : ''}{formatBRL(mov.netAmount)}
                         </td>
                         <td className="py-3 px-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setReceiptMovement(mov)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#363739] bg-[#f4f5f6] hover:bg-[#e5e6e8] border border-[#d8d8d8] rounded-md cursor-pointer"
-                          >
-                            <Printer className="w-3 h-3" />
-                            <span>Cupom</span>
-                          </button>
+                          {(() => {
+                            const linkedReceipt = paymentReceipts.find(
+                              r =>
+                                r.cashMovementId === mov.id ||
+                                (mov.sourceId && r.sourceId === mov.sourceId && Math.abs(r.amountPaidNow - mov.grossAmount) < 0.02)
+                            );
+                            if (linkedReceipt) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => openReceiptModal(linkedReceipt)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-md cursor-pointer"
+                                >
+                                  <Receipt className="w-3 h-3" />
+                                  <span>Recibo</span>
+                                </button>
+                              );
+                            }
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setReceiptMovement(mov)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#363739] bg-[#f4f5f6] hover:bg-[#e5e6e8] border border-[#d8d8d8] rounded-md cursor-pointer"
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>Cupom</span>
+                              </button>
+                            );
+                          })()}
                         </td>
                       </tr>
                     );
                   })
                 )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUBTAB 3B: RECIBOS EMITIDOS */}
+      {subTab === 'recibos' && (
+        <div className="bg-white border border-[#d8d8d8] rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-[#d8d8d8] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { id: 'todos' as const, label: `Todos (${paymentReceipts.length})` },
+                { id: 'quitados' as const, label: `Quitados (${paymentReceipts.filter(r => r.isFullyPaid).length})` },
+                { id: 'parciais' as const, label: `Parciais / Saldo (${paymentReceipts.filter(r => !r.isFullyPaid).length})` }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setReceiptStatusFilter(f.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                    receiptStatusFilter === f.id
+                      ? 'bg-[#53383e] text-white'
+                      : 'bg-[#f4f5f6] text-[#363739] hover:bg-[#e5e6e8]'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-[#707174] absolute left-3 top-2" />
+              <input
+                type="text"
+                value={receiptSearch}
+                onChange={(e) => setReceiptSearch(e.target.value)}
+                placeholder="Buscar recibo, OS/Venda, cliente, CPF..."
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#f4f5f6] border-b border-[#d8d8d8] text-[#5a5b5e] font-semibold">
+                <tr>
+                  <th className="py-3 px-4">Recibo / Data</th>
+                  <th className="py-3 px-4">Cliente</th>
+                  <th className="py-3 px-3">Origem</th>
+                  <th className="py-3 px-3">Pagamento / Operador</th>
+                  <th className="py-3 px-4 text-right">Valor Pago</th>
+                  <th className="py-3 px-4 text-right">Saldo Restante</th>
+                  <th className="py-3 px-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#ececef]">
+                {(() => {
+                  const q = receiptSearch.trim().toLowerCase();
+                  const filtered = paymentReceipts.filter(r => {
+                    if (receiptStatusFilter === 'quitados' && !r.isFullyPaid) return false;
+                    if (receiptStatusFilter === 'parciais' && r.isFullyPaid) return false;
+                    if (!q) return true;
+                    return (
+                      r.receiptNumber.toLowerCase().includes(q) ||
+                      r.sourceCode.toLowerCase().includes(q) ||
+                      r.clientName.toLowerCase().includes(q) ||
+                      (r.clientDocument || '').toLowerCase().includes(q)
+                    );
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={7} className="py-10 text-center text-[#707174]">
+                          Nenhum recibo emitido encontrado para este filtro.
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return filtered.map(rec => (
+                    <tr key={rec.id} className="hover:bg-[#f9f9fb]">
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="font-mono font-bold text-[#53383e]">{rec.receiptNumber}</div>
+                        <div className="text-[10px] text-[#707174] font-mono">
+                          {new Date(rec.createdAt).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-[#363739]">{rec.clientName}</div>
+                        {rec.clientDocument && (
+                          <div className="text-[10px] font-mono text-[#707174]">{rec.clientDocument}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-mono font-bold text-[#363739]">
+                          {rec.sourceType === 'os' ? 'O.S.' : 'Venda'} {rec.sourceCode}
+                        </div>
+                        <div className="text-[10px] text-[#707174]">{RECEIPT_KIND_LABELS[rec.paymentKind]}</div>
+                      </td>
+                      <td className="py-3 px-3 text-[#5a5b5e]">
+                        <div>{METHOD_LABELS[rec.paymentMethod]}</div>
+                        <div className="text-[10px] text-[#707174]">{rec.operatorName}</div>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono tabular-nums font-bold text-emerald-700">
+                        {formatBRL(rec.amountPaidNow)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono tabular-nums">
+                        {rec.isFullyPaid ? (
+                          <span className="inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            Quitado
+                          </span>
+                        ) : (
+                          <span className="font-bold text-amber-700">{formatBRL(rec.remainingBalance)}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openReceiptModal(rec)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-md cursor-pointer"
+                          >
+                            <Receipt className="w-3 h-3" />
+                            <span>Visualizar</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadReceiptPdf(rec, companySettings, 'a4')}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-[#363739] bg-[#f4f5f6] hover:bg-[#e5e6e8] border border-[#d8d8d8] rounded-md cursor-pointer"
+                            title="Baixar PDF A4"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>PDF</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
           </div>
@@ -1998,33 +2258,173 @@ export const PdvView: React.FC = () => {
                 </div>
               )}
 
-              {/* Total Banner */}
-              <div className="p-4 bg-[#f6eff1] border border-[#53383e]/30 rounded-xl flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] font-semibold text-[#707174] uppercase">Total a Cobrar no Caixa</span>
-                  <div className="text-2xl font-black font-mono tabular-nums text-[#53383e]">
-                    {formatBRL(checkoutTarget.total)}
+              {/* Total & Mode Banner (Quitação Total, Parcial/Entrada ou Parcela) */}
+              {(() => {
+                const pendingPlanned = (checkoutTarget.plannedSplits || checkoutTarget.orderObj?.payments || checkoutTarget.saleObj?.payments || []).filter(
+                  p => p.status !== 'pago'
+                );
+                const payingNow = effectiveCheckoutAmount;
+                const remainingAfter = Math.max(0, Number((checkoutTarget.total - payingNow).toFixed(2)));
+
+                return (
+                  <div className="space-y-3">
+                    <div className="p-4 bg-[#f6eff1] border border-[#53383e]/30 rounded-xl space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <span className="text-[11px] font-semibold text-[#707174] uppercase">
+                            {checkoutTarget.alreadyPaid > 0 ? 'Saldo Devedor a Receber' : 'Total a Cobrar no Caixa'}
+                          </span>
+                          <div className="flex items-baseline gap-2.5">
+                            <span className="text-2xl font-black font-mono tabular-nums text-[#53383e]">
+                              {formatBRL(payingNow)}
+                            </span>
+                            {checkoutTarget.alreadyPaid > 0 && (
+                              <span className="text-[11px] font-mono text-emerald-700 font-semibold">
+                                (Total: {formatBRL(checkoutTarget.orderTotal)} · Já pago: {formatBRL(checkoutTarget.alreadyPaid)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !isMultiSplit;
+                            setIsMultiSplit(next);
+                            if (next) {
+                              setSplits([{ id: `sp-${Date.now()}`, method: payMethod, amount: payingNow, netAmount: payingNow }]);
+                            }
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                            isMultiSplit
+                              ? 'bg-[#53383e] text-white border-[#53383e]'
+                              : 'bg-white text-[#363739] border-[#d8d8d8]'
+                          }`}
+                        >
+                          <Split className="w-3.5 h-3.5" />
+                          <span>{isMultiSplit ? 'Modo Dividido Ativo' : 'Dividir Pagamento'}</span>
+                        </button>
+                      </div>
+
+                      {/* Modo de Liquidação: Total vs Parcial/Entrada vs Parcela */}
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#53383e]/15">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPayMode('full');
+                            setPartialAmountInput(checkoutTarget.total.toFixed(2));
+                            setCashReceived(checkoutTarget.total.toFixed(2));
+                            setSplits([{ id: `sp-${Date.now()}`, method: payMethod, amount: checkoutTarget.total, netAmount: checkoutTarget.total }]);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                            payMode === 'full'
+                              ? 'bg-emerald-600 text-white border-emerald-700'
+                              : 'bg-white text-[#363739] border-[#d8d8d8]'
+                          }`}
+                        >
+                          Quitação Total ({formatBRL(checkoutTarget.total)})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPayMode('partial');
+                            const suggested = Number((checkoutTarget.total * 0.5).toFixed(2));
+                            setPartialAmountInput(suggested.toFixed(2));
+                            setCashReceived(suggested.toFixed(2));
+                            setSplits([{ id: `sp-${Date.now()}`, method: payMethod, amount: suggested, netAmount: suggested }]);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                            payMode === 'partial'
+                              ? 'bg-amber-600 text-white border-amber-700'
+                              : 'bg-white text-[#363739] border-[#d8d8d8]'
+                          }`}
+                        >
+                          Entrada / Pagamento Parcial
+                        </button>
+                        {pendingPlanned.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPayMode('installment');
+                              const first = pendingPlanned[0];
+                              setSelectedSplitId(first.id);
+                              setPayMethod(first.method);
+                              setCashReceived(Number(first.amount || 0).toFixed(2));
+                              setSplits([{ id: `sp-${Date.now()}`, method: first.method, amount: first.amount, netAmount: first.netAmount }]);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                              payMode === 'installment'
+                                ? 'bg-indigo-600 text-white border-indigo-700'
+                                : 'bg-white text-[#363739] border-[#d8d8d8]'
+                            }`}
+                          >
+                            Parcela Programada ({pendingPlanned.length})
+                          </button>
+                        )}
+                      </div>
+
+                      {payMode === 'partial' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-bold text-[#363739] mb-1">
+                              Valor Recebido Agora (Entrada / Parcial)
+                            </label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              max={checkoutTarget.total}
+                              step="0.01"
+                              value={partialAmountInput}
+                              onChange={(e) => {
+                                setPartialAmountInput(e.target.value);
+                                const num = Math.max(0, Math.min(checkoutTarget.total, Number(e.target.value) || 0));
+                                setCashReceived(num.toFixed(2));
+                                if (isMultiSplit) {
+                                  setSplits([{ id: `sp-${Date.now()}`, method: payMethod, amount: num, netAmount: num }]);
+                                }
+                              }}
+                              className="w-full p-2 bg-white border border-amber-400 rounded-lg font-mono font-bold text-sm"
+                            />
+                          </div>
+                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex flex-col justify-center">
+                            <span className="text-[10px] font-bold uppercase text-amber-800">
+                              Saldo Devedor após este Recibo
+                            </span>
+                            <span className="text-base font-black font-mono tabular-nums text-amber-900">
+                              {formatBRL(remainingAfter)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {payMode === 'installment' && pendingPlanned.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                          {pendingPlanned.map((sp, idx) => (
+                            <button
+                              key={sp.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSplitId(sp.id);
+                                setPayMethod(sp.method);
+                                setCashReceived(Number(sp.amount || 0).toFixed(2));
+                              }}
+                              className={`p-2 rounded-lg border text-left flex items-center justify-between cursor-pointer ${
+                                selectedSplitId === sp.id
+                                  ? 'bg-indigo-50 border-indigo-500 text-indigo-900 font-bold'
+                                  : 'bg-white border-[#d8d8d8] text-[#363739]'
+                              }`}
+                            >
+                              <span>
+                                {sp.entryType === 'entrada' ? 'Entrada' : `Parcela ${idx + 1}`} · {METHOD_LABELS[sp.method]}
+                              </span>
+                              <span className="font-mono font-bold">{formatBRL(sp.amount)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !isMultiSplit;
-                    setIsMultiSplit(next);
-                    if (next && splits.length === 0) {
-                      setSplits([{ id: `sp-${Date.now()}`, method: payMethod, amount: checkoutTarget.total, netAmount: checkoutTarget.total }]);
-                    }
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
-                    isMultiSplit
-                      ? 'bg-[#53383e] text-white border-[#53383e]'
-                      : 'bg-white text-[#363739] border-[#d8d8d8]'
-                  }`}
-                >
-                  <Split className="w-3.5 h-3.5" />
-                  <span>{isMultiSplit ? 'Modo Dividido Ativo' : 'Dividir Pagamento'}</span>
-                </button>
-              </div>
+                );
+              })()}
 
               {!isMultiSplit ? (
                 <>
@@ -2077,10 +2477,10 @@ export const PdvView: React.FC = () => {
                     <div className="p-4 bg-[#f4f5f6] rounded-xl border border-[#d8d8d8] space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block font-semibold text-[#5a5b5e] mb-1">Valor Recebido do Cliente (R$)</label>
+                          <label className="block font-semibold text-[#5a5b5e] mb-1">Valor Entregue pelo Cliente (R$)</label>
                           <input
                             type="number"
-                            min={checkoutTarget.total}
+                            min={effectiveCheckoutAmount}
                             step="0.01"
                             value={cashReceived}
                             onChange={(e) => setCashReceived(e.target.value)}
@@ -2090,7 +2490,7 @@ export const PdvView: React.FC = () => {
                         <div className="p-2.5 bg-white border border-[#d8d8d8] rounded-lg flex flex-col justify-center">
                           <span className="text-[11px] text-[#707174]">Troco a Devolver</span>
                           <span className="text-lg font-black font-mono tabular-nums text-emerald-700">
-                            {formatBRL(Math.max(0, (Number(cashReceived) || 0) - checkoutTarget.total))}
+                            {formatBRL(Math.max(0, (Number(cashReceived) || 0) - effectiveCheckoutAmount))}
                           </span>
                         </div>
                       </div>
@@ -2122,7 +2522,7 @@ export const PdvView: React.FC = () => {
                             >
                               {Array.from({ length: 12 }, (_, idx) => idx + 1).map(n => (
                                 <option key={n} value={n}>
-                                  {n}x de {formatBRL(checkoutTarget.total / n)}
+                                  {n}x de {formatBRL(effectiveCheckoutAmount / n)}
                                 </option>
                               ))}
                             </select>
@@ -2142,11 +2542,11 @@ export const PdvView: React.FC = () => {
 
                       {(() => {
                         const ratePct = getFeePercentage(payMethod, cardBrand, installments);
-                        const feeAmt = (checkoutTarget.total * ratePct) / 100;
+                        const feeAmt = (effectiveCheckoutAmount * ratePct) / 100;
                         return (
                           <div className="text-[11px] font-mono text-[#5a5b5e] flex justify-between pt-2 border-t border-[#d8d8d8]">
                             <span>Taxa Maquininha ({ratePct.toFixed(2)}%): -{formatBRL(feeAmt)}</span>
-                            <span className="font-bold text-emerald-700">Líquido: {formatBRL(checkoutTarget.total - feeAmt)}</span>
+                            <span className="font-bold text-emerald-700">Líquido: {formatBRL(effectiveCheckoutAmount - feeAmt)}</span>
                           </div>
                         );
                       })()}
@@ -2162,7 +2562,7 @@ export const PdvView: React.FC = () => {
                       type="button"
                       onClick={() => {
                         const used = splits.reduce((acc, s) => acc + Number(s.amount || 0), 0);
-                        const remaining = Math.max(0, Number((checkoutTarget.total - used).toFixed(2)));
+                        const remaining = Math.max(0, Number((effectiveCheckoutAmount - used).toFixed(2)));
                         setSplits(prev => [
                           ...prev,
                           { id: `sp-${Date.now()}`, method: 'dinheiro', amount: remaining, netAmount: remaining }
@@ -2213,10 +2613,21 @@ export const PdvView: React.FC = () => {
                     </div>
                   ))}
                   <div className="text-[11px] font-mono text-right">
-                    Soma: <strong>{formatBRL(splits.reduce((a, s) => a + Number(s.amount || 0), 0))}</strong> / {formatBRL(checkoutTarget.total)}
+                    Soma: <strong>{formatBRL(splits.reduce((a, s) => a + Number(s.amount || 0), 0))}</strong> / {formatBRL(effectiveCheckoutAmount)}
                   </div>
                 </div>
               )}
+
+              <div>
+                <label className="block font-semibold text-[#5a5b5e] mb-1">Observações do Recibo (opcional)</label>
+                <input
+                  type="text"
+                  value={checkoutNotes}
+                  onChange={(e) => setCheckoutNotes(e.target.value)}
+                  placeholder="Ex: Sinal para compra de peças / Quitação na entrega..."
+                  className="w-full p-2 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg text-xs"
+                />
+              </div>
             </div>
 
             <div className="sticky bottom-0 bg-white px-5 py-3.5 border-t border-[#d8d8d8] flex justify-end gap-2">
@@ -2233,7 +2644,7 @@ export const PdvView: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs cursor-pointer"
               >
                 <Check className="w-4 h-4" />
-                <span>Confirmar Recebimento e Dar Baixa</span>
+                <span>Confirmar Recebimento & Gerar Recibo</span>
               </button>
             </div>
           </div>

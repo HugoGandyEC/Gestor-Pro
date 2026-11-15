@@ -19,7 +19,8 @@ import {
   Truck,
   ShieldCheck,
   RefreshCw,
-  Search
+  Search,
+  Receipt
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { LiveSearchInput } from './LiveSearchInput';
@@ -39,7 +40,9 @@ export const FinancialView: React.FC = () => {
     monthlyFinancialSummary,
     toggleDirectSalePayment,
     toggleServiceOrderPayment,
-    toggleGeneralExpensePayment
+    toggleGeneralExpensePayment,
+    getReceiptsForSource,
+    openReceiptModal
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'dre' | 'receber' | 'pagar'>('dre');
@@ -712,22 +715,39 @@ export const FinancialView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => {
-                              if (item.type === 'os') {
-                                toggleServiceOrderPayment(item.id);
-                              } else {
-                                toggleDirectSalePayment(item.id);
-                              }
-                            }}
-                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors border shadow-xs cursor-pointer ${
-                              item.paymentStatus === 'pago'
-                                ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                                : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
-                            }`}
-                          >
-                            {item.paymentStatus === 'pago' ? 'Reabrir / Pendente' : 'Dar Baixa (Receber)'}
-                          </button>
+                          <div className="inline-flex items-center gap-1.5 flex-wrap justify-center">
+                            {(() => {
+                              const recs = getReceiptsForSource(item.type, item.id);
+                              if (recs.length === 0) return null;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => openReceiptModal(recs[0])}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
+                                  title="Abrir Recibo de Pagamento"
+                                >
+                                  <Receipt className="w-3 h-3" />
+                                  <span>Recibo</span>
+                                </button>
+                              );
+                            })()}
+                            <button
+                              onClick={() => {
+                                if (item.type === 'os') {
+                                  toggleServiceOrderPayment(item.id);
+                                } else {
+                                  toggleDirectSalePayment(item.id);
+                                }
+                              }}
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors border shadow-xs cursor-pointer ${
+                                item.paymentStatus === 'pago'
+                                  ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                                  : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                              }`}
+                            >
+                              {item.paymentStatus === 'pago' ? 'Reabrir / Pendente' : 'Dar Baixa (Receber)'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -771,23 +791,39 @@ export const FinancialView: React.FC = () => {
                     </div>
                     <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
                       <span className="font-mono font-bold text-sm text-slate-900 tabular-nums">{formatBRL(item.total)}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (item.type === 'os') {
-                            toggleServiceOrderPayment(item.id);
-                          } else {
-                            toggleDirectSalePayment(item.id);
-                          }
-                        }}
-                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border cursor-pointer ${
-                          item.paymentStatus === 'pago'
-                            ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                            : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
-                        }`}
-                      >
-                        {item.paymentStatus === 'pago' ? 'Reabrir' : 'Dar Baixa'}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {(() => {
+                          const recs = getReceiptsForSource(item.type, item.id);
+                          if (recs.length === 0) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => openReceiptModal(recs[0])}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-white bg-[#53383e] rounded-lg cursor-pointer"
+                            >
+                              <Receipt className="w-3 h-3" />
+                              <span>Recibo</span>
+                            </button>
+                          );
+                        })()}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (item.type === 'os') {
+                              toggleServiceOrderPayment(item.id);
+                            } else {
+                              toggleDirectSalePayment(item.id);
+                            }
+                          }}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border cursor-pointer ${
+                            item.paymentStatus === 'pago'
+                              ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                              : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                          }`}
+                        >
+                          {item.paymentStatus === 'pago' ? 'Reabrir' : 'Dar Baixa'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))

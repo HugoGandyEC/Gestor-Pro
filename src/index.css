@@ -508,6 +508,17 @@
     display: block !important;
     page-break-after: avoid !important;
   }
+  html.printing-receipt-thermal,
+  body.printing-receipt-thermal {
+    width: 80mm !important;
+    max-width: 80mm !important;
+  }
+  body.printing-receipt-thermal #printable-document {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    padding: 2mm !important;
+    font-size: 11px !important;
+  }
   .no-print {
     display: none !important;
   }

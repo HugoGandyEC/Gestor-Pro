@@ -34,7 +34,10 @@ import {
   CashRegisterSession,
   CashRegisterMovement,
   PaymentMethod,
-  PaymentSplit
+  PaymentSplit,
+  PaymentReceipt,
+  PaymentReceiptItem,
+  PaymentReceiptKind
 } from '../types';
 import { 
   initialEmployees, 
@@ -88,6 +91,7 @@ import {
   deleteAppointmentFromCloud,
   syncCashSessionToCloud,
   syncCashMovementToCloud,
+  syncPaymentReceiptToCloud,
   bootstrapCloudDatabase,
   testFirestoreConnection
 } from '../services/firestoreSyncService';
@@ -250,10 +254,16 @@ interface AppContextType {
   updateDirectSale: (id: string, updates: Partial<DirectSale>) => void;
   deleteDirectSale: (id: string) => void;
 
-  // PDV / Frente de Caixa
+  // PDV / Frente de Caixa & Recibos de Pagamento
   cashSessions: CashRegisterSession[];
   cashMovements: CashRegisterMovement[];
   activeCashSession: CashRegisterSession | null;
+  paymentReceipts: PaymentReceipt[];
+  activeReceiptModal: PaymentReceipt | null;
+  openReceiptModal: (receipt: PaymentReceipt) => void;
+  closeReceiptModal: () => void;
+  getReceiptsForSource: (sourceType: 'os' | 'venda', sourceId: string) => PaymentReceipt[];
+  getPaidAmountForSource: (sourceType: 'os' | 'venda', sourceId: string) => number;
   openCashSession: (terminalName: string, openingBalance: number, notes?: string) => CashRegisterSession;
   closeCashSession: (sessionId: string, closingBalance: number, notes?: string) => void;
   addCashManualMovement: (type: 'suprimento' | 'sangria', amount: number, description: string, paymentMethod?: PaymentMethod) => void;
@@ -269,6 +279,11 @@ interface AppContextType {
       nsu?: string;
       terminalName?: string;
       saleOverride?: DirectSale;
+      paidAmount?: number;
+      splitId?: string;
+      paymentKind?: PaymentReceiptKind;
+      notes?: string;
+      suppressAutoModal?: boolean;
     }
   ) => CashRegisterMovement | null;
   settleServiceOrderInPdv: (
@@ -281,6 +296,11 @@ interface AppContextType {
       nsu?: string;
       terminalName?: string;
       orderOverride?: ServiceOrder;
+      paidAmount?: number;
+      splitId?: string;
+      paymentKind?: PaymentReceiptKind;
+      notes?: string;
+      suppressAutoModal?: boolean;
     }
   ) => CashRegisterMovement | null;
 
@@ -380,6 +400,7 @@ const KEYS = {
   APPOINTMENTS: 'gestaopro_appointments_v4',
   CASH_SESSIONS: 'gestaopro_cash_sessions_v4',
   CASH_MOVEMENTS: 'gestaopro_cash_movements_v4',
+  PAYMENT_RECEIPTS: 'gestaopro_payment_receipts_v4',
   AUTH_USERS: 'gestaopro_auth_users_v4'
 };
 
@@ -742,6 +763,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   });
 
+  const [paymentReceipts, setPaymentReceipts] = useState<PaymentReceipt[]>(() => {
+    const saved = localStorage.getItem(KEYS.PAYMENT_RECEIPTS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    return [];
+  });
+
+  const [activeReceiptModal, setActiveReceiptModal] = useState<PaymentReceipt | null>(null);
+
   const activeCashSession = useMemo(() => {
     return cashSessions.find(s => s.status === 'aberto') || null;
   }, [cashSessions]);
@@ -789,6 +823,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   useEffect(() => { localStorage.setItem(KEYS.WARRANTY_POLICIES, JSON.stringify(warrantyPolicies)); broadcastSync('KEY', KEYS.WARRANTY_POLICIES); }, [warrantyPolicies]);
   useEffect(() => { localStorage.setItem(KEYS.CASH_SESSIONS, JSON.stringify(cashSessions)); broadcastSync('KEY', KEYS.CASH_SESSIONS); }, [cashSessions]);
   useEffect(() => { localStorage.setItem(KEYS.CASH_MOVEMENTS, JSON.stringify(cashMovements)); broadcastSync('KEY', KEYS.CASH_MOVEMENTS); }, [cashMovements]);
+  useEffect(() => { localStorage.setItem(KEYS.PAYMENT_RECEIPTS, JSON.stringify(paymentReceipts)); broadcastSync('KEY', KEYS.PAYMENT_RECEIPTS); }, [paymentReceipts]);
   useEffect(() => { localStorage.setItem(KEYS.AUTH_USERS, JSON.stringify(authUsers)); broadcastSync('KEY', KEYS.AUTH_USERS); }, [authUsers]);
 
   // Real-time synchronization across browser tabs and devices (desktop & mobile)
@@ -892,6 +927,9 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
           case KEYS.CASH_MOVEMENTS:
             if (Array.isArray(parsed)) setCashMovements(parsed);
             break;
+          case KEYS.PAYMENT_RECEIPTS:
+            if (Array.isArray(parsed)) setPaymentReceipts(parsed);
+            break;
           default:
             break;
         }
@@ -961,6 +999,9 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       },
       onCashMovementsSync: (cloudMovements) => {
         setCashMovements(cloudMovements);
+      },
+      onPaymentReceiptsSync: (cloudReceipts) => {
+        setPaymentReceipts(cloudReceipts);
       }
     });
 
@@ -1257,6 +1298,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setSetupCosts([]);
     setCashSessions([]);
     setCashMovements([]);
+    setPaymentReceipts([]);
+    setActiveReceiptModal(null);
     setSequenceSettings({
       serviceOrderNextNumber: 1,
       serviceOrderPrefix: '',
@@ -2625,6 +2668,111 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     addAuditLog('Envio ao Caixa PDV', `OS ${orderId} encaminhada para fila do terminal ${terminalName}.`);
   };
 
+  const openReceiptModal = (receipt: PaymentReceipt) => {
+    setActiveReceiptModal(receipt);
+  };
+
+  const closeReceiptModal = () => {
+    setActiveReceiptModal(null);
+  };
+
+  const getReceiptsForSource = (sourceType: 'os' | 'venda', sourceId: string): PaymentReceipt[] => {
+    return paymentReceipts
+      .filter(r => r.sourceType === sourceType && r.sourceId === sourceId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  };
+
+  const getPaidAmountForSource = (sourceType: 'os' | 'venda', sourceId: string): number => {
+    const receiptsTotal = paymentReceipts
+      .filter(r => r.sourceType === sourceType && r.sourceId === sourceId)
+      .reduce((acc, r) => acc + Number(r.amountPaidNow || 0), 0);
+    if (receiptsTotal > 0) return Number(receiptsTotal.toFixed(2));
+
+    if (sourceType === 'venda') {
+      const s = directSales.find(item => item.id === sourceId);
+      if (!s) return 0;
+      if (s.paymentStatus === 'pago') return Number(s.total || 0);
+      return (s.payments || [])
+        .filter(p => p.status === 'pago')
+        .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+    } else {
+      const o = serviceOrders.find(item => item.id === sourceId);
+      if (!o) return 0;
+      const srvTotal = (o.services || []).reduce((a, x) => a + Number(x.price || 0), 0);
+      const prtTotal = (o.parts || []).reduce((a, p) => a + Number(p.price || 0) * Number(p.quantity || 1), 0);
+      const orderTotal = Math.max(0, srvTotal + prtTotal + Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0));
+      if (o.paymentStatus === 'pago') return orderTotal;
+      return (o.payments || [])
+        .filter(p => p.status === 'pago')
+        .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+    }
+  };
+
+  const generateNextReceiptNumber = (): string => {
+    const year = new Date().getFullYear();
+    const prefix = `REC-${year}-`;
+    let maxSeq = 0;
+    paymentReceipts.forEach(r => {
+      if (r.receiptNumber.startsWith(prefix)) {
+        const num = parseInt(r.receiptNumber.replace(prefix, ''), 10);
+        if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
+      }
+    });
+    const nextNum = Math.max(maxSeq + 1, paymentReceipts.length + 1);
+    return `${prefix}${String(nextNum).padStart(4, '0')}`;
+  };
+
+  const resolveClientSnapshot = (
+    clientId?: string,
+    clientName?: string,
+    fallbackDoc?: string,
+    fallbackPhone?: string,
+    fallbackAddress?: string
+  ) => {
+    const matchedClient =
+      (clientId ? clients.find(c => c.id === clientId) : undefined) ||
+      (clientName
+        ? clients.find(c => c.name.trim().toLowerCase() === clientName.trim().toLowerCase())
+        : undefined);
+
+    let formattedAddress = fallbackAddress || '';
+    if (matchedClient) {
+      const addrObj =
+        matchedClient.addresses?.find(a => a.isDefault) || matchedClient.addresses?.[0];
+      if (addrObj && (addrObj.street || addrObj.city)) {
+        formattedAddress = [
+          [addrObj.street, addrObj.number].filter(Boolean).join(', '),
+          addrObj.complement ? `(${addrObj.complement})` : '',
+          addrObj.neighborhood,
+          addrObj.city && addrObj.state ? `${addrObj.city}/${addrObj.state}` : addrObj.city || '',
+          addrObj.cep ? `CEP ${addrObj.cep}` : ''
+        ]
+          .filter(Boolean)
+          .join(' - ');
+      } else if (matchedClient.street || matchedClient.city) {
+        formattedAddress = [
+          [matchedClient.street, matchedClient.number].filter(Boolean).join(', '),
+          matchedClient.complement ? `(${matchedClient.complement})` : '',
+          matchedClient.neighborhood,
+          matchedClient.city && matchedClient.state
+            ? `${matchedClient.city}/${matchedClient.state}`
+            : matchedClient.city || '',
+          matchedClient.cep ? `CEP ${matchedClient.cep}` : ''
+        ]
+          .filter(Boolean)
+          .join(' - ');
+      }
+    }
+
+    return {
+      clientId: matchedClient?.id || clientId,
+      clientName: matchedClient?.name || clientName || 'Consumidor Balcão PDV',
+      clientDocument: matchedClient?.document || fallbackDoc || '',
+      clientPhone: matchedClient?.phone || fallbackPhone || '',
+      clientAddress: formattedAddress
+    };
+  };
+
   const settleSaleInPdv = (
     saleId: string,
     params: {
@@ -2635,6 +2783,11 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       nsu?: string;
       terminalName?: string;
       saleOverride?: DirectSale;
+      paidAmount?: number;
+      splitId?: string;
+      paymentKind?: PaymentReceiptKind;
+      notes?: string;
+      suppressAutoModal?: boolean;
     }
   ): CashRegisterMovement | null => {
     const sale = params.saleOverride || directSales.find(s => s.id === saleId);
@@ -2645,20 +2798,89 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       session = openCashSession(params.terminalName || 'Caixa 01 - Balcão Principal', 0, 'Abertura automática ao receber venda');
     }
 
-    const grossAmount = params.payments.reduce((acc, p) => acc + Number(p.amount || 0), 0) || sale.total;
-    const feeAmount = params.payments.reduce((acc, p) => acc + Number(p.rateAmount || 0), 0);
-    const netAmount = params.payments.reduce((acc, p) => acc + Number(p.netAmount || p.amount || 0), 0);
+    const orderTotal = Math.max(0, Number(sale.total || 0));
+    const previouslyPaid = getPaidAmountForSource('venda', sale.id);
+    const remainingBefore = Math.max(0, Number((orderTotal - previouslyPaid).toFixed(2)));
+
+    const splitsSum = params.payments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+    const grossAmount = Number(
+      (params.paidAmount !== undefined
+        ? params.paidAmount
+        : splitsSum > 0
+        ? splitsSum
+        : remainingBefore > 0
+        ? remainingBefore
+        : orderTotal
+      ).toFixed(2)
+    );
+
+    const feeAmount = Number(params.payments.reduce((acc, p) => acc + Number(p.rateAmount || 0), 0).toFixed(2));
+    const netAmount = Number(
+      (params.payments.reduce((acc, p) => acc + Number(p.netAmount ?? p.amount ?? 0), 0) || grossAmount - feeAmount).toFixed(2)
+    );
+
+    const totalPaidAccumulated = Number(Math.min(orderTotal, previouslyPaid + grossAmount).toFixed(2));
+    const remainingBalance = Math.max(0, Number((orderTotal - totalPaidAccumulated).toFixed(2)));
+    const isFullyPaid = remainingBalance <= 0.01;
+
+    const paymentKind: PaymentReceiptKind =
+      params.paymentKind ||
+      (previouslyPaid <= 0.01 && isFullyPaid
+        ? 'vista'
+        : previouslyPaid > 0.01 && isFullyPaid
+        ? 'quitacao'
+        : params.splitId
+        ? 'parcela'
+        : previouslyPaid <= 0.01 && !isFullyPaid
+        ? 'entrada'
+        : 'parcial');
+
     const settledAt = new Date().toISOString();
+    const settledDateOnly = settledAt.split('T')[0];
     const generatedNsu = params.nsu || `PDV-${Math.floor(100000 + Math.random() * 900000)}`;
+    const terminalName = params.terminalName || session.terminalName;
+    const operatorName = currentUser?.name || 'Operador PDV';
+
+    // Update PaymentSplit history on sale without losing prior paid entries
+    const stampedNewSplits: PaymentSplit[] = params.payments.map(p => ({
+      ...p,
+      status: 'pago',
+      paidAt: settledDateOnly,
+      entryType: p.entryType || (paymentKind === 'entrada' ? 'entrada' : 'parcela')
+    }));
+
+    let updatedPayments: PaymentSplit[] = [];
+    if (params.splitId && sale.payments && sale.payments.length > 0) {
+      updatedPayments = sale.payments.map(p =>
+        p.id === params.splitId
+          ? {
+              ...p,
+              method: params.paymentMethod,
+              status: 'pago' as const,
+              paidAt: settledDateOnly
+            }
+          : p
+      );
+    } else {
+      const priorPaidSplits = (sale.payments || []).filter(p => p.status === 'pago');
+      const unpaidPlannedSplits = (sale.payments || []).filter(p => p.status !== 'pago');
+      if (isFullyPaid) {
+        updatedPayments = [...priorPaidSplits, ...stampedNewSplits];
+      } else {
+        updatedPayments = [...priorPaidSplits, ...stampedNewSplits, ...(unpaidPlannedSplits.length > 0 && priorPaidSplits.length > 0 ? unpaidPlannedSplits : [])];
+      }
+    }
 
     updateDirectSale(sale.id, {
-      paymentStatus: 'pago',
+      paymentStatus: isFullyPaid ? 'pago' : 'pendente',
       paymentMethod: params.paymentMethod,
-      payments: params.payments,
-      settledInPdvAt: settledAt,
+      payments: updatedPayments,
+      settledInPdvAt: isFullyPaid ? settledAt : sale.settledInPdvAt,
       pdvSessionId: session.id,
-      pdvTerminal: params.terminalName || session.terminalName
+      pdvTerminal: terminalName
     });
+
+    const clientSnap = resolveClientSnapshot(sale.clientId, sale.clientName);
 
     const movement: CashRegisterMovement = {
       id: `cm-vd-${Date.now()}`,
@@ -2667,25 +2889,85 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       sourceType: 'venda',
       sourceId: sale.id,
       sourceCode: sale.code,
-      clientId: sale.clientId,
-      clientName: sale.clientName,
-      description: `Baixa Venda ${sale.code} - ${sale.clientName}`,
+      clientId: clientSnap.clientId,
+      clientName: clientSnap.clientName,
+      description: `Baixa ${isFullyPaid ? 'Total' : 'Parcial'} Venda ${sale.code} - ${clientSnap.clientName}`,
       paymentMethod: params.paymentMethod,
-      payments: params.payments,
+      payments: stampedNewSplits,
       grossAmount,
       feeAmount,
       netAmount,
       amountReceived: params.amountReceived,
       changeAmount: params.changeAmount,
       nsu: generatedNsu,
-      terminalName: params.terminalName || session.terminalName,
-      operatorName: currentUser?.name || 'Operador PDV',
+      terminalName,
+      operatorName,
+      createdAt: settledAt
+    };
+
+    const receiptItems: PaymentReceiptItem[] = (sale.items || []).map(it => ({
+      name: it.name,
+      quantity: Number(it.quantity || 1),
+      unitPrice: Number(it.price || 0),
+      totalPrice: Number(it.price || 0) * Number(it.quantity || 1),
+      kind: 'produto' as const
+    }));
+    if (Number(sale.calculatedDiscount || 0) > 0) {
+      receiptItems.push({
+        name: 'Desconto Aplicado',
+        quantity: 1,
+        unitPrice: -Number(sale.calculatedDiscount || 0),
+        totalPrice: -Number(sale.calculatedDiscount || 0),
+        kind: 'desconto'
+      });
+    }
+
+    const receipt: PaymentReceipt = {
+      id: `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      receiptNumber: generateNextReceiptNumber(),
+      sourceType: 'venda',
+      sourceId: sale.id,
+      sourceCode: sale.code,
+      cashSessionId: session.id,
+      cashSessionCode: session.code,
+      cashMovementId: movement.id,
+      terminalName,
+      operatorName,
+      clientId: clientSnap.clientId,
+      clientName: clientSnap.clientName,
+      clientDocument: clientSnap.clientDocument,
+      clientPhone: clientSnap.clientPhone,
+      clientAddress: clientSnap.clientAddress,
+      items: receiptItems,
+      paymentMethod: params.paymentMethod,
+      payments: stampedNewSplits,
+      paymentKind,
+      orderTotal,
+      previouslyPaid,
+      amountPaidNow: grossAmount,
+      totalPaidAccumulated,
+      remainingBalance,
+      isFullyPaid,
+      amountReceived: params.amountReceived,
+      changeAmount: params.changeAmount,
+      nsu: generatedNsu,
+      notes: params.notes,
       createdAt: settledAt
     };
 
     setCashMovements(prev => [movement, ...prev]);
     syncCashMovementToCloud(movement);
-    addAuditLog('Baixa de Venda no Caixa PDV', `Venda ${sale.code} liquidada no caixa ${session.code}. Bruto: R$ ${grossAmount.toFixed(2)} | Líquido: R$ ${netAmount.toFixed(2)}.`);
+    setPaymentReceipts(prev => [receipt, ...prev]);
+    syncPaymentReceiptToCloud(receipt);
+
+    if (!params.suppressAutoModal) {
+      setActiveReceiptModal(receipt);
+    }
+
+    addAuditLog(
+      'Baixa de Venda & Emissão de Recibo',
+      `Venda ${sale.code} — Recibo ${receipt.receiptNumber} (${isFullyPaid ? 'Quitado' : `Parcial, falta R$ ${remainingBalance.toFixed(2)}`}). Recebido: R$ ${grossAmount.toFixed(2)}.`
+    );
     return movement;
   };
 
@@ -2699,6 +2981,11 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       nsu?: string;
       terminalName?: string;
       orderOverride?: ServiceOrder;
+      paidAmount?: number;
+      splitId?: string;
+      paymentKind?: PaymentReceiptKind;
+      notes?: string;
+      suppressAutoModal?: boolean;
     }
   ): CashRegisterMovement | null => {
     const order = params.orderOverride || serviceOrders.find(o => o.id === orderId);
@@ -2709,30 +2996,103 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       session = openCashSession(params.terminalName || 'Caixa 01 - Balcão Principal', 0, 'Abertura automática ao receber OS');
     }
 
-    const srvTotal = order.services.reduce((a, s) => a + Number(s.price || 0), 0);
-    const prtTotal = order.parts.reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
-    const orderGrandTotal = Math.max(0, srvTotal + prtTotal + Number(order.visitFee || 0) - Number(order.calculatedDiscount || 0));
+    const srvTotal = (order.services || []).reduce((a, s) => a + Number(s.price || 0), 0);
+    const prtTotal = (order.parts || []).reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
+    const orderTotal = Math.max(0, srvTotal + prtTotal + Number(order.visitFee || 0) - Number(order.calculatedDiscount || 0));
 
-    const grossAmount = params.payments.reduce((acc, p) => acc + Number(p.amount || 0), 0) || orderGrandTotal;
-    const feeAmount = params.payments.reduce((acc, p) => acc + Number(p.rateAmount || 0), 0);
-    const netAmount = params.payments.reduce((acc, p) => acc + Number(p.netAmount || p.amount || 0), 0);
+    const previouslyPaid = getPaidAmountForSource('os', order.id);
+    const remainingBefore = Math.max(0, Number((orderTotal - previouslyPaid).toFixed(2)));
+
+    const splitsSum = params.payments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+    const grossAmount = Number(
+      (params.paidAmount !== undefined
+        ? params.paidAmount
+        : splitsSum > 0
+        ? splitsSum
+        : remainingBefore > 0
+        ? remainingBefore
+        : orderTotal
+      ).toFixed(2)
+    );
+
+    const feeAmount = Number(params.payments.reduce((acc, p) => acc + Number(p.rateAmount || 0), 0).toFixed(2));
+    const netAmount = Number(
+      (params.payments.reduce((acc, p) => acc + Number(p.netAmount ?? p.amount ?? 0), 0) || grossAmount - feeAmount).toFixed(2)
+    );
+
+    const totalPaidAccumulated = Number(Math.min(orderTotal, previouslyPaid + grossAmount).toFixed(2));
+    const remainingBalance = Math.max(0, Number((orderTotal - totalPaidAccumulated).toFixed(2)));
+    const isFullyPaid = remainingBalance <= 0.01;
+
+    const paymentKind: PaymentReceiptKind =
+      params.paymentKind ||
+      (previouslyPaid <= 0.01 && isFullyPaid
+        ? 'vista'
+        : previouslyPaid > 0.01 && isFullyPaid
+        ? 'quitacao'
+        : params.splitId
+        ? 'parcela'
+        : previouslyPaid <= 0.01 && !isFullyPaid
+        ? 'entrada'
+        : 'parcial');
+
     const settledAt = new Date().toISOString();
+    const settledDateOnly = settledAt.split('T')[0];
     const generatedNsu = params.nsu || `OSPDV-${Math.floor(100000 + Math.random() * 900000)}`;
+    const terminalName = params.terminalName || session.terminalName;
+    const operatorName = currentUser?.name || 'Operador PDV';
 
     const nextStatus =
       order.status === 'orcamento_aberto' || order.status === 'aguardando_aprovacao'
         ? 'aprovada_em_andamento'
         : order.status;
 
+    const stampedNewSplits: PaymentSplit[] = params.payments.map(p => ({
+      ...p,
+      status: 'pago',
+      paidAt: settledDateOnly,
+      entryType: p.entryType || (paymentKind === 'entrada' ? 'entrada' : 'parcela')
+    }));
+
+    let updatedPayments: PaymentSplit[] = [];
+    if (params.splitId && order.payments && order.payments.length > 0) {
+      updatedPayments = order.payments.map(p =>
+        p.id === params.splitId
+          ? {
+              ...p,
+              method: params.paymentMethod,
+              status: 'pago' as const,
+              paidAt: settledDateOnly
+            }
+          : p
+      );
+    } else {
+      const priorPaidSplits = (order.payments || []).filter(p => p.status === 'pago');
+      const unpaidPlannedSplits = (order.payments || []).filter(p => p.status !== 'pago');
+      if (isFullyPaid) {
+        updatedPayments = [...priorPaidSplits, ...stampedNewSplits];
+      } else {
+        updatedPayments = [...priorPaidSplits, ...stampedNewSplits, ...(unpaidPlannedSplits.length > 0 && priorPaidSplits.length > 0 ? unpaidPlannedSplits : [])];
+      }
+    }
+
     updateServiceOrder(order.id, {
-      paymentStatus: 'pago',
+      paymentStatus: isFullyPaid ? 'pago' : 'pendente',
       paymentMethod: params.paymentMethod,
-      payments: params.payments,
+      payments: updatedPayments,
       status: nextStatus,
-      settledInPdvAt: settledAt,
+      settledInPdvAt: isFullyPaid ? settledAt : order.settledInPdvAt,
       pdvSessionId: session.id,
-      pdvTerminal: params.terminalName || session.terminalName
+      pdvTerminal: terminalName
     });
+
+    const clientSnap = resolveClientSnapshot(
+      order.clientId,
+      order.clientName,
+      order.clientDocument,
+      order.clientPhone,
+      order.clientAddress
+    );
 
     const movement: CashRegisterMovement = {
       id: `cm-os-${Date.now()}`,
@@ -2741,25 +3101,103 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       sourceType: 'os',
       sourceId: order.id,
       sourceCode: order.code,
-      clientId: order.clientId,
-      clientName: order.clientName,
-      description: `Baixa OS ${order.code} - ${order.clientName}`,
+      clientId: clientSnap.clientId,
+      clientName: clientSnap.clientName,
+      description: `Baixa ${isFullyPaid ? 'Total' : 'Parcial'} OS ${order.code} - ${clientSnap.clientName}`,
       paymentMethod: params.paymentMethod,
-      payments: params.payments,
+      payments: stampedNewSplits,
       grossAmount,
       feeAmount,
       netAmount,
       amountReceived: params.amountReceived,
       changeAmount: params.changeAmount,
       nsu: generatedNsu,
-      terminalName: params.terminalName || session.terminalName,
-      operatorName: currentUser?.name || 'Operador PDV',
+      terminalName,
+      operatorName,
+      createdAt: settledAt
+    };
+
+    const receiptItems: PaymentReceiptItem[] = [
+      ...(order.services || []).map(s => ({
+        name: `Serviço: ${s.name}`,
+        quantity: 1,
+        unitPrice: Number(s.price || 0),
+        totalPrice: Number(s.price || 0),
+        kind: 'servico' as const
+      })),
+      ...(order.parts || []).map(p => ({
+        name: p.name,
+        quantity: Number(p.quantity || 1),
+        unitPrice: Number(p.price || 0),
+        totalPrice: Number(p.price || 0) * Number(p.quantity || 1),
+        kind: 'peca' as const
+      }))
+    ];
+    if (Number(order.visitFee || 0) > 0) {
+      receiptItems.push({
+        name: 'Taxa de Visita Técnica',
+        quantity: 1,
+        unitPrice: Number(order.visitFee || 0),
+        totalPrice: Number(order.visitFee || 0),
+        kind: 'taxa'
+      });
+    }
+    if (Number(order.calculatedDiscount || 0) > 0) {
+      receiptItems.push({
+        name: 'Desconto Aplicado',
+        quantity: 1,
+        unitPrice: -Number(order.calculatedDiscount || 0),
+        totalPrice: -Number(order.calculatedDiscount || 0),
+        kind: 'desconto'
+      });
+    }
+
+    const receipt: PaymentReceipt = {
+      id: `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      receiptNumber: generateNextReceiptNumber(),
+      sourceType: 'os',
+      sourceId: order.id,
+      sourceCode: order.code,
+      cashSessionId: session.id,
+      cashSessionCode: session.code,
+      cashMovementId: movement.id,
+      terminalName,
+      operatorName,
+      clientId: clientSnap.clientId,
+      clientName: clientSnap.clientName,
+      clientDocument: clientSnap.clientDocument,
+      clientPhone: clientSnap.clientPhone,
+      clientAddress: clientSnap.clientAddress,
+      items: receiptItems,
+      paymentMethod: params.paymentMethod,
+      payments: stampedNewSplits,
+      paymentKind,
+      orderTotal,
+      previouslyPaid,
+      amountPaidNow: grossAmount,
+      totalPaidAccumulated,
+      remainingBalance,
+      isFullyPaid,
+      amountReceived: params.amountReceived,
+      changeAmount: params.changeAmount,
+      nsu: generatedNsu,
+      notes: params.notes,
       createdAt: settledAt
     };
 
     setCashMovements(prev => [movement, ...prev]);
     syncCashMovementToCloud(movement);
-    addAuditLog('Baixa de OS no Caixa PDV', `Ordem de Serviço ${order.code} liquidada no caixa ${session.code}. Bruto: R$ ${grossAmount.toFixed(2)} | Líquido: R$ ${netAmount.toFixed(2)}.`);
+    setPaymentReceipts(prev => [receipt, ...prev]);
+    syncPaymentReceiptToCloud(receipt);
+
+    if (!params.suppressAutoModal) {
+      setActiveReceiptModal(receipt);
+    }
+
+    addAuditLog(
+      'Baixa de OS & Emissão de Recibo',
+      `OS ${order.code} — Recibo ${receipt.receiptNumber} (${isFullyPaid ? 'Quitado' : `Parcial, falta R$ ${remainingBalance.toFixed(2)}`}). Recebido: R$ ${grossAmount.toFixed(2)}.`
+    );
     return movement;
   };
 
@@ -3092,23 +3530,49 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   };
 
   const toggleDirectSalePayment = (saleId: string) => {
-    setDirectSales(prev => prev.map(s => {
-      if (s.id === saleId) {
-        const nextStatus = s.paymentStatus === 'pago' ? 'pendente' : 'pago';
-        return { ...s, paymentStatus: nextStatus };
-      }
-      return s;
-    }));
+    const target = directSales.find(s => s.id === saleId);
+    if (!target) return;
+
+    if (target.paymentStatus === 'pago') {
+      updateDirectSale(saleId, { paymentStatus: 'pendente' });
+      return;
+    }
+
+    const paidSoFar = getPaidAmountForSource('venda', target.id);
+    const remaining = Math.max(0, Number((target.total - paidSoFar).toFixed(2))) || target.total;
+    const method = target.paymentMethod || 'pix';
+    settleSaleInPdv(target.id, {
+      payments: [{ id: `fin-${Date.now()}`, method, amount: remaining, netAmount: remaining }],
+      paymentMethod: method,
+      paidAmount: remaining,
+      terminalName: target.pdvTerminal || 'Financeiro / Caixa 01',
+      saleOverride: target
+    });
   };
 
   const toggleServiceOrderPayment = (orderId: string) => {
-    setServiceOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        const nextStatus = o.paymentStatus === 'pago' ? 'pendente' : 'pago';
-        return { ...o, paymentStatus: nextStatus };
-      }
-      return o;
-    }));
+    const target = serviceOrders.find(o => o.id === orderId);
+    if (!target) return;
+
+    if (target.paymentStatus === 'pago') {
+      updateServiceOrder(orderId, { paymentStatus: 'pendente' });
+      return;
+    }
+
+    const srvTotal = (target.services || []).reduce((a, s) => a + Number(s.price || 0), 0);
+    const prtTotal = (target.parts || []).reduce((a, p) => a + Number(p.price || 0) * Number(p.quantity || 1), 0);
+    const orderTotal = Math.max(0, srvTotal + prtTotal + Number(target.visitFee || 0) - Number(target.calculatedDiscount || 0));
+    const paidSoFar = getPaidAmountForSource('os', target.id);
+    const remaining = Math.max(0, Number((orderTotal - paidSoFar).toFixed(2))) || orderTotal;
+    const method = target.paymentMethod || 'pix';
+
+    settleServiceOrderInPdv(target.id, {
+      payments: [{ id: `fin-os-${Date.now()}`, method, amount: remaining, netAmount: remaining }],
+      paymentMethod: method,
+      paidAmount: remaining,
+      terminalName: target.pdvTerminal || 'Financeiro / Caixa 01',
+      orderOverride: target
+    });
   };
 
   const toggleGeneralExpensePayment = (id: string) => {
@@ -3385,6 +3849,12 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         cashSessions,
         cashMovements,
         activeCashSession,
+        paymentReceipts,
+        activeReceiptModal,
+        openReceiptModal,
+        closeReceiptModal,
+        getReceiptsForSource,
+        getPaidAmountForSource,
         openCashSession,
         closeCashSession,
         addCashManualMovement,

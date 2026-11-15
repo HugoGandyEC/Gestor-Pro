@@ -16,6 +16,35 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.13',
+    date: '15/11/2026',
+    title: 'Recibo de Pagamento Automático Integrado ao PDV, Vendas, O.S. e Financeiro',
+    summary:
+      'Implementação completa do módulo de emissão automática de Recibos de Pagamento com controle de quitação e saldo parcial/devedor, dados completos do cliente, vínculo explícito com a OS ou Venda Direta, visualização rápida em modal (Folha A4 e Térmico 80mm), impressão, download em PDF e compartilhamento direto por WhatsApp/Web Share.',
+    highlights: [
+      'Disparo Automático no Caixa/PDV, OS, Vendas e Contas a Receber ao confirmar pagamento à vista, entrada, parcela ou quitação',
+      'Controle de Saldo & Carimbo Visual: destaca Valor Pago, Valor Total e Falta Restante em pagamentos parciais e exibe selo QUITADO / INTEGRALMENTE PAGO ao quitar',
+      'Saída Multiformato & Persistência em Nuvem: modal A4 e Cupom Térmico 80mm, download em PDF real (A4/80mm), compartilhamento rápido e aba Recibos Emitidos no PDV sincronizada com Firestore'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Entidade PaymentReceipt com numeração sequencial (REC-YYYY-XXXX), dados completos do cliente (CPF/CNPJ, telefone e endereço), itens vinculados, formas de pagamento, operador/terminal e histórico acumulado de saldo sincronizados no Firestore (/paymentReceipts).'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Suporte nativo a Pagamento Parcial / Entrada e Liquidação de Parcela Programada no Checkout do PDV, na Cobrança de OS e na Cobrança de Vendas Diretas, mantendo o saldo pendente atualizado até a quitação total.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Modal global PaymentReceiptModal com alternância entre Folha A4 e Impressora Térmica 80mm, impressão dedicada, geração real de PDF em A4 e 80mm, cópia/Web Share e envio formatado pelo WhatsApp.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.12',
     date: '14/11/2026',
     title: 'Interface Mobile Enxuta — Ocultação de Elementos Administrativos e Secundários no Celular',

@@ -1,6 +1,17 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.12`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.13`).
+
+---
+
+## [v2.7.13] — 15/11/2026
+**Recibo de Pagamento Automático Integrado ao PDV, Vendas, Ordens de Serviço e Financeiro**
+
+### Adicionado
+- **Disparo Automático de Recibos (`REC-YYYY-XXXX`)**: todo recebimento confirmado no **Caixa/PDV**, **Cobrança de O.S.**, **Vendas Diretas** ou **Contas a Receber** gera automaticamente o recibo correspondente e abre a pré-visualização imediata.
+- **Dados Completos do Cliente & Origem**: o recibo exibe Nome/Razão Social, CPF/CNPJ, Telefone, Endereço completo, vínculo explícito com a **Ordem de Serviço** ou **Venda Direta**, itens/serviços inclusos, formas de pagamento, NSU/autorização, terminal e operador de caixa.
+- **Controle de Saldo e Carimbo de Quitação**: suporte a pagamento à vista, entrada, parcela programada, pagamento parcial e quitação final — destacando **Valor Pago**, **Total Já Pago**, **Valor Total** e **Saldo Devedor / Falta Restante** quando parcial, ou exibindo o carimbo visual **`QUITADO / INTEGRALMENTE PAGO`** ao liquidar integralmente.
+- **Saída Multiformato & Compartilhamento**: pré-visualização alternável entre **Folha A4** e **Impressora Térmica (80mm)**, impressão dedicada em 80mm/A4, geração e download real de **PDF (A4 e 80mm)**, cópia/compartilhamento rápido (`navigator.share`) e envio direto via **WhatsApp**, além da nova aba **Recibos Emitidos** no PDV sincronizada com o Firestore.
 
 ---
 

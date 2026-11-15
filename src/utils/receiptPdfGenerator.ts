@@ -8,9 +8,7 @@ export const RECEIPT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cartao_credito: 'Cartão de Crédito',
   cartao_debito: 'Cartão de Débito',
   boleto: 'Boleto Bancário',
-  faturado_30d: 'Faturado 30 Dias',
-  transferencia: 'Transferência Bancária',
-  transferencia_ted: 'TED / DOC'
+  faturado_30d: 'Faturado 30 Dias'
 };
 
 export const RECEIPT_KIND_LABELS: Record<PaymentReceipt['paymentKind'], string> = {
@@ -129,8 +127,9 @@ export const downloadReceiptPdf = (
   if (companyLine) {
     doc.text(companyLine, marginX + 5, cursorY + 13.5);
   }
-  if (company.address) {
-    doc.text(`${company.address}${company.city ? ` - ${company.city}/${company.state}` : ''}`, marginX + 5, cursorY + 18);
+  const companyAddr = [company.street, company.number, company.neighborhood].filter(Boolean).join(', ');
+  if (companyAddr) {
+    doc.text(`${companyAddr}${company.city ? ` - ${company.city}/${company.state}` : ''}`, marginX + 5, cursorY + 18);
   }
 
   doc.setFont('helvetica', 'bold');
