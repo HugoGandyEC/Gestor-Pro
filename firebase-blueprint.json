@@ -98,6 +98,25 @@
         "updatedBy": { "type": "string" }
       },
       "required": ["id", "updatedAt"]
+    },
+    "PaymentReceipt": {
+      "title": "PaymentReceipt",
+      "description": "Recibo de pagamento gerado automaticamente no PDV, Vendas ou Ordens de Serviço",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "sourceType": { "type": "string", "enum": ["os", "venda"] },
+        "sourceId": { "type": "string" },
+        "sourceCode": { "type": "string" },
+        "clientName": { "type": "string" },
+        "orderTotal": { "type": "number" },
+        "amountPaidNow": { "type": "number" },
+        "remainingBalance": { "type": "number" },
+        "isFullyPaid": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "receiptNumber", "sourceType", "sourceId", "sourceCode", "amountPaidNow", "isFullyPaid", "createdAt"]
     }
   },
   "firestore": {
@@ -124,6 +143,10 @@
     "/cashMovements/{movementId}": {
       "schema": "CashRegisterMovement",
       "description": "Movimentações de recebimento, suprimento e sangria do PDV sincronizadas em tempo real"
+    },
+    "/paymentReceipts/{receiptId}": {
+      "schema": "PaymentReceipt",
+      "description": "Recibos de pagamento emitidos no caixa sincronizados em tempo real"
     },
     "/systemSync/{syncId}": {
       "schema": "SystemSync",

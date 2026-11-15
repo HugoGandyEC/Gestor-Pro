@@ -19,7 +19,8 @@ import {
   DirectSale,
   CompanyAppointment,
   CashRegisterSession,
-  CashRegisterMovement
+  CashRegisterMovement,
+  PaymentReceipt
 } from '../types';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -68,6 +69,7 @@ export interface SyncCallbacks {
   onAppointmentsSync: (appointments: CompanyAppointment[]) => void;
   onCashSessionsSync: (sessions: CashRegisterSession[]) => void;
   onCashMovementsSync: (movements: CashRegisterMovement[]) => void;
+  onPaymentReceiptsSync?: (receipts: PaymentReceipt[]) => void;
 }
 
 // Real-time synchronization listeners
@@ -188,6 +190,24 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
       console.warn('Erro ao sincronizar movimentações do PDV da nuvem:', error);
     });
     unsubscribes.push(unsubCashMovements);
+
+    // 9. Recibos de Pagamento em tempo real
+    if (callbacks.onPaymentReceiptsSync) {
+      const cb = callbacks.onPaymentReceiptsSync;
+      const unsubReceipts = onSnapshot(collection(db, 'paymentReceipts'), (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudReceipts: PaymentReceipt[] = [];
+          snapshot.forEach(docSnap => {
+            cloudReceipts.push(docSnap.data() as PaymentReceipt);
+          });
+          cloudReceipts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          cb(cloudReceipts);
+        }
+      }, (error) => {
+        console.warn('Erro ao sincronizar recibos de pagamento da nuvem:', error);
+      });
+      unsubscribes.push(unsubReceipts);
+    }
 
   } catch (err) {
     console.warn('Falha ao inicializar observadores do Firestore:', err);
@@ -310,6 +330,14 @@ export async function syncCashMovementToCloud(movement: CashRegisterMovement): P
     await setDoc(doc(db, 'cashMovements', movement.id), stripUndefined(movement));
   } catch (err) {
     console.warn('Erro ao salvar movimentação de caixa no Firestore:', err);
+  }
+}
+
+export async function syncPaymentReceiptToCloud(receipt: PaymentReceipt): Promise<void> {
+  try {
+    await setDoc(doc(db, 'paymentReceipts', receipt.id), stripUndefined(receipt));
+  } catch (err) {
+    console.warn('Erro ao salvar recibo de pagamento no Firestore:', err);
   }
 }
 

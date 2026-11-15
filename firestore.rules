@@ -34,6 +34,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /paymentReceipts/{receiptId} {
+      allow read, write: if true;
+    }
+
     match /systemSync/{syncId} {
       allow read, write: if true;
     }

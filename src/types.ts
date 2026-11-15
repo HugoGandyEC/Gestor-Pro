@@ -753,3 +753,51 @@ export interface CompanyAppointment {
   updatedAt?: string;
 }
 
+// ============================================================================
+// RECIBOS DE PAGAMENTO AUTOMÁTICOS (PDV / CAIXA / OS / VENDAS)
+// ============================================================================
+
+export type PaymentReceiptKind = 'vista' | 'entrada' | 'parcela' | 'parcial' | 'quitacao';
+
+export interface PaymentReceiptItem {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  kind?: 'servico' | 'peca' | 'produto' | 'taxa' | 'desconto';
+}
+
+export interface PaymentReceipt {
+  id: string;
+  receiptNumber: string; // Ex: REC-2026-0001
+  sourceType: 'os' | 'venda';
+  sourceId: string;
+  sourceCode: string;
+  cashSessionId: string;
+  cashSessionCode?: string;
+  cashMovementId: string;
+  terminalName: string;
+  operatorName: string;
+  clientId?: string;
+  clientName: string;
+  clientDocument?: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  items: PaymentReceiptItem[];
+  paymentMethod: PaymentMethod;
+  payments: PaymentSplit[];
+  paymentKind: PaymentReceiptKind;
+  orderTotal: number;
+  previouslyPaid: number;
+  amountPaidNow: number;
+  totalPaidAccumulated: number;
+  remainingBalance: number;
+  isFullyPaid: boolean;
+  amountReceived?: number;
+  changeAmount?: number;
+  nsu?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+
