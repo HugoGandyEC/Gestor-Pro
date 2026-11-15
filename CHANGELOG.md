@@ -1,6 +1,21 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.6.4`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.0`).
+
+---
+
+## [v2.7.0] — 14/11/2026
+**Liberação de Preços de Atacado Exclusiva para Clientes Atacadistas**
+
+### Adicionado
+- Classificação comercial **Tipo de Cliente (`Varejista` vs `Atacadista`)** no modelo de dados (`Client`), no **Cadastro de Clientes** (`ClientsView`), no **Cadastro Geral** (`MasterRegistrationsView`), no importador CSV/Universal (`UniversalDataImportView`), no esquema Firebase (`firebase-blueprint.json`) e na exportação SQL (`SystemSettingsView`).
+- Filtro rápido por perfil (**Todos / Varejo / Atacado**) na tela de Clientes e busca rápida de cliente por nome, CPF/CNPJ ou telefone diretamente no **Balcão PDV Rápido** e em **Vendas Diretas**.
+
+### Alterado
+- **Bloqueio de Tabela Atacado**: tanto no **PDV** (`PdvView`) quanto em **Vendas Diretas** (`SalesView`), a opção de tabela **Atacado** e os valores atacadistas permanecem bloqueados até que seja buscado e selecionado um cliente cadastrado como **Atacadista**.
+
+### Corrigido
+- Reversão automática para preços de **Varejo** no carrinho do PDV e nos itens da venda sempre que o cliente selecionado for alterado para um cliente **Varejista** ou **Consumidor Balcão**.
 
 ---
 

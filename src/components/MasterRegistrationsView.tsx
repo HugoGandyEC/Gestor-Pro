@@ -105,6 +105,7 @@ export const MasterRegistrationsView: React.FC = () => {
 
   // Client form state
   const [clientForm, setClientForm] = useState({
+    customerType: 'varejo' as 'varejo' | 'atacado',
     name: '',
     tradeName: '',
     document: '',
@@ -281,6 +282,7 @@ export const MasterRegistrationsView: React.FC = () => {
               onClick={() => {
                 setEditingClient(null);
                 setClientForm({
+                  customerType: 'varejo',
                   name: '', tradeName: '', document: '', email: '', phone: '',
                   cep: '', street: '', number: '', neighborhood: '', city: '', state: '', notes: ''
                 });
@@ -463,7 +465,16 @@ export const MasterRegistrationsView: React.FC = () => {
                   .map(client => (
                     <tr key={client.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-3">
-                        <div className="font-semibold text-slate-900">{client.name}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-slate-900">{client.name}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            client.customerType === 'atacado'
+                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
+                          }`}>
+                            {client.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
+                          </span>
+                        </div>
                         {client.tradeName && (
                           <div className="text-[11px] text-slate-500">{client.tradeName}</div>
                         )}
@@ -490,6 +501,7 @@ export const MasterRegistrationsView: React.FC = () => {
                             onClick={() => {
                               setEditingClient(client);
                               setClientForm({
+                                customerType: client.customerType || 'varejo',
                                 name: client.name,
                                 tradeName: client.tradeName || '',
                                 document: client.document,
@@ -1089,6 +1101,35 @@ export const MasterRegistrationsView: React.FC = () => {
               className="space-y-4"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2 p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                  <label className="block text-xs font-bold text-slate-800">
+                    Tipo de Cliente (Liberação de Tabela de Preços) *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setClientForm({ ...clientForm, customerType: 'varejo' })}
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                        clientForm.customerType === 'varejo'
+                          ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      Varejista (Varejo)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientForm({ ...clientForm, customerType: 'atacado' })}
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                        clientForm.customerType === 'atacado'
+                          ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                          : 'bg-white text-purple-800 border-slate-200 hover:bg-purple-50'
+                      }`}
+                    >
+                      Atacadista (Libera Atacado)
+                    </button>
+                  </div>
+                </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-slate-700 mb-1">Razão Social / Nome Completo *</label>
                   <input

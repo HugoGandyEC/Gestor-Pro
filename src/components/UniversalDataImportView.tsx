@@ -74,6 +74,7 @@ const ENTITIES_CONFIG: EntityDefinition[] = [
     description: 'Cadastro de clientes físicos e jurídicos, contatos e endereços.',
     fields: [
       { key: 'name', label: 'Nome / Razão Social', required: true, sample: 'Hotel Fazenda das Águas Ltda' },
+      { key: 'customerType', label: 'Tipo Cliente (Varejo/Atacado)', required: false, sample: 'Atacado' },
       { key: 'document', label: 'CPF / CNPJ', required: false, sample: '12.345.678/0001-90' },
       { key: 'phone', label: 'Telefone / WhatsApp', required: true, sample: '(11) 98765-4321' },
       { key: 'email', label: 'E-mail', required: false, sample: 'contato@aguas.com.br' },
@@ -1062,19 +1063,24 @@ export const UniversalDataImportView: React.FC = () => {
       let importedCount = 0;
 
       if (selectedEntity === 'clients') {
-        const mappedClients = parsedRows.map(row => ({
-          name: String(row[columnMapping['name']] || '').trim() || 'Cliente Importado',
-          tradeName: String(row[columnMapping['tradeName']] || '').trim() || undefined,
-          document: String(row[columnMapping['document']] || '').trim(),
-          phone: String(row[columnMapping['phone']] || '').trim() || '(11) 90000-0000',
-          email: String(row[columnMapping['email']] || '').trim() || 'cliente@gestaopro.com',
-          city: String(row[columnMapping['city']] || '').trim() || 'Cidade',
-          state: String(row[columnMapping['state']] || '').trim() || 'SP',
-          street: String(row[columnMapping['street']] || '').trim() || 'Rua Principal',
-          number: String(row[columnMapping['number']] || '').trim() || 'S/N',
-          neighborhood: String(row[columnMapping['neighborhood']] || '').trim() || 'Bairro',
-          cep: String(row[columnMapping['cep']] || '').trim() || '00000-000'
-        }));
+        const mappedClients = parsedRows.map(row => {
+          const rawType = String(row[columnMapping['customerType']] || '').trim().toLowerCase();
+          const customerType: 'varejo' | 'atacado' = rawType.includes('atacad') ? 'atacado' : 'varejo';
+          return {
+            name: String(row[columnMapping['name']] || '').trim() || 'Cliente Importado',
+            tradeName: String(row[columnMapping['tradeName']] || '').trim() || undefined,
+            customerType,
+            document: String(row[columnMapping['document']] || '').trim(),
+            phone: String(row[columnMapping['phone']] || '').trim() || '(11) 90000-0000',
+            email: String(row[columnMapping['email']] || '').trim() || 'cliente@gestaopro.com',
+            city: String(row[columnMapping['city']] || '').trim() || 'Cidade',
+            state: String(row[columnMapping['state']] || '').trim() || 'SP',
+            street: String(row[columnMapping['street']] || '').trim() || 'Rua Principal',
+            number: String(row[columnMapping['number']] || '').trim() || 'S/N',
+            neighborhood: String(row[columnMapping['neighborhood']] || '').trim() || 'Bairro',
+            cep: String(row[columnMapping['cep']] || '').trim() || '00000-000'
+          };
+        });
         importedCount = batchImportClients(mappedClients, importMode);
       } else if (selectedEntity === 'services') {
         const mappedServices = parsedRows.map(row => ({

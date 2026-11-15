@@ -43,6 +43,7 @@ export const ClientsView: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'pj' | 'pf'>('all');
+  const [commercialFilter, setCommercialFilter] = useState<'all' | 'varejo' | 'atacado'>('all');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,8 +53,9 @@ export const ClientsView: React.FC = () => {
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
 
-  // Dynamic Type Choice: 'PJ' vs 'PF'
+  // Dynamic Type Choice: 'PJ' vs 'PF' & Commercial Profile: 'varejo' vs 'atacado'
   const [personType, setPersonType] = useState<'PJ' | 'PF'>('PJ');
+  const [customerType, setCustomerType] = useState<'varejo' | 'atacado'>('varejo');
 
   // Common Fields
   const [cName, setCName] = useState('');
@@ -104,6 +106,8 @@ export const ClientsView: React.FC = () => {
   const totalClients = clients.length;
   const pjCount = clients.filter(c => (c.personType === 'PJ') || (c.document.replace(/\D/g, '').length === 14)).length;
   const pfCount = clients.filter(c => (c.personType === 'PF') || (c.document.replace(/\D/g, '').length !== 14)).length;
+  const atacadoCount = clients.filter(c => c.customerType === 'atacado').length;
+  const varejoCount = clients.filter(c => (c.customerType || 'varejo') === 'varejo').length;
   
   // Clients with active service orders
   const clientsWithActiveOSCount = useMemo(() => {
@@ -121,6 +125,9 @@ export const ClientsView: React.FC = () => {
       const isPJ = client.personType === 'PJ' || client.document.replace(/\D/g, '').length === 14;
       if (typeFilter === 'pj' && !isPJ) return false;
       if (typeFilter === 'pf' && isPJ) return false;
+
+      const cliCommercial = client.customerType || 'varejo';
+      if (commercialFilter !== 'all' && cliCommercial !== commercialFilter) return false;
 
       if (!searchTerm.trim()) return true;
       const term = searchTerm.toLowerCase();
@@ -145,12 +152,12 @@ export const ClientsView: React.FC = () => {
         Boolean(matchesAddress)
       );
     });
-  }, [clients, searchTerm, typeFilter]);
+  }, [clients, searchTerm, typeFilter, commercialFilter]);
 
   // Reset page when filters change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, typeFilter]);
+  }, [searchTerm, typeFilter, commercialFilter]);
 
   const paginatedClients = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -292,6 +299,7 @@ export const ClientsView: React.FC = () => {
   const handleOpenAdd = () => {
     setEditingClientId(null);
     setPersonType('PJ');
+    setCustomerType('varejo');
     setCName('');
     setCTradeName('');
     setCDocument('');
@@ -329,6 +337,7 @@ export const ClientsView: React.FC = () => {
     setEditingClientId(c.id);
     const isPj = c.personType ? c.personType === 'PJ' : c.document.replace(/\D/g, '').length === 14;
     setPersonType(isPj ? 'PJ' : 'PF');
+    setCustomerType(c.customerType || 'varejo');
     setCName(c.name);
     setCTradeName(c.tradeName || '');
     setCDocument(c.document);
@@ -404,6 +413,7 @@ export const ClientsView: React.FC = () => {
 
     const clientPayload: Omit<Client, 'id' | 'createdAt'> = {
       personType,
+      customerType,
       name: cName.trim(),
       tradeName: cTradeName.trim() || undefined,
       document: cDocument.trim(),
@@ -446,7 +456,8 @@ export const ClientsView: React.FC = () => {
   const handleExportCsv = () => {
     const headers = [
       'ID', 
-      'Tipo_Pessoa', 
+      'Tipo_Pessoa',
+      'Tipo_Cliente',
       'Razao_Social_Nome', 
       'Nome_Fantasia', 
       'CPF_CNPJ', 
@@ -480,6 +491,7 @@ export const ClientsView: React.FC = () => {
       return [
         c.id,
         isPj ? 'PJ' : 'PF',
+        c.customerType === 'atacado' ? 'Atacado' : 'Varejo',
         `"${c.name.replace(/"/g, '""')}"`,
         `"${(c.tradeName || '').replace(/"/g, '""')}"`,
         c.document,
@@ -550,10 +562,10 @@ export const ClientsView: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              setCsvContent(`Nome;Documento;Telefone;Email;CEP;Rua;Numero
-Condomínio Solar das Águas;33.444.555/0001-88;(11) 94444-5555;contato@solardasaguas.com;04538-132;Rua Tabapuã;145
-Indústria Química Alpha Ltda;55.666.777/0001-99;(11) 3211-9900;compras@alphasa.com.br;09015-000;Av das Indústrias;800
-Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av Faria Lima;2200`);
+              setCsvContent(`Nome;Documento;Telefone;Email;CEP;Rua;Numero;Tipo_Cliente
+Condomínio Solar das Águas;33.444.555/0001-88;(11) 94444-5555;contato@solardasaguas.com;04538-132;Rua Tabapuã;145;Varejo
+Indústria Química Alpha Ltda;55.666.777/0001-99;(11) 3211-9900;compras@alphasa.com.br;09015-000;Av das Indústrias;800;Atacado
+Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av Faria Lima;2200;Varejo`);
               setCsvResult(null);
               setIsCsvModalOpen(true);
             }}
@@ -642,8 +654,8 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <span className="text-xs font-semibold text-[#707174]">Filtrar por:</span>
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <span className="text-xs font-semibold text-[#707174]">Pessoa:</span>
             <div className="inline-flex rounded-lg border border-[#d8d8d8] p-0.5 bg-[#f4f5f6] text-xs">
               <button
                 onClick={() => setTypeFilter('all')}
@@ -655,13 +667,35 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                 onClick={() => setTypeFilter('pj')}
                 className={`px-3 py-1 rounded-md font-medium transition-colors ${typeFilter === 'pj' ? 'bg-[#53383e] text-white font-semibold shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
               >
-                Pessoa Jurídica ({pjCount})
+                PJ ({pjCount})
               </button>
               <button
                 onClick={() => setTypeFilter('pf')}
                 className={`px-3 py-1 rounded-md font-medium transition-colors ${typeFilter === 'pf' ? 'bg-[#363739] text-white font-semibold shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
               >
-                Pessoa Física ({pfCount})
+                PF ({pfCount})
+              </button>
+            </div>
+
+            <span className="text-xs font-semibold text-[#707174] ml-1">Perfil:</span>
+            <div className="inline-flex rounded-lg border border-[#d8d8d8] p-0.5 bg-[#f4f5f6] text-xs">
+              <button
+                onClick={() => setCommercialFilter('all')}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors ${commercialFilter === 'all' ? 'bg-[#363739] text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setCommercialFilter('varejo')}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors ${commercialFilter === 'varejo' ? 'bg-slate-700 text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+              >
+                Varejo ({varejoCount})
+              </button>
+              <button
+                onClick={() => setCommercialFilter('atacado')}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors ${commercialFilter === 'atacado' ? 'bg-purple-700 text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+              >
+                Atacado ({atacadoCount})
               </button>
             </div>
           </div>
@@ -718,14 +752,24 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                       {/* Tipo & Documentos */}
                       <td className="px-4 py-3 align-top">
                         <div className="flex flex-col gap-1">
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full w-fit ${
-                            isPJ 
-                              ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          }`}>
-                            {isPJ ? <Building2 className="w-3 h-3" /> : <User className="w-3 h-3" />}
-                            {isPJ ? 'Pessoa Jurídica' : 'Pessoa Física'}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded w-fit ${
+                              isPJ 
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}>
+                              {isPJ ? <Building2 className="w-3 h-3" /> : <User className="w-3 h-3" />}
+                              {isPJ ? 'PJ' : 'PF'}
+                            </span>
+
+                            <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded w-fit ${
+                              client.customerType === 'atacado'
+                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}>
+                              {client.customerType === 'atacado' ? 'Atacadista (Atacado)' : 'Varejista (Varejo)'}
+                            </span>
+                          </div>
 
                           <div className="font-mono text-slate-900 font-semibold text-[11px] mt-0.5">
                             {client.document || <span className="text-slate-400 font-sans italic text-[10px]">Sem documento</span>}
@@ -970,6 +1014,63 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                     <span className={`text-[10px] px-1.5 py-0.2 rounded font-normal ${personType === 'PF' ? 'bg-white/20 text-white' : 'bg-[#d8d8d8] text-[#363739]'}`}>
                       CPF + RG
                     </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* SELETOR DE PERFIL COMERCIAL: VAREJISTA VS ATACADISTA */}
+              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                    Tipo de Cliente / Tabela de Preço *
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Somente clientes <strong className="text-purple-700">Atacadistas</strong> liberam preços de atacado no PDV e Vendas.
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCustomerType('varejo')}
+                    className={`text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
+                      customerType === 'varejo'
+                        ? 'bg-white border-slate-800 ring-2 ring-slate-900/10 shadow-xs'
+                        : 'bg-white/60 border-slate-200 hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-xs">Cliente Varejista (Varejo)</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        customerType === 'varejo' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        Padrão
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Utiliza apenas a tabela de preços de varejo no balcão e vendas.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCustomerType('atacado')}
+                    className={`text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
+                      customerType === 'atacado'
+                        ? 'bg-purple-50 border-purple-600 ring-2 ring-purple-600/15 shadow-xs'
+                        : 'bg-white/60 border-slate-200 hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-purple-950 text-xs">Cliente Atacadista (Atacado)</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        customerType === 'atacado' ? 'bg-purple-700 text-white' : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        Libera Atacado
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-purple-800/80 mt-0.5">
+                      Libera os valores da tabela de atacado ao selecionar este cliente no PDV e Vendas.
+                    </p>
                   </button>
                 </div>
               </div>
@@ -1544,7 +1645,7 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                 Cole o conteúdo no formato CSV separado por ponto e vírgula (;):
                 <br />
                 <code className="text-[11px] text-blue-700 font-mono bg-blue-50 p-1 rounded block mt-1">
-                  Nome;Documento;Telefone;Email;CEP;Rua;Numero
+                  Nome;Documento;Telefone;Email;CEP;Rua;Numero;Tipo_Cliente
                 </code>
               </p>
 

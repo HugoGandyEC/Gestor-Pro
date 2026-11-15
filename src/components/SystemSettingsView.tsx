@@ -333,6 +333,7 @@ export const SystemSettingsView: React.FC = () => {
     lines.push('  `nome` VARCHAR(255) NOT NULL,');
     lines.push('  `nome_fantasia` VARCHAR(255),');
     lines.push('  `tipo_pessoa` VARCHAR(2) DEFAULT "PJ",');
+    lines.push('  `tipo_cliente` VARCHAR(20) DEFAULT "varejo",');
     lines.push('  `documento` VARCHAR(30),');
     lines.push('  `telefone` VARCHAR(30),');
     lines.push('  `email` VARCHAR(150),');
@@ -343,10 +344,10 @@ export const SystemSettingsView: React.FC = () => {
     lines.push(') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n');
 
     if (clients.length > 0) {
-      lines.push('INSERT INTO `clientes` (`id`, `nome`, `nome_fantasia`, `tipo_pessoa`, `documento`, `telefone`, `email`, `cidade`, `estado`, `observacoes`) VALUES');
+      lines.push('INSERT INTO `clientes` (`id`, `nome`, `nome_fantasia`, `tipo_pessoa`, `tipo_cliente`, `documento`, `telefone`, `email`, `cidade`, `estado`, `observacoes`) VALUES');
       const clientInserts = clients.map(c => {
         const addr = (c.addresses?.[0] as any) || {};
-        return `  ('${c.id}', '${(c.name || '').replace(/'/g, "\\'")}', '${(c.tradeName || '').replace(/'/g, "\\'")}', '${c.personType || 'PJ'}', '${c.document || ''}', '${c.phone || ''}', '${c.email || ''}', '${addr.city || ''}', '${addr.state || ''}', '${(c.notes || '').replace(/'/g, "\\'")}')`;
+        return `  ('${c.id}', '${(c.name || '').replace(/'/g, "\\'")}', '${(c.tradeName || '').replace(/'/g, "\\'")}', '${c.personType || 'PJ'}', '${c.customerType || 'varejo'}', '${c.document || ''}', '${c.phone || ''}', '${c.email || ''}', '${addr.city || ''}', '${addr.state || ''}', '${(c.notes || '').replace(/'/g, "\\'")}')`;
       }).join(',\n');
       lines.push(clientInserts + ';\n');
     }

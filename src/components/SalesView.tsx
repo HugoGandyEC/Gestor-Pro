@@ -20,7 +20,9 @@ import {
   X,
   Copy,
   Check,
-  MessageSquare
+  MessageSquare,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { SaleItem, PaymentMethod, PaymentSplit, CardBrand, DirectSale } from '../types';
@@ -50,15 +52,31 @@ export const SalesView: React.FC = () => {
   const [copiedPix, setCopiedPix] = useState(false);
   const [whatsAppSale, setWhatsAppSale] = useState<DirectSale | null>(null);
 
-  const [clientId, setClientId] = useState(clients[0]?.id || '');
+  const [clientId, setClientId] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
   const [employeeId, setEmployeeId] = useState(employees[3]?.id || employees[0]?.id || '');
   const [priceType, setPriceType] = useState<'varejo' | 'atacado'>('varejo');
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
   const [discountValue, setDiscountValue] = useState<number>(0);
+  const [saleError, setSaleError] = useState<string | null>(null);
 
-  const [items, setItems] = useState<SaleItem[]>([
-    { id: '1', productId: 'prod-4', name: 'Válvula de Segurança e Alívio de Pressão 3/4" 3 Bar', quantity: 2, cost: 65, price: 160, unit: 'PC' }
-  ]);
+  const selectedClient = clients.find(c => c.id === clientId) || null;
+  const isWholesaleUnlocked = selectedClient?.customerType === 'atacado';
+  const effectivePriceType: 'varejo' | 'atacado' = isWholesaleUnlocked ? priceType : 'varejo';
+
+  const filteredClients = React.useMemo(() => {
+    const q = clientSearch.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter(
+      c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.tradeName || '').toLowerCase().includes(q) ||
+        (c.document || '').toLowerCase().includes(q) ||
+        (c.phone || '').toLowerCase().includes(q)
+    );
+  }, [clients, clientSearch]);
+
+  const [items, setItems] = useState<SaleItem[]>([]);
 
   const [payments, setPayments] = useState<PaymentSplit[]>([
     { id: 'p1', method: 'pix', amount: 320, netAmount: 320 }
@@ -142,9 +160,76 @@ export const SalesView: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const recalculateItemsForPriceType = (targetPriceType: 'varejo' | 'atacado') => {
+    setItems(prev =>
+      prev.map(it => {
+        if (!it.productId) return it;
+        const prod = products.find(p => p.id === it.productId);
+        if (!prod) return it;
+        return {
+          ...it,
+          price: targetPriceType === 'atacado' ? prod.wholesalePrice : prod.retailPrice
+        };
+      })
+    );
+  };
+
+  const handleSelectClient = (newClientId: string) => {
+    setClientId(newClientId);
+    const cli = clients.find(c => c.id === newClientId);
+    if (cli?.customerType === 'atacado') {
+      setPriceType('atacado');
+      recalculateItemsForPriceType('atacado');
+    } else {
+      setPriceType('varejo');
+      recalculateItemsForPriceType('varejo');
+    }
+  };
+
+  const handlePriceTypeChange = (nextType: 'varejo' | 'atacado') => {
+    if (nextType === 'atacado' && !isWholesaleUnlocked) {
+      setSaleError('Busque e selecione um cliente cadastrado como Atacadista para liberar os valores de atacado.');
+      return;
+    }
+    setSaleError(null);
+    setPriceType(nextType);
+    recalculateItemsForPriceType(nextType);
+  };
+
+  const handleOpenNewSaleModal = () => {
+    setEditingSale(null);
+    setClientId('');
+    setClientSearch('');
+    setPriceType('varejo');
+    setDiscountType('fixed');
+    setDiscountValue(0);
+    setSaleError(null);
+    const firstProd = products[0];
+    setItems(
+      firstProd
+        ? [
+            {
+              id: String(Date.now()),
+              productId: firstProd.id,
+              name: firstProd.name,
+              quantity: 1,
+              cost: firstProd.costPrice,
+              price: firstProd.retailPrice,
+              unit: firstProd.unit
+            }
+          ]
+        : []
+    );
+    setPayments([{ id: 'p1', method: 'pix', amount: firstProd?.retailPrice || 0, netAmount: firstProd?.retailPrice || 0 }]);
+    setIsModalOpen(true);
+  };
+
   const handleAddItem = () => {
     const defaultProd = products[0];
-    const initialPrice = priceType === 'atacado' ? (defaultProd?.wholesalePrice || 120) : (defaultProd?.retailPrice || 160);
+    const initialPrice =
+      effectivePriceType === 'atacado'
+        ? (defaultProd?.wholesalePrice || 120)
+        : (defaultProd?.retailPrice || 160);
     setItems(prev => [
       ...prev,
       {
@@ -162,7 +247,7 @@ export const SalesView: React.FC = () => {
   const handleProductSelect = (idx: number, prodId: string) => {
     const prod = products.find(p => p.id === prodId);
     if (!prod) return;
-    const price = priceType === 'atacado' ? prod.wholesalePrice : prod.retailPrice;
+    const price = effectivePriceType === 'atacado' ? prod.wholesalePrice : prod.retailPrice;
     const updated = [...items];
     updated[idx] = {
       ...updated[idx],
@@ -195,11 +280,15 @@ export const SalesView: React.FC = () => {
 
   const handleCreateSale = (e: React.FormEvent, settleImmediately = false) => {
     e.preventDefault();
-    const client = clients.find(c => c.id === clientId) || clients[0];
+    const client = clientId ? clients.find(c => c.id === clientId) : undefined;
     if (items.length === 0) {
-      alert('Adicione ao menos um item à venda.');
+      setSaleError('Adicione ao menos um item à venda.');
       return;
     }
+    setSaleError(null);
+
+    const finalPriceType: 'varejo' | 'atacado' =
+      client?.customerType === 'atacado' && priceType === 'atacado' ? 'atacado' : 'varejo';
 
     const sub = calculateSubtotal();
     const discount = calculateDiscountAmount(sub);
@@ -211,7 +300,7 @@ export const SalesView: React.FC = () => {
       clientName: client?.name || 'Venda Balcão Avulsa',
       employeeId,
       date: nowIso.split('T')[0],
-      priceType,
+      priceType: finalPriceType,
       items: items.filter(it => it.name.trim() !== ''),
       discountType,
       discountValue: Number(discountValue),
@@ -259,8 +348,8 @@ export const SalesView: React.FC = () => {
 
         {currentRole !== 'tecnico' && (
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs shrink-0"
+            onClick={handleOpenNewSaleModal}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Nova Venda / Balcão</span>
@@ -400,13 +489,16 @@ export const SalesView: React.FC = () => {
                         {currentRole !== 'tecnico' && (
                           <button
                             onClick={() => {
-                              setClientId(sale.clientId || clients[0]?.id || '');
+                              const saleClient = sale.clientId ? clients.find(c => c.id === sale.clientId) : undefined;
+                              setClientId(sale.clientId || '');
+                              setClientSearch('');
                               setEmployeeId(sale.employeeId);
-                              setPriceType(sale.priceType);
+                              setPriceType(saleClient?.customerType === 'atacado' ? sale.priceType : 'varejo');
                               setDiscountType(sale.discountType || 'fixed');
                               setDiscountValue(sale.discountValue || 0);
                               setItems(sale.items);
                               setPayments(sale.payments || []);
+                              setSaleError(null);
                               setIsModalOpen(true);
                             }}
                             className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-[#363739] hover:text-[#53383e] hover:bg-[#d8d8d8]/50 border border-[#d8d8d8] rounded-md transition-colors cursor-pointer"
@@ -481,40 +573,142 @@ export const SalesView: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateSale} className="space-y-4 text-xs mt-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 mb-1 font-medium">Cliente *</label>
+              {saleError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 font-semibold text-xs">
+                  {saleError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-slate-600 font-medium">Buscar & Selecionar Cliente *</label>
+                    {selectedClient && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        isWholesaleUnlocked
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {isWholesaleUnlocked ? 'Atacadista' : 'Varejista'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                    />
+                    {clientSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setClientSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {clientSearch.trim() && (
+                    <div className="max-h-32 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+                      {filteredClients.length === 0 ? (
+                        <div className="p-2 text-[11px] text-slate-400 text-center">
+                          Nenhum cliente encontrado.
+                        </div>
+                      ) : (
+                        filteredClients.slice(0, 8).map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              handleSelectClient(c.id);
+                              setClientSearch('');
+                            }}
+                            className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 cursor-pointer ${
+                              clientId === c.id ? 'bg-blue-50/70' : ''
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900 truncate">{c.name}</div>
+                              <div className="text-[10px] text-slate-500 font-mono truncate">
+                                {c.document || c.phone}
+                              </div>
+                            </div>
+                            <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              c.customerType === 'atacado'
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {c.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                   <select
                     value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
+                    onChange={(e) => handleSelectClient(e.target.value)}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-semibold"
                   >
-                    {clients.map(c => (
+                    <option value="">Venda Balcão Avulsa (Varejo)</option>
+                    {filteredClients.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.name}{c.document ? ` (${c.document})` : ''}
+                        {c.name} [{c.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}]{c.document ? ` · ${c.document}` : ''}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-slate-600 mb-1 font-medium">Tabela de Preço</label>
+                <div className="space-y-1.5">
+                  <label className="block text-slate-600 font-medium">Tabela de Preço</label>
                   <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-100 p-0.5">
                     <button
                       type="button"
-                      onClick={() => setPriceType('varejo')}
-                      className={`flex-1 py-1.5 font-bold rounded-md ${priceType === 'varejo' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
+                      onClick={() => handlePriceTypeChange('varejo')}
+                      className={`flex-1 py-1.5 font-bold rounded-md cursor-pointer ${effectivePriceType === 'varejo' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
                     >
                       Varejo (Padrão)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPriceType('atacado')}
-                      className={`flex-1 py-1.5 font-bold rounded-md ${priceType === 'atacado' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600'}`}
+                      disabled={!isWholesaleUnlocked}
+                      onClick={() => handlePriceTypeChange('atacado')}
+                      title={
+                        isWholesaleUnlocked
+                          ? 'Aplicar tabela de atacado'
+                          : 'Busque e selecione um cliente Atacadista para liberar'
+                      }
+                      className={`flex-1 py-1.5 font-bold rounded-md inline-flex items-center justify-center gap-1 transition-colors ${
+                        !isWholesaleUnlocked
+                          ? 'text-slate-400 cursor-not-allowed opacity-70'
+                          : effectivePriceType === 'atacado'
+                          ? 'bg-purple-700 text-white shadow-xs cursor-pointer'
+                          : 'text-purple-800 hover:bg-white cursor-pointer'
+                      }`}
                     >
-                      Atacado (Desconto Lote)
+                      {!isWholesaleUnlocked && <Lock className="w-3 h-3" />}
+                      <span>Atacado (Desconto Lote)</span>
                     </button>
                   </div>
+                  {!isWholesaleUnlocked ? (
+                    <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                      <span>
+                        Preços de <strong>atacado</strong> bloqueados. Busque e selecione um cliente cadastrado como <strong>Atacadista</strong> para liberar.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="p-2 rounded-lg bg-purple-50 border border-purple-200 text-[11px] text-purple-900 flex items-start gap-1.5">
+                      <Unlock className="w-3.5 h-3.5 text-purple-700 shrink-0 mt-0.5" />
+                      <span>
+                        Tabela <strong>Atacado liberada</strong> para o cliente atacadista {selectedClient?.name}.
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

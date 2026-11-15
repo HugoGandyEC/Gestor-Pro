@@ -1625,8 +1625,11 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       lines.slice(1).forEach((line, idx) => {
         const parts = line.split(/[;,]/);
         if (parts.length >= 3 && parts[0].trim()) {
+          const rawCustomerType = (parts[7]?.replace(/"/g, '').trim() || '').toLowerCase();
+          const normalizedCustomerType = rawCustomerType.includes('atacad') ? 'atacado' : 'varejo';
           const newCli: Client = {
             id: `cli-csv-${Date.now()}-${idx}`,
+            customerType: normalizedCustomerType,
             name: parts[0].replace(/"/g, '').trim(),
             document: parts[1]?.replace(/"/g, '').trim() || '',
             phone: parts[2]?.replace(/"/g, '').trim() || '(11) 99999-9999',
@@ -1640,6 +1643,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
             createdAt: new Date().toISOString().split('T')[0]
           };
           setClients(prev => [newCli, ...prev]);
+          syncClientToCloud(newCli);
           count++;
         }
       });
@@ -1654,12 +1658,13 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   const addClient = (c: Omit<Client, 'id' | 'createdAt'>) => {
     const newClient: Client = {
       ...c,
+      customerType: c.customerType || 'varejo',
       id: `cli-${Date.now()}`,
       createdAt: new Date().toISOString().split('T')[0]
     };
     setClients(prev => [newClient, ...prev]);
     syncClientToCloud(newClient);
-    addAuditLog('Novo Cliente', `Cliente ${c.name} cadastrado no sistema.`);
+    addAuditLog('Novo Cliente', `Cliente ${c.name} (${newClient.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}) cadastrado no sistema.`);
   };
 
   const updateClient = (id: string, updates: Partial<Client>) => {
@@ -1818,6 +1823,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   const batchImportClients = (newClients: Omit<Client, 'id' | 'createdAt'>[], mode: 'append' | 'replace'): number => {
     const createdClients: Client[] = newClients.map((c, idx) => ({
       ...c,
+      customerType: c.customerType || 'varejo',
       id: `cli-${Date.now()}-${idx}`,
       createdAt: new Date().toISOString()
     }));
@@ -1826,6 +1832,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     } else {
       setClients(prev => [...prev, ...createdClients]);
     }
+    createdClients.forEach(c => syncClientToCloud(c));
     addAuditLog('Importação de Clientes', `${createdClients.length} clientes importados via backup (${mode === 'replace' ? 'substituição' : 'acréscimo'}).`);
     return createdClients.length;
   };

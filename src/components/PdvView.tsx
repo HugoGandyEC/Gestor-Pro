@@ -134,12 +134,34 @@ export const PdvView: React.FC = () => {
 
   // Balcao POS Quick Sale State
   const [posSearch, setPosSearch] = useState('');
+  const [posClientSearch, setPosClientSearch] = useState('');
   const [posPriceType, setPosPriceType] = useState<'varejo' | 'atacado'>('varejo');
   const [posClientId, setPosClientId] = useState('');
   const [posEmployeeId, setPosEmployeeId] = useState(employees[0]?.id || '');
   const [posDiscountType, setPosDiscountType] = useState<'fixed' | 'percent'>('fixed');
   const [posDiscountValue, setPosDiscountValue] = useState(0);
   const [posCart, setPosCart] = useState<{ product: Product; quantity: number; unitPrice: number }[]>([]);
+  const [posFeedback, setPosFeedback] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const selectedPosClient = useMemo(
+    () => clients.find(c => c.id === posClientId) || null,
+    [clients, posClientId]
+  );
+  const isPosWholesaleUnlocked = selectedPosClient?.customerType === 'atacado';
+  const effectivePosPriceType: 'varejo' | 'atacado' = isPosWholesaleUnlocked ? posPriceType : 'varejo';
+
+  const filteredPosClients = useMemo(() => {
+    const q = posClientSearch.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter(
+      c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.tradeName || '').toLowerCase().includes(q) ||
+        (c.document || '').toLowerCase().includes(q) ||
+        (c.phone || '').toLowerCase().includes(q)
+    );
+  }, [clients, posClientSearch]);
 
   // Calculations for Active Session
   const activeSessionMoves = useMemo(() => {
@@ -310,6 +332,7 @@ export const PdvView: React.FC = () => {
   // Open Checkout Modal for a target
   const openCheckoutForTarget = (target: CheckoutTarget) => {
     setCheckoutTarget(target);
+    setCheckoutError(null);
     setIsMultiSplit(false);
     setPayMethod('pix');
     setCardBrand('visa');
@@ -330,6 +353,7 @@ export const PdvView: React.FC = () => {
   // Confirm settlement in Caixa
   const handleConfirmSettlement = () => {
     if (!checkoutTarget) return;
+    setCheckoutError(null);
 
     let finalPayments: PaymentSplit[] = [];
     let primaryMethod: PaymentMethod = payMethod;
@@ -339,7 +363,7 @@ export const PdvView: React.FC = () => {
     if (isMultiSplit) {
       const splitSum = splits.reduce((acc, s) => acc + Number(s.amount || 0), 0);
       if (Math.abs(splitSum - checkoutTarget.total) > 0.05) {
-        alert(`A soma das parcelas divididas (${formatBRL(splitSum)}) precisa ser igual ao total a cobrar (${formatBRL(checkoutTarget.total)}).`);
+        setCheckoutError(`A soma das parcelas divididas (${formatBRL(splitSum)}) precisa ser igual ao total a cobrar (${formatBRL(checkoutTarget.total)}).`);
         return;
       }
       finalPayments = splits.map(s => {
@@ -361,7 +385,7 @@ export const PdvView: React.FC = () => {
       if (payMethod === 'dinheiro') {
         const received = Number(cashReceived) || checkoutTarget.total;
         if (received < checkoutTarget.total) {
-          alert(`Valor recebido em dinheiro (${formatBRL(received)}) é menor que o total (${formatBRL(checkoutTarget.total)}).`);
+          setCheckoutError(`Valor recebido em dinheiro (${formatBRL(received)}) é menor que o total (${formatBRL(checkoutTarget.total)}).`);
           return;
         }
         amountRec = received;
@@ -425,7 +449,8 @@ export const PdvView: React.FC = () => {
   }, [products, posSearch]);
 
   const handleAddToPosCart = (product: Product) => {
-    const unitPrice = posPriceType === 'atacado' ? product.wholesalePrice : product.retailPrice;
+    setPosFeedback(null);
+    const unitPrice = effectivePosPriceType === 'atacado' ? product.wholesalePrice : product.retailPrice;
     setPosCart(prev => {
       const existing = prev.find(i => i.product.id === product.id);
       if (existing) {
@@ -437,7 +462,12 @@ export const PdvView: React.FC = () => {
     });
   };
 
-  const handlePosPriceTypeChange = (type: 'varejo' | 'atacado') => {
+  const handlePosPriceTypeChange = (type: 'varejo' | 'atacado', forceUnlock?: boolean) => {
+    if (type === 'atacado' && !isPosWholesaleUnlocked && !forceUnlock) {
+      setPosFeedback('Busque e selecione um cliente cadastrado como Atacadista para liberar os valores de atacado.');
+      return;
+    }
+    setPosFeedback(null);
     setPosPriceType(type);
     setPosCart(prev =>
       prev.map(item => ({
@@ -445,6 +475,16 @@ export const PdvView: React.FC = () => {
         unitPrice: type === 'atacado' ? item.product.wholesalePrice : item.product.retailPrice
       }))
     );
+  };
+
+  const handleSelectPosClient = (newClientId: string) => {
+    setPosClientId(newClientId);
+    const targetClient = clients.find(c => c.id === newClientId);
+    if (targetClient?.customerType === 'atacado') {
+      handlePosPriceTypeChange('atacado', true);
+    } else {
+      handlePosPriceTypeChange('varejo', true);
+    }
   };
 
   const posSubtotal = posCart.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
@@ -456,17 +496,21 @@ export const PdvView: React.FC = () => {
 
   const handlePosCreateSaleAndSettle = (mode: 'settle_now' | 'send_to_queue') => {
     if (posCart.length === 0) {
-      alert('Adicione pelo menos um produto no carrinho do PDV.');
+      setPosFeedback('Adicione pelo menos um produto no carrinho do PDV antes de finalizar.');
       return;
     }
+    setPosFeedback(null);
 
     const client = clients.find(c => c.id === posClientId);
+    const finalPriceType: 'varejo' | 'atacado' =
+      client?.customerType === 'atacado' && posPriceType === 'atacado' ? 'atacado' : 'varejo';
+
     const createdSale = addDirectSale({
       clientId: client?.id,
       clientName: client?.name || 'Consumidor Balcão PDV',
       employeeId: posEmployeeId || employees[0]?.id || '',
       date: new Date().toISOString().split('T')[0],
-      priceType: posPriceType,
+      priceType: finalPriceType,
       items: posCart.map((c, idx) => ({
         id: `it-${Date.now()}-${idx}`,
         productId: c.product.id,
@@ -889,26 +933,55 @@ export const PdvView: React.FC = () => {
                   type="button"
                   onClick={() => handlePosPriceTypeChange('varejo')}
                   className={`px-3 py-1.5 font-bold rounded-md cursor-pointer ${
-                    posPriceType === 'varejo' ? 'bg-white text-[#363739] shadow-2xs' : 'text-[#707174]'
+                    effectivePosPriceType === 'varejo' ? 'bg-white text-[#363739] shadow-2xs' : 'text-[#707174]'
                   }`}
                 >
                   Varejo
                 </button>
                 <button
                   type="button"
+                  disabled={!isPosWholesaleUnlocked}
                   onClick={() => handlePosPriceTypeChange('atacado')}
-                  className={`px-3 py-1.5 font-bold rounded-md cursor-pointer ${
-                    posPriceType === 'atacado' ? 'bg-white text-[#53383e] shadow-2xs' : 'text-[#707174]'
+                  title={
+                    isPosWholesaleUnlocked
+                      ? 'Aplicar tabela de atacado'
+                      : 'Busque e selecione um cliente cadastrado como Atacadista para liberar'
+                  }
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 font-bold rounded-md transition-colors ${
+                    !isPosWholesaleUnlocked
+                      ? 'text-[#9a9ca0] cursor-not-allowed opacity-70'
+                      : effectivePosPriceType === 'atacado'
+                      ? 'bg-purple-700 text-white shadow-2xs cursor-pointer'
+                      : 'text-purple-800 hover:bg-white cursor-pointer'
                   }`}
                 >
-                  Atacado
+                  {!isPosWholesaleUnlocked && <Lock className="w-3 h-3" />}
+                  <span>Atacado</span>
                 </button>
               </div>
             </div>
 
+            {!isPosWholesaleUnlocked ? (
+              <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
+                <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                <span>
+                  Valores de <strong>Atacado</strong> bloqueados. Busque e selecione ao lado um cliente cadastrado como <strong>Atacadista</strong> para liberar.
+                </span>
+              </div>
+            ) : (
+              <div className="px-3 py-2 rounded-lg bg-purple-50 border border-purple-200 text-[11px] text-purple-900 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <Unlock className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                  <span>
+                    Tabela Atacado liberada para <strong>{selectedPosClient?.name}</strong> (Atacadista).
+                  </span>
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[520px] overflow-y-auto pr-1">
               {filteredPosProducts.map(prod => {
-                const price = posPriceType === 'atacado' ? prod.wholesalePrice : prod.retailPrice;
+                const price = effectivePosPriceType === 'atacado' ? prod.wholesalePrice : prod.retailPrice;
                 return (
                   <button
                     key={prod.id}
@@ -926,7 +999,7 @@ export const PdvView: React.FC = () => {
                       <div className="text-xs font-bold text-[#363739] mt-1 line-clamp-2">{prod.name}</div>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-[#ececef]">
-                      <span className="font-mono tabular-nums font-black text-sm text-[#53383e]">
+                      <span className={`font-mono tabular-nums font-black text-sm ${effectivePosPriceType === 'atacado' ? 'text-purple-800' : 'text-[#53383e]'}`}>
                         {formatBRL(price)}
                       </span>
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#53383e]">
@@ -958,31 +1031,110 @@ export const PdvView: React.FC = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div>
-                  <label className="block text-[11px] text-[#707174] mb-1 font-medium">Cliente</label>
-                  <select
-                    value={posClientId}
-                    onChange={(e) => setPosClientId(e.target.value)}
-                    className="w-full p-2 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg font-medium"
-                  >
-                    <option value="">Consumidor Balcão PDV</option>
-                    {clients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+              {posFeedback && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-[11px] font-semibold text-rose-800">
+                  {posFeedback}
                 </div>
+              )}
+
+              {/* Busca de Cliente + Vendedor */}
+              <div className="space-y-2 text-xs">
                 <div>
-                  <label className="block text-[11px] text-[#707174] mb-1 font-medium">Vendedor</label>
-                  <select
-                    value={posEmployeeId}
-                    onChange={(e) => setPosEmployeeId(e.target.value)}
-                    className="w-full p-2 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg font-medium"
-                  >
-                    {employees.map(e => (
-                      <option key={e.id} value={e.id}>{e.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] text-[#707174] font-medium">
+                      Buscar e Selecionar Cliente
+                    </label>
+                    {selectedPosClient && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        isPosWholesaleUnlocked
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {isPosWholesaleUnlocked ? 'Atacadista (Atacado Liberado)' : 'Varejista (Somente Varejo)'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative mb-1.5">
+                    <Search className="w-3.5 h-3.5 text-[#707174] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar cliente por nome, CPF/CNPJ ou telefone..."
+                      value={posClientSearch}
+                      onChange={(e) => setPosClientSearch(e.target.value)}
+                      className="w-full pl-8 pr-7 py-1.5 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-[#53383e]"
+                    />
+                    {posClientSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setPosClientSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[#707174] hover:text-[#363739] cursor-pointer"
+                        title="Limpar busca"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {posClientSearch.trim() && (
+                    <div className="mb-1.5 max-h-32 overflow-y-auto rounded-lg border border-[#d8d8d8] bg-white divide-y divide-[#ececef]">
+                      {filteredPosClients.length === 0 ? (
+                        <div className="p-2 text-[11px] text-[#707174] text-center">
+                          Nenhum cliente encontrado para "{posClientSearch}".
+                        </div>
+                      ) : (
+                        filteredPosClients.slice(0, 8).map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              handleSelectPosClient(c.id);
+                              setPosClientSearch('');
+                            }}
+                            className={`w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2 hover:bg-[#f4f5f6] cursor-pointer ${
+                              posClientId === c.id ? 'bg-[#f6eff1]' : ''
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-semibold text-[#363739] truncate">{c.name}</div>
+                              <div className="text-[10px] text-[#707174] font-mono truncate">
+                                {c.document || c.phone}
+                              </div>
+                            </div>
+                            <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              c.customerType === 'atacado'
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {c.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select
+                      value={posClientId}
+                      onChange={(e) => handleSelectPosClient(e.target.value)}
+                      className="w-full p-2 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg font-medium"
+                    >
+                      <option value="">Consumidor Balcão PDV (Varejo)</option>
+                      {filteredPosClients.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} [{c.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}]
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={posEmployeeId}
+                      onChange={(e) => setPosEmployeeId(e.target.value)}
+                      className="w-full p-2 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg font-medium"
+                      title="Vendedor / Atendente"
+                    >
+                      {employees.map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -1556,6 +1708,12 @@ export const PdvView: React.FC = () => {
             </div>
 
             <div className="p-5 space-y-4 text-xs">
+              {checkoutError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 font-semibold">
+                  {checkoutError}
+                </div>
+              )}
+
               {/* Total Banner */}
               <div className="p-4 bg-[#f6eff1] border border-[#53383e]/30 rounded-xl flex items-center justify-between">
                 <div>

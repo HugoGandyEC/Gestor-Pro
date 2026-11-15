@@ -147,9 +147,12 @@ export interface ClientAddress {
   referencePoint?: string;
 }
 
+export type CustomerType = 'varejo' | 'atacado';
+
 export interface Client {
   id: string;
   personType?: 'PF' | 'PJ';
+  customerType?: CustomerType; // Perfil comercial: Varejo (padrão) ou Atacado
   name: string;
   tradeName?: string;
   document: string; // CPF ou CNPJ (Opcional - pode ser vazio "")

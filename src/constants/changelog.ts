@@ -16,6 +16,40 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.0',
+    date: '14/11/2026',
+    title: 'Liberação de Preços de Atacado Exclusiva para Clientes Atacadistas',
+    summary:
+      'Inclusão da classificação comercial do cliente (Varejista ou Atacadista) em todos os cadastros e bloqueio automático da tabela de atacado no PDV e em Vendas Diretas até a busca e seleção de um cliente cadastrado como Atacadista.',
+    highlights: [
+      'Campo Tipo de Cliente (Varejista vs Atacadista) nos cadastros, filtros e importações',
+      'Busca rápida de cliente por nome, CPF/CNPJ ou telefone no PDV e em Vendas Diretas',
+      'Tabela Atacado bloqueada automaticamente para vendas balcão e clientes varejistas'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Adicionado o campo Tipo de Cliente (Varejista / Atacadista) no modelo Client, no Cadastro de Clientes (ClientsView), no Cadastro Geral (MasterRegistrationsView), na importação CSV/Universal, no schema Firebase e na exportação MySQL.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Adicionado filtro por perfil comercial (Todos, Varejo, Atacado) e indicador visual na listagem de clientes.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'No Balcão PDV Rápido (PdvView) e em Vendas Diretas (SalesView), adicionada busca rápida de clientes e bloqueio da tabela de Atacado enquanto um cliente cadastrado como Atacadista não for buscado e selecionado.'
+      },
+      {
+        category: 'Corrigido',
+        description:
+          'Ao trocar de cliente atacadista para varejista ou consumidor balcão no PDV ou em Vendas, os preços do carrinho/itens são automaticamente revertidos para a tabela de Varejo.'
+      }
+    ]
+  },
+  {
     version: 'v2.6.4',
     date: '14/11/2026',
     title: 'Ajuste Tipográfico na Chamada da Tela de Login',
