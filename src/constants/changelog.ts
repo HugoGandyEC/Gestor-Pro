@@ -16,16 +16,72 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.6.2',
+    date: '14/11/2026',
+    title: 'Exibição de Endereço no Login & Detalhamento Completo de Mini-Alterações',
+    summary:
+      'Substituição do CNPJ pelo endereço completo cadastrado da empresa na tela de acesso e expansão do histórico de versões para registrar individualmente cada ajuste e correção aplicada ao sistema.',
+    highlights: [
+      'Endereço completo da empresa exibido na tela de login no lugar do CNPJ',
+      'Histórico granular detalhando cada mini-alteração desde a v1.0.0 até a v2.6.2'
+    ],
+    changes: [
+      {
+        category: 'Alterado',
+        description:
+          'Removida a exibição do CNPJ na tela de login (LoginView), passando a mostrar o endereço completo cadastrado (rua, número, bairro, cidade/UF e CEP) junto ao telefone da empresa.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Detalhadas todas as mini-alterações (patches v2.0.1, v2.0.2, v2.4.1, v2.4.2, v2.4.3, v2.6.1 e v2.6.2) no Changelog oficial e na aba Histórico de Versões dentro do sistema.'
+      }
+    ]
+  },
+  {
+    version: 'v2.6.1',
+    date: '14/11/2026',
+    title: 'Redesign da Tela de Login (Fundo Azul Escuro, Fontes Maiores & Logo da Empresa)',
+    summary:
+      'Reformulação visual completa da tela de login inspirada em layout moderno de duas colunas com tema azul escuro, fontes ampliadas para melhor leitura e exibição da logo cadastrada da empresa.',
+    highlights: [
+      'Fundo em azul escuro com cartão translúcido dark',
+      'Fontes ampliadas nos títulos, rótulos, campos e botões',
+      'Logo da empresa cadastrada exibida ao lado do formulário'
+    ],
+    changes: [
+      {
+        category: 'Alterado',
+        description:
+          'Alterado o fundo da tela de login para azul escuro com gradiente suave e aplicado tema escuro de alto contraste no cartão de autenticação e nos campos de entrada.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Aumentado o tamanho das fontes da tela de login (título principal, subtítulo, cabeçalho do cartão, rótulos de usuário/senha, caixas de texto e botão de entrada).'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Layout dividido em duas colunas exibindo a logo cadastrada da empresa ao lado do cartão de login (com fallback elegante em monograma caso não haja imagem configurada).'
+      },
+      {
+        category: 'Corrigido',
+        description:
+          'Substituído o alerta nativo de navegador em "Esqueceu a senha?" por aviso integrado dentro do próprio cartão de login.'
+      }
+    ]
+  },
+  {
     version: 'v2.6.0',
     date: '14/11/2026',
     title: 'Documentação Completa de Alterações & Alinhamento de Versionamento',
     summary:
-      'Padronização semântica de todas as versões do sistema desde a implantação inicial (v1.0.0 até v2.6.0), com criação de Changelog oficial, atualização do Manual do Sistema (incluindo módulo PDV) e sincronização de versão em todo o ERP.',
+      'Padronização semântica das versões do sistema desde a implantação inicial, criação do Changelog oficial, atualização do Manual do Sistema (com capítulo do PDV) e unificação da versão em todos os módulos.',
     highlights: [
-      'Changelog oficial estruturado (v1.0.0 → v2.6.0)',
+      'Changelog oficial estruturado (CHANGELOG.md)',
       'Nova aba "Histórico de Versões" no Manual do Sistema',
-      'Capítulo completo de PDV / Frente de Caixa no Manual',
-      'Alinhamento de versão entre sistema, rodapé, login, modais e package.json'
+      'Capítulo completo de PDV / Frente de Caixa no Manual'
     ],
     changes: [
       {
@@ -36,17 +92,17 @@ export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
       {
         category: 'Adicionado',
         description:
-          'Adicionada a aba interativa "Histórico de Versões & Changelog" em Ajuda & Manual com busca textual, filtro por tipo de alteração e exportação para Markdown/Impressão.'
+          'Adicionada a aba interativa "Histórico de Versões & Changelog" em Ajuda & Manual com busca textual, filtro por tipo de alteração e exportação em Markdown/Impressão.'
       },
       {
         category: 'Adicionado',
         description:
-          'Incluído o Capítulo 13 no Manual do Sistema detalhando o fluxo completo do PDV / Frente de Caixa (abertura, fila de recebimentos, balcão rápido, suprimento/sangria e fechamento).'
+          'Incluído o Capítulo 13 no Manual do Sistema detalhando o fluxo completo do PDV / Frente de Caixa.'
       },
       {
         category: 'Alterado',
         description:
-          'Versionamento ajustado seguindo SemVer (MAJOR.MINOR.PATCH) para v2.6.0 (Build 2026.11.14) em version.ts, package.json, rodapé, tela de login, especificação de arquitetura e modal de ajuda.'
+          'Alinhado o versionamento em version.ts, package.json, rodapé, tela de login, barra lateral, especificação de arquitetura e modal de ajuda.'
       },
       {
         category: 'Alterado',
@@ -60,12 +116,12 @@ export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
     date: '14/11/2026',
     title: 'Módulo PDV / Frente de Caixa & Baixa Unificada de Vendas e OS',
     summary:
-      'Implantação do Ponto de Venda (PDV) completo para que todas as Vendas Diretas e Ordens de Serviço passem obrigatoriamente pelo caixa para conferência, recebimento, emissão de comprovante e fechamento de turno.',
+      'Implantação do Ponto de Venda (PDV) completo para que todas as Vendas Diretas e Ordens de Serviço passem pelo caixa para conferência, baixa de valores recebidos, emissão de comprovante e fechamento de turno.',
     highlights: [
       'Abertura, Suprimento, Sangria e Fechamento de Caixa',
       'Fila unificada de recebimentos para OS e Vendas Diretas',
       'Balcão PDV Rápido com carrinho, desconto e busca por código de barras',
-      'Pagamento único ou dividido (Multi-Split) com cálculo automático de troco e taxas'
+      'Pagamento único ou dividido (Multi-Split) com cálculo de troco e taxas'
     ],
     changes: [
       {
@@ -81,12 +137,12 @@ export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
       {
         category: 'Adicionado',
         description:
-          'Adicionadas operações de Suprimento (reforço) e Sangria (retirada), extrato detalhado por forma de pagamento e Fechamento de Caixa com conferência entre saldo esperado em gaveta e valor contado (sobra/falta).'
+          'Adicionadas operações de Suprimento e Sangria, extrato detalhado por forma de pagamento e Fechamento de Caixa com conferência entre saldo esperado e contado na gaveta.'
       },
       {
         category: 'Adicionado',
         description:
-          'Criado modo "Balcão PDV Rápido" com seleção de tabela Varejo/Atacado, carrinho em tempo real, desconto em R$/% e envio direto para fila ou baixa imediata com dedução de estoque.'
+          'Criado modo "Balcão PDV Rápido" com tabela Varejo/Atacado, carrinho, descontos em R$/% e envio para fila ou liquidação imediata com baixa de estoque.'
       },
       {
         category: 'Adicionado',
@@ -96,78 +152,115 @@ export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
       {
         category: 'Alterado',
         description:
-          'Telas de Vendas Diretas e Ordens de Serviço integradas às ações reais do caixa (sendSaleToPdv, settleSaleInPdv, sendOrderToPdv, settleServiceOrderInPdv), gerando movimentações persistidas e sincronizadas no Firestore.'
+          'Telas de Vendas Diretas e Ordens de Serviço integradas às ações reais do caixa (sendSaleToPdv, settleSaleInPdv, sendOrderToPdv, settleServiceOrderInPdv), sincronizadas em nuvem no Firestore.'
+      }
+    ]
+  },
+  {
+    version: 'v2.4.3',
+    date: '13/11/2026',
+    title: 'Remoção de Backup JSON, Restauração e Download .ZIP em Configurações',
+    summary:
+      'Simplificação da tela de Configurações removendo ferramentas manuais de backup/restauração em JSON e download de código-fonte .ZIP.',
+    highlights: [
+      'Remoção de Download de Backup (JSON)',
+      'Remoção de Restaurar de Arquivo de Backup e Código-Fonte (.ZIP)'
+    ],
+    changes: [
+      {
+        category: 'Removido',
+        description:
+          'Removidos da tela de Configurações os botões e painéis de Download de Backup (JSON), Restaurar de Arquivo de Backup e Código-Fonte & Arquivos (.ZIP).'
+      }
+    ]
+  },
+  {
+    version: 'v2.4.2',
+    date: '13/11/2026',
+    title: 'Correção da Visibilidade de Produtos Cadastrados entre PC e Celular',
+    summary:
+      'Ajuste no motor de sincronização Firestore para garantir que todo produto cadastrado no computador apareça imediatamente no celular.',
+    highlights: [
+      'Higienização de propriedades undefined antes do envio ao Firestore',
+      'Carga inicial e escuta contínua de produtos garantida em ambos os dispositivos'
+    ],
+    changes: [
+      {
+        category: 'Corrigido',
+        description:
+          'Corrigido problema em que produtos cadastrados no computador não apareciam no celular devido a campos opcionais undefined rejeitados pelo Firestore (aplicada função stripUndefined e listeners em tempo real).'
+      }
+    ]
+  },
+  {
+    version: 'v2.4.1',
+    date: '12/11/2026',
+    title: 'Persistência da Tela Atual ao Atualizar o Navegador (F5 / Reload)',
+    summary:
+      'Garantia de permanência na mesma tela em uso quando o usuário recarrega ou atualiza o sistema.',
+    highlights: [
+      'Rota ativa preservada via hash (#aba) e localStorage'
+    ],
+    changes: [
+      {
+        category: 'Corrigido',
+        description:
+          'Corrigido comportamento que voltava para o Dashboard ao atualizar a página: o sistema agora salva a aba ativa na URL (#rota) e no localStorage, mantendo exatamente na mesma tela após atualização.'
       }
     ]
   },
   {
     version: 'v2.4.0',
     date: '12/11/2026',
-    title: 'Sincronização em Nuvem (PC ↔ Celular), Persistência de Tela & Limpeza de Configurações',
+    title: 'Sincronização em Tempo Real entre Computador e Celular',
     summary:
-      'Sincronização em tempo real entre dispositivos físicos (computador e celular) via Firebase Firestore, manutenção da mesma tela ao atualizar o navegador e simplificação do painel de Configurações.',
+      'Implantação da sincronização em nuvem e entre abas para que computador e celular operem como o mesmo sistema espelhado.',
     highlights: [
-      'Dados de produtos, clientes, fornecedores e OS sincronizados entre PC e Celular',
-      'Manutenção automática da tela ativa após F5 / Reload',
-      'Configurações mais enxutas sem exportação/importação JSON e .ZIP'
+      'Sincronização em tempo real via Firebase Firestore (onSnapshot)',
+      'Espelhamento instantâneo entre abas locais via BroadcastChannel'
     ],
     changes: [
       {
         category: 'Adicionado',
         description:
-          'Implementada sincronização bidirecional em tempo real via Firebase Firestore (onSnapshot e bootstrapCloudDatabase) garantindo que produtos e registros cadastrados no computador apareçam imediatamente no celular.'
+          'Implementada sincronização em nuvem (Firestore) para produtos, clientes, fornecedores, ordens de serviço e agendamentos, unificando a base visualizada no computador e no celular.'
       },
       {
         category: 'Adicionado',
         description:
-          'Sincronização local instantânea entre abas abertas do navegador via BroadcastChannel e eventos de storage.'
-      },
-      {
-        category: 'Corrigido',
-        description:
-          'Persistência da aba ativa via URL hash (#rota) e localStorage, mantendo o usuário exatamente na tela que estava acessando ao atualizar o sistema.'
-      },
-      {
-        category: 'Corrigido',
-        description:
-          'Tratamento de campos opcionais antes da gravação no Firestore (stripUndefined) evitando falhas silenciosas de sincronização na nuvem.'
-      },
-      {
-        category: 'Removido',
-        description:
-          'Removidos os botões de Download de Backup (JSON), Restaurar de Arquivo de Backup e Download de Código-Fonte & Arquivos (.ZIP) da tela de Configurações.'
+          'Adicionado BroadcastChannel e listener de eventos storage para sincronização imediata entre múltiplas abas abertas.'
       }
     ]
   },
   {
     version: 'v2.3.0',
     date: '10/11/2026',
-    title: 'Atualização Geral de Dependências & Blindagem de Segurança',
+    title: 'Atualização Geral de Dependências & Remoção de Vulnerabilidades',
     summary:
-      'Atualização completa dos pacotes do projeto para as versões mais recentes e eliminação de vulnerabilidades conhecidas nas dependências de produção e desenvolvimento.',
+      'Atualização completa dos pacotes do sistema para as versões mais atuais e eliminação de vulnerabilidades de segurança conhecidas.',
     highlights: [
       'Stack atualizada: React 19, Vite 8, TypeScript 7, Tailwind CSS 4 e Firebase 13',
-      'Substituição/atualização de pacotes vulneráveis (xlsx, jsPDF, express, @grpc/grpc-js)'
+      'Eliminação de vulnerabilidades em xlsx, express e @grpc/grpc-js'
     ],
     changes: [
       {
         category: 'Alterado',
         description:
-          'Atualizadas dependências principais para suas versões estáveis mais recentes: React 19, Vite 8.3, @tailwindcss/vite 4.3, TypeScript 7.0, Firebase 13.2, jsPDF 4.2, lucide-react e @google/genai 2.4.'
+          'Atualizadas todas as dependências do projeto para as versões mais atuais (React 19, Vite 8.3, @tailwindcss/vite 4.3, TypeScript 7.0, Firebase 13.2, jsPDF 4.2, lucide-react e @google/genai 2.4).'
       },
       {
         category: 'Segurança',
         description:
-          'Resolvidas vulnerabilidades de dependências por meio da migração do pacote xlsx para @e965/xlsx, atualização do express e override seguro de @grpc/grpc-js.'
+          'Removidas vulnerabilidades de dependências substituindo xlsx pelo pacote seguro @e965/xlsx, atualizando express e aplicando override seguro de @grpc/grpc-js.'
       }
     ]
   },
   {
     version: 'v2.2.0',
     date: '08/11/2026',
-    title: 'Paginação em Cadastros Principais & Contagem de Páginas',
+    title: 'Contagem de Páginas & Paginação em Produtos, OS, Clientes e Fornecedores',
     summary:
-      'Adição de navegação paginada com seletor de itens por página e indicador total de páginas nas principais listagens operacionais do ERP.',
+      'Adição de barra de paginação com contagem total de páginas e seletor de registros por página nas principais listagens cadastrais e operacionais.',
     highlights: [
       'Componente TablePagination com contagem "Página X de Y"',
       'Aplicado em Produtos, Ordens de Serviço, Clientes e Fornecedores'
@@ -176,71 +269,105 @@ export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
       {
         category: 'Adicionado',
         description:
-          'Criado componente reutilizável TablePagination exibindo página atual, total de páginas, faixa de registros visíveis e seletor de quantidade por página.'
+          'Criado componente TablePagination exibindo página atual, contagem total de páginas, faixa de itens exibidos e seletor de itens por página.'
       },
       {
         category: 'Adicionado',
         description:
-          'Integrada contagem de páginas nas telas de Produtos & Estoque, Ordens de Serviço, Clientes e Fornecedores.'
+          'Adicionada a contagem e navegação de páginas nas telas de Produtos, Ordens de Serviço, Cadastro de Clientes e Cadastro de Fornecedores.'
       }
     ]
   },
   {
     version: 'v2.1.0',
     date: '05/11/2026',
-    title: 'Detector Anti-Duplicidade em Uploads (XML NF-e e Cadastros via Arquivo)',
+    title: 'Detector Anti-Duplicidade de Uploads (XML NF-e e Demais Cadastros)',
     summary:
-      'Sistema inteligente de detecção de arquivos repetidos utilizando hash criptográfico SHA-256 e metadados fiscais para evitar importações duplicadas acidentais.',
+      'Identificação e sinalização automática ao tentar fazer upload do mesmo arquivo tanto em XML de NF-e quanto nos demais cadastros via upload.',
     highlights: [
       'Verificação SHA-256 + Chave NF-e (chNFe) + Número/CNPJ',
-      'Alerta interativo com opções de cancelar ou reprocessar'
+      'Alerta interativo antes de reprocessar arquivo repetido'
     ],
     changes: [
       {
         category: 'Adicionado',
         description:
-          'Implementado registro persistente de histórico de uploads calculando assinatura SHA-256, nome, tamanho e metadados dos arquivos enviados.'
+          'Implementado histórico e detector de arquivos duplicados por assinatura SHA-256, tamanho, nome e chave fiscal da NF-e.'
       },
       {
         category: 'Adicionado',
         description:
-          'Adicionada sinalização imediata ao tentar reenviar o mesmo arquivo XML de NF-e ou planilhas/arquivos na Central de Cadastros e Produtos.'
+          'Sinalização visual imediata ao enviar arquivo XML de NF-e ou arquivo cadastral repetido na Central de Cadastros e na tela de Produtos, com opção de cancelar ou confirmar reprocessamento.'
       }
     ]
   },
   {
-    version: 'v2.0.0',
-    date: '01/11/2026',
-    title: 'Google Agenda, Google Drive, Exportação MySQL & Correção OAuth',
+    version: 'v2.0.2',
+    date: '02/11/2026',
+    title: 'Compatibilidade & Exportação para Banco MySQL',
     summary:
-      'Integração completa com Google Calendar e Google Drive, tela própria de validação de credenciais sem erro auth/unauthorized-domain e suporte a scripts SQL para banco MySQL.',
+      'Adequação do sistema para geração e exportação de estrutura e carga de dados compatível com banco de dados relacional MySQL.',
     highlights: [
-      'Correção do erro Firebase auth/unauthorized-domain',
-      'Tela de entrada e validação de e-mail/credenciais para Google Agenda',
-      'Exportação de script SQL completo compatível com MySQL 5.7 / 8.0'
+      'Script .sql compatível com MySQL 5.7 / 8.0 e utf8mb4'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Adicionado gerador/exportador de script SQL completo compatível com MySQL 5.7 e 8.0 (tabelas, chaves e registros em utf8mb4) para integração com servidores MySQL.'
+      }
+    ]
+  },
+  {
+    version: 'v2.0.1',
+    date: '01/11/2026',
+    title: 'Correção de Erro "auth/unauthorized-domain" & Tela de Validação Google Agenda/Drive',
+    summary:
+      'Correção do bloqueio de domínio não autorizado ao conectar o Google Agenda e Google Drive, com criação de tela dedicada para inserir e validar e-mail e credenciais.',
+    highlights: [
+      'Correção de Firebase: Error (auth/unauthorized-domain)',
+      'Tela própria para entrada e validação de e-mail e senha/credenciais da Agenda'
     ],
     changes: [
       {
         category: 'Corrigido',
         description:
-          'Corrigido erro "Firebase: Error (auth/unauthorized-domain)" ao conectar Google Agenda e Google Drive, abrindo fluxo próprio de inserção e validação de e-mail e credenciais.'
+          'Corrigido erro "Firebase: Error (auth/unauthorized-domain)" ao clicar para conectar Google Agenda e Google Drive.'
       },
       {
         category: 'Adicionado',
         description:
-          'Módulo Google Agenda com agendamento de visitas técnicas, vínculo automático com Ordens de Serviço e link GPS para endereço do cliente.'
+          'Criado modal dedicado de entrada e validação de dados (e-mail e credenciais) para ligação direta e funcional com Google Agenda e Google Drive.'
+      }
+    ]
+  },
+  {
+    version: 'v2.0.0',
+    date: '30/10/2026',
+    title: 'Integração Google Agenda & Google Drive',
+    summary:
+      'Lançamento dos módulos de agenda corporativa integrada ao Google Calendar e armazenamento/exportação via Google Drive.',
+    highlights: [
+      'Módulo Google Agenda integrado às Ordens de Serviço',
+      'Módulo Google Drive para backup em nuvem'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Criado módulo Google Agenda com criação de agendamentos técnicos, vínculo automático com OS, endereço GPS e confirmação por WhatsApp.'
       },
       {
         category: 'Adicionado',
         description:
-          'Exportador de estrutura e carga completa em SQL (.sql) compatível com bancos MySQL (charset utf8mb4).'
+          'Criado módulo Google Drive para autenticação e envio de backups da base na nuvem.'
       }
     ]
   },
   {
     version: 'v1.5.0',
     date: '20/10/2026',
-    title: 'Operadoras de Cartão, Importação XML NF-e, WhatsApp & Temas Visuais',
+    title: 'Operadoras de Cartão, Leitor XML NF-e, WhatsApp & Temas Visuais',
     summary:
       'Expansão financeira e operacional com taxas de operadoras de 1x a 12x, importação de NF-e, comunicação direta via WhatsApp e personalização de temas.',
     highlights: [
