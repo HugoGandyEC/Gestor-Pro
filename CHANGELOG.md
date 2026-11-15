@@ -1,6 +1,19 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.2`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.3`).
+
+---
+
+## [v2.7.3] — 14/11/2026
+**Calculadora de Parcelas e Edição Individual de Pagamentos na Modal de OS**
+
+### Adicionado
+- **Calculadora Automática de Entrada & Parcelamento** na modal de **Ordem de Serviço** (`ServiceOrdersView`): calcula o total líquido (serviços + peças + taxa de visita - desconto), aceita entrada opcional e divide automaticamente o saldo restante nas parcelas configuradas com vencimentos escalonados.
+- **Edição Individual por Lançamento**: cada linha de pagamento permite alterar livremente o tipo (**Entrada / Parcela / À Vista**), forma de pagamento (**PIX, Dinheiro, Cartão de Crédito/Débito, Boleto, Faturado 30d**), data de vencimento, valor, observação e status **Pago** com **data específica do pagamento** (ex.: parcela em dinheiro paga em determinado dia).
+- Painel de conferência em tempo real comparando **Total Líquido da OS**, **Total nas Parcelas**, **Já Pago** e **Falta Alocar**, com botão para ajuste automático da diferença.
+
+### Alterado
+- Atualizados `PaymentSplit` (`src/types.ts`), o modelo de impressão A4 (`ServiceOrderPrintTemplate`), a exportação HTML e o checkout do **PDV** (`PdvView`) para exibir condições/parcelas e pré-carregar os recebimentos programados da OS.
 
 ---
 

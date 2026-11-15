@@ -93,6 +93,9 @@ export interface CardMachineRate {
   creditInstallmentsRate: number; // % (2x a 12x)
 }
 
+export type PaymentEntryType = 'vista' | 'entrada' | 'parcela';
+export type PaymentSplitStatus = 'pendente' | 'pago';
+
 export interface PaymentSplit {
   id: string;
   method: PaymentMethod;
@@ -104,6 +107,13 @@ export interface PaymentSplit {
   absorptionMode?: FeeAbsorptionMode; // 'assumir' | 'repassar'
   amount: number; // Valor bruto pago pelo cliente (inclui acréscimo se for repassado)
   netAmount: number; // Valor líquido recebido pela empresa após taxa de cartão
+  entryType?: PaymentEntryType; // 'vista' | 'entrada' | 'parcela'
+  installmentNumber?: number;
+  totalInstallments?: number;
+  dueDate?: string; // YYYY-MM-DD (data de vencimento ou data prevista)
+  paidAt?: string; // YYYY-MM-DD (data específica do pagamento)
+  status?: PaymentSplitStatus; // 'pendente' | 'pago'
+  notes?: string;
 }
 
 export type ExpenseCategory = 

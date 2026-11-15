@@ -41,7 +41,8 @@ import {
   Sparkles,
   Layers,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Calculator
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { 
@@ -52,6 +53,8 @@ import {
   PaymentMethod, 
   ChecklistItem, 
   PaymentSplit, 
+  PaymentEntryType,
+  PaymentSplitStatus,
   CardBrand 
 } from '../types';
 import { ServiceOrderPrintTemplate } from './ServiceOrderPrintTemplate';
@@ -75,6 +78,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     clients, 
     products, 
     cardRates,
+    cardOperators,
     serviceCatalog,
     checklistTemplates,
     addServiceCatalogItem,
@@ -224,10 +228,30 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     { id: 'c4', label: 'Funcionamento da válvula de alívio e vácuo', category: 'Acessórios e Segurança', status: 'ok' }
   ]);
 
-  // Payment splits
+  // Payment splits & automatic installment calculator
+  const getTodayIso = () => new Date().toISOString().split('T')[0];
+
   const [payments, setPayments] = useState<PaymentSplit[]>([
-    { id: 'p1', method: 'pix', amount: 1260, netAmount: 1260 }
+    {
+      id: 'p1',
+      method: 'pix',
+      entryType: 'vista',
+      dueDate: getTodayIso(),
+      status: 'pendente',
+      amount: 1260,
+      netAmount: 1260
+    }
   ]);
+  const [hasCustomPayments, setHasCustomPayments] = useState(false);
+  const [calcEntryAmount, setCalcEntryAmount] = useState<string>('');
+  const [calcEntryMethod, setCalcEntryMethod] = useState<PaymentMethod>('dinheiro');
+  const [calcEntryDate, setCalcEntryDate] = useState<string>(getTodayIso);
+  const [calcEntryPaid, setCalcEntryPaid] = useState<boolean>(true);
+  const [calcInstallmentMethod, setCalcInstallmentMethod] = useState<PaymentMethod>('cartao_credito');
+  const [calcCardBrand, setCalcCardBrand] = useState<CardBrand>('visa');
+  const [calcInstallments, setCalcInstallments] = useState<number>(3);
+  const [calcFirstDueDate, setCalcFirstDueDate] = useState<string>(getTodayIso);
+  const [calcIntervalDays, setCalcIntervalDays] = useState<number>(30);
 
   // Editing OS state
   const [editingOSId, setEditingOSId] = useState<string | null>(null);
@@ -518,11 +542,53 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     ]);
   };
 
-  const handleAddSplitPayment = () => {
-    setPayments(prev => [
-      ...prev,
-      { id: String(Date.now()), method: 'cartao_credito', cardBrand: 'visa', installments: 3, ratePercentage: 4.5, rateAmount: 45, amount: 1000, netAmount: 955 }
-    ]);
+  const addDaysIso = (baseIso: string, days: number): string => {
+    const clean = baseIso || getTodayIso();
+    const d = new Date(`${clean}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return getTodayIso();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
+  const getFeeRateForMethod = (method: PaymentMethod, brand: CardBrand = 'visa', inst: number = 1): number => {
+    if (method === 'dinheiro' || method === 'boleto' || method === 'faturado_30d') return 0;
+    const defaultOp = cardOperators.find(o => o.active) || cardOperators[0];
+    if (method === 'pix') {
+      return defaultOp ? defaultOp.pixRate : 0;
+    }
+    const brandRate = cardRates.find(r => r.brand === brand);
+    if (method === 'cartao_debito') {
+      return brandRate?.debitRate ?? defaultOp?.debitRate ?? 1.99;
+    }
+    if (method === 'cartao_credito') {
+      if (inst <= 1) {
+        return brandRate?.creditSightRate ?? defaultOp?.creditSightRate ?? 3.19;
+      }
+      const customInst = defaultOp?.installmentRates?.find(ir => ir.installment === inst);
+      if (customInst) return customInst.rate;
+      return brandRate?.creditInstallmentsRate ?? (inst <= 6 ? defaultOp?.creditInstallments2to6Rate : defaultOp?.creditInstallments7to12Rate) ?? 4.5;
+    }
+    return 0;
+  };
+
+  const buildPaymentSplitWithFees = (
+    partial: Omit<PaymentSplit, 'netAmount'> & { netAmount?: number }
+  ): PaymentSplit => {
+    const amount = Math.max(0, Number(Number(partial.amount || 0).toFixed(2)));
+    const brand = partial.cardBrand || 'visa';
+    const inst = partial.installments || 1;
+    const ratePercentage = getFeeRateForMethod(partial.method, brand, inst);
+    const rateAmount = Number(((amount * ratePercentage) / 100).toFixed(2));
+    const netAmount = Number((amount - rateAmount).toFixed(2));
+    return {
+      ...partial,
+      cardBrand: partial.method === 'cartao_credito' || partial.method === 'cartao_debito' ? brand : undefined,
+      installments: partial.method === 'cartao_credito' ? inst : undefined,
+      ratePercentage,
+      rateAmount,
+      amount,
+      netAmount
+    };
   };
 
   const calculateSubtotal = () => {
@@ -538,7 +604,193 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     return Number(discountValue) || 0;
   };
 
+  const modalSubtotal = calculateSubtotal();
+  const modalDiscount = calculateDiscountAmount(modalSubtotal);
+  const modalGrandTotal = Math.max(0, Number((modalSubtotal - modalDiscount).toFixed(2)));
+
+  // Mantém o pagamento padrão sincronizado automaticamente enquanto o usuário não personalizar ou dividir parcelas
+  React.useEffect(() => {
+    if (isNewModalOpen && !editingOSId && !hasCustomPayments) {
+      setPayments(prev => {
+        const base = prev[0] || {
+          id: `pay-${Date.now()}`,
+          method: 'pix' as PaymentMethod,
+          entryType: 'vista' as PaymentEntryType,
+          dueDate: getTodayIso(),
+          status: 'pendente' as PaymentSplitStatus
+        };
+        return [
+          buildPaymentSplitWithFees({
+            ...base,
+            amount: modalGrandTotal
+          })
+        ];
+      });
+    }
+  }, [isNewModalOpen, editingOSId, hasCustomPayments, modalGrandTotal]);
+
+  const handleGenerateInstallments = () => {
+    const today = getTodayIso();
+    const netTotal = modalGrandTotal;
+    const rawEntry = Math.max(0, Number(String(calcEntryAmount).replace(',', '.')) || 0);
+    const entryVal = Math.min(netTotal, Number(rawEntry.toFixed(2)));
+    const remaining = Number((netTotal - entryVal).toFixed(2));
+    const count = Math.max(1, Math.min(24, Math.floor(Number(calcInstallments) || 1)));
+    const interval = Math.max(0, Math.floor(Number(calcIntervalDays) || 0));
+    const baseDueDate = calcFirstDueDate || today;
+    const entryDate = calcEntryDate || today;
+
+    const generated: PaymentSplit[] = [];
+
+    if (entryVal > 0) {
+      generated.push(
+        buildPaymentSplitWithFees({
+          id: `pay-entry-${Date.now()}`,
+          method: calcEntryMethod,
+          cardBrand: calcEntryMethod === 'cartao_credito' || calcEntryMethod === 'cartao_debito' ? calcCardBrand : undefined,
+          installments: calcEntryMethod === 'cartao_credito' ? 1 : undefined,
+          entryType: 'entrada',
+          dueDate: entryDate,
+          status: calcEntryPaid ? 'pago' : 'pendente',
+          paidAt: calcEntryPaid ? entryDate : undefined,
+          notes: 'Entrada',
+          amount: entryVal
+        })
+      );
+    }
+
+    if (remaining > 0 || generated.length === 0) {
+      const totalCents = Math.round(remaining * 100);
+      const baseCents = Math.floor(totalCents / count);
+      const remainderCents = totalCents - baseCents * count;
+
+      for (let i = 0; i < count; i++) {
+        const cents = baseCents + (i === 0 ? remainderCents : 0);
+        const amount = Number((cents / 100).toFixed(2));
+        const dueDate = addDaysIso(baseDueDate, i * interval);
+        const isSingleSight = count === 1 && entryVal === 0;
+
+        generated.push(
+          buildPaymentSplitWithFees({
+            id: `pay-inst-${Date.now()}-${i + 1}`,
+            method: calcInstallmentMethod,
+            cardBrand:
+              calcInstallmentMethod === 'cartao_credito' || calcInstallmentMethod === 'cartao_debito'
+                ? calcCardBrand
+                : undefined,
+            installments: calcInstallmentMethod === 'cartao_credito' ? 1 : undefined,
+            entryType: isSingleSight ? 'vista' : 'parcela',
+            installmentNumber: isSingleSight ? undefined : i + 1,
+            totalInstallments: isSingleSight ? undefined : count,
+            dueDate,
+            status: 'pendente',
+            notes: isSingleSight ? 'Pagamento Integral' : `Parcela ${i + 1}/${count}`,
+            amount
+          })
+        );
+      }
+    }
+
+    setPayments(generated);
+    setHasCustomPayments(true);
+  };
+
+  const handleAddSplitPayment = () => {
+    const today = getTodayIso();
+    const allocated = payments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+    const remaining = Math.max(0, Number((modalGrandTotal - allocated).toFixed(2)));
+    const nextIdx = payments.filter(p => p.entryType !== 'entrada').length + 1;
+    setHasCustomPayments(true);
+    setPayments(prev => [
+      ...prev,
+      buildPaymentSplitWithFees({
+        id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        method: 'dinheiro',
+        entryType: 'parcela',
+        installmentNumber: nextIdx,
+        dueDate: today,
+        status: 'pendente',
+        notes: `Parcela ${nextIdx}`,
+        amount: remaining > 0 ? remaining : 0
+      })
+    ]);
+  };
+
+  const handleUpdatePaymentRow = (idx: number, patch: Partial<PaymentSplit>) => {
+    setHasCustomPayments(true);
+    setPayments(prev =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        const merged = { ...item, ...patch };
+        if (patch.status === 'pago' && !merged.paidAt) {
+          merged.paidAt = merged.dueDate || getTodayIso();
+        }
+        if (patch.status === 'pendente') {
+          merged.paidAt = undefined;
+        }
+        return buildPaymentSplitWithFees(merged);
+      })
+    );
+  };
+
+  const handleRemovePaymentRow = (idx: number) => {
+    setHasCustomPayments(true);
+    setPayments(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleBalanceRemainingToLastPending = () => {
+    if (payments.length === 0) {
+      handleAddSplitPayment();
+      return;
+    }
+    const allocated = payments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+    const diff = Number((modalGrandTotal - allocated).toFixed(2));
+    if (Math.abs(diff) < 0.01) return;
+
+    const pendingIndices = payments
+      .map((p, idx) => (p.status !== 'pago' ? idx : -1))
+      .filter(idx => idx !== -1);
+    const targetIdx = pendingIndices.length > 0 ? pendingIndices[pendingIndices.length - 1] : payments.length - 1;
+
+    setHasCustomPayments(true);
+    setPayments(prev =>
+      prev.map((p, idx) => {
+        if (idx !== targetIdx) return p;
+        const nextAmount = Math.max(0, Number((Number(p.amount || 0) + diff).toFixed(2)));
+        return buildPaymentSplitWithFees({ ...p, amount: nextAmount });
+      })
+    );
+  };
+
+  const handleOpenNewOS = () => {
+    const today = getTodayIso();
+    setEditingOSId(null);
+    setEditingOSCode(null);
+    setHasCustomPayments(false);
+    setCalcEntryAmount('');
+    setCalcEntryMethod('dinheiro');
+    setCalcEntryDate(today);
+    setCalcEntryPaid(true);
+    setCalcInstallmentMethod('cartao_credito');
+    setCalcCardBrand('visa');
+    setCalcInstallments(3);
+    setCalcFirstDueDate(today);
+    setCalcIntervalDays(30);
+    setPayments([
+      buildPaymentSplitWithFees({
+        id: `pay-${Date.now()}`,
+        method: 'pix',
+        entryType: 'vista',
+        dueDate: today,
+        status: 'pendente',
+        amount: modalGrandTotal
+      })
+    ]);
+    setIsNewModalOpen(true);
+  };
+
   const handleOpenEdit = (os: ServiceOrder) => {
+    const today = getTodayIso();
     setEditingOSId(os.id);
     setEditingOSCode(os.code);
     setClientId(os.clientId);
@@ -560,7 +812,40 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     setServices(os.services && os.services.length > 0 ? os.services : [{ id: '1', name: '', hours: 1, price: 0 }]);
     setParts(os.parts && os.parts.length > 0 ? os.parts : []);
     setChecklists(os.checklists && os.checklists.length > 0 ? os.checklists : []);
-    setPayments(os.payments && os.payments.length > 0 ? os.payments : []);
+
+    const srvTotal = (os.services || []).reduce((a, b) => a + Number(b.price || 0), 0);
+    const prtTotal = (os.parts || []).reduce((a, b) => a + Number(b.price || 0) * Number(b.quantity || 1), 0);
+    const osTotal = Math.max(0, Number((srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0)).toFixed(2)));
+
+    if (os.payments && os.payments.length > 0) {
+      setPayments(
+        os.payments.map((p, i) => ({
+          ...p,
+          id: p.id || `pay-edit-${Date.now()}-${i}`,
+          entryType: p.entryType || (os.payments!.length > 1 ? 'parcela' : 'vista'),
+          dueDate: p.dueDate || os.openDate || today,
+          status: p.status || (os.paymentStatus === 'pago' ? 'pago' : 'pendente')
+        }))
+      );
+      setHasCustomPayments(true);
+    } else {
+      setPayments([
+        buildPaymentSplitWithFees({
+          id: `pay-${Date.now()}`,
+          method: os.paymentMethod || 'pix',
+          entryType: 'vista',
+          dueDate: os.openDate || today,
+          status: os.paymentStatus === 'pago' ? 'pago' : 'pendente',
+          paidAt: os.paymentStatus === 'pago' ? os.settledInPdvAt?.split('T')[0] || today : undefined,
+          amount: osTotal
+        })
+      ]);
+      setHasCustomPayments(false);
+    }
+
+    setCalcEntryAmount('');
+    setCalcEntryDate(today);
+    setCalcFirstDueDate(today);
     setIsNewModalOpen(true);
   };
 
@@ -598,7 +883,11 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     const discount = Number(os.calculatedDiscount || 0);
     const grandTotal = Math.max(0, partsTotal + srvTotal + visitFee - discount);
     const isPaid = os.paymentStatus === 'pago';
-    const totalPaid = isPaid ? grandTotal : 0;
+    const partialPaid = (os.payments || []).reduce(
+      (acc, p) => (p.status === 'pago' ? acc + Number(p.amount || 0) : acc),
+      0
+    );
+    const totalPaid = isPaid ? grandTotal : Math.min(grandTotal, partialPaid);
     const totalDue = Math.max(0, grandTotal - totalPaid);
 
     const addressParts = (os.clientAddress || '').split(' - ');
@@ -880,6 +1169,25 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
           </tr>
         </tbody>
       </table>
+      ${(os.payments && os.payments.length > 0) ? `
+        <div style="border-top: 1px solid #cbd5e1; padding: 5px 8px; background: #f8fafc;">
+          <div style="font-size: 8.5px; font-weight: bold; text-transform: uppercase; color: #334155; margin-bottom: 3px;">CONDIÇÕES E PARCELAS</div>
+          <table style="font-size: 8.5px;">
+            <tbody>
+              ${os.payments.map((p, idx) => {
+                const tipoLabel = p.entryType === 'entrada' ? 'Entrada' : p.entryType === 'parcela' ? `Parcela ${p.installmentNumber || idx + 1}${p.totalInstallments ? '/' + p.totalInstallments : ''}` : 'À Vista';
+                const methodLabel = p.method === 'pix' ? 'PIX' : p.method === 'dinheiro' ? 'Dinheiro' : p.method === 'cartao_credito' ? 'Crédito' : p.method === 'cartao_debito' ? 'Débito' : p.method === 'boleto' ? 'Boleto' : 'Faturado 30d';
+                const statusLabel = p.status === 'pago' ? `Pago${p.paidAt ? ' em ' + formatDateBR(p.paidAt) : ''}` : `Venc. ${p.dueDate ? formatDateBR(p.dueDate) : '-'}`;
+                return `<tr>
+                  <td><strong>${tipoLabel}</strong> · ${methodLabel}</td>
+                  <td style="color: ${p.status === 'pago' ? '#166534' : '#475569'};">${statusLabel}</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: bold;">${formatBRL(Number(p.amount || 0))}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
     </div>
 
     <div class="card" style="margin-bottom: 0; text-align: center; display: flex; flex-direction: column;">
@@ -937,21 +1245,27 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const handleOpenPDV = (os: ServiceOrder) => {
     setChargingOS(os);
     setPdvSuccessMessage(null);
-    setPdvPaymentMethod(os.paymentMethod || 'pix');
-    setPdvCardBrand('visa');
-    setPdvInstallments(1);
+    const firstPending = os.payments?.find(p => p.status !== 'pago') || os.payments?.[0];
+    setPdvPaymentMethod(firstPending?.method || os.paymentMethod || 'pix');
+    setPdvCardBrand(firstPending?.cardBrand || 'visa');
+    setPdvInstallments(firstPending?.installments || 1);
     setPdvAuthCode('');
     setCopiedPix(false);
-    setIsMultiSplit(false);
 
     const srvTotal = os.services.reduce((a, s) => a + Number(s.price || 0), 0);
     const prtTotal = os.parts.reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
     const grandTotal = Math.max(0, srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0));
 
     setPdvCashReceived(grandTotal);
-    setPdvSplits([
-      { id: 'split-1', method: 'pix', amount: grandTotal, netAmount: grandTotal }
-    ]);
+    if (os.payments && os.payments.length > 0) {
+      setIsMultiSplit(os.payments.length > 1);
+      setPdvSplits(os.payments);
+    } else {
+      setIsMultiSplit(false);
+      setPdvSplits([
+        { id: 'split-1', method: 'pix', amount: grandTotal, netAmount: grandTotal }
+      ]);
+    }
   };
 
   const handleSendToPDVTerminal = () => {
@@ -1092,6 +1406,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       });
       setEditingOSId(null);
       setEditingOSCode(null);
+      setHasCustomPayments(false);
       setIsNewModalOpen(false);
       return;
     }
@@ -1134,6 +1449,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       ]
     });
 
+    setHasCustomPayments(false);
     setIsNewModalOpen(false);
     setDescription('');
   };
@@ -1226,7 +1542,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
         {currentRole !== 'tecnico' && (
           <button
-            onClick={() => setIsNewModalOpen(true)}
+            onClick={handleOpenNewOS}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -2788,8 +3104,8 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                 )}
               </div>
 
-              {/* Desconto Flexível e Múltiplas Formas de Pagamento */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+              {/* Desconto Flexível, Calculadora de Parcelas e Formas de Pagamento */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <span className="font-bold text-slate-800">Desconto Flexível (Nativo)</span>
@@ -2801,14 +3117,14 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                       <button
                         type="button"
                         onClick={() => setDiscountType('fixed')}
-                        className={`px-3 py-1 font-bold ${discountType === 'fixed' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+                        className={`px-3 py-1 font-bold cursor-pointer ${discountType === 'fixed' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
                       >
                         R$ Moeda
                       </button>
                       <button
                         type="button"
                         onClick={() => setDiscountType('percent')}
-                        className={`px-3 py-1 font-bold ${discountType === 'percent' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+                        className={`px-3 py-1 font-bold cursor-pointer ${discountType === 'percent' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
                       >
                         % Percentual
                       </button>
@@ -2816,85 +3132,514 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
                     <input
                       type="number"
+                      min="0"
+                      step="0.01"
                       placeholder="Valor"
                       value={discountValue}
                       onChange={(e) => setDiscountValue(Number(e.target.value))}
-                      className="w-24 p-1.5 bg-white border border-slate-200 rounded-lg font-mono font-bold"
+                      className="w-24 p-1.5 bg-white border border-slate-200 rounded-lg font-mono font-bold tabular-nums"
                     />
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-slate-800">Múltiplas Formas de Pagamento (Split de Transação)</span>
-                    <button type="button" onClick={handleAddSplitPayment} className="text-blue-600 font-bold">+ Adicionar Forma</button>
-                  </div>
-                  <div className="space-y-2">
-                    {payments.map((pay, idx) => (
-                      <div key={pay.id || idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200">
-                        <select
-                          value={pay.method}
-                          onChange={(e) => {
-                            const up = [...payments];
-                            up[idx].method = e.target.value as PaymentMethod;
-                            setPayments(up);
-                          }}
-                          className="p-1 bg-slate-50 border border-slate-200 rounded text-xs font-semibold"
-                        >
-                          <option value="pix">Pix (Sem Taxa)</option>
-                          <option value="cartao_credito">Cartão de Crédito</option>
-                          <option value="cartao_debito">Cartão de Débito</option>
-                          <option value="dinheiro">Dinheiro</option>
-                          <option value="boleto">Boleto Bancário</option>
-                        </select>
+                {/* Resumo Financeiro em Tempo Real */}
+                {(() => {
+                  const allocatedTotal = Number(payments.reduce((acc, p) => acc + Number(p.amount || 0), 0).toFixed(2));
+                  const paidTotal = Number(
+                    payments.reduce((acc, p) => (p.status === 'pago' ? acc + Number(p.amount || 0) : acc), 0).toFixed(2)
+                  );
+                  const diff = Number((modalGrandTotal - allocatedTotal).toFixed(2));
+                  const isBalanced = Math.abs(diff) < 0.02;
 
-                        {pay.method === 'cartao_credito' && (
-                          <>
-                            <select
-                              value={pay.cardBrand || 'visa'}
-                              onChange={(e) => {
-                                const up = [...payments];
-                                up[idx].cardBrand = e.target.value as CardBrand;
-                                setPayments(up);
-                              }}
-                              className="p-1 bg-slate-50 border border-slate-200 rounded text-xs"
-                            >
-                              <option value="visa">Visa (Taxa 4.5%)</option>
-                              <option value="mastercard">Mastercard (Taxa 4.5%)</option>
-                              <option value="elo">Elo (Taxa 5.2%)</option>
-                              <option value="hipercard">Hipercard (Taxa 5.4%)</option>
-                            </select>
-                            <input
-                              type="number"
-                              min="1"
-                              max="12"
-                              value={pay.installments || 1}
-                              onChange={(e) => {
-                                const up = [...payments];
-                                up[idx].installments = Number(e.target.value);
-                                setPayments(up);
-                              }}
-                              className="w-16 p-1 bg-slate-50 border border-slate-200 rounded font-mono text-center"
-                              title="Parcelas"
-                            />
-                          </>
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t border-slate-200">
+                      <div className="bg-white px-3 py-2 rounded-lg border border-slate-200">
+                        <div className="text-[10px] font-semibold text-slate-500">Total Líquido da OS</div>
+                        <div className="text-sm font-bold font-mono tabular-nums text-slate-900">
+                          {formatBRL(modalGrandTotal)}
+                        </div>
+                        {modalDiscount > 0 && (
+                          <div className="text-[10px] text-rose-600 font-mono tabular-nums">
+                            Desc: -{formatBRL(modalDiscount)}
+                          </div>
                         )}
-
-                        <input
-                          type="number"
-                          placeholder="Valor R$"
-                          value={pay.amount}
-                          onChange={(e) => {
-                            const up = [...payments];
-                            up[idx].amount = Number(e.target.value);
-                            up[idx].netAmount = Number(e.target.value) * (pay.method === 'cartao_credito' ? 0.955 : 1);
-                            setPayments(up);
-                          }}
-                          className="w-28 p-1 bg-slate-50 border border-slate-200 rounded font-mono font-bold"
-                        />
                       </div>
-                    ))}
+
+                      <div className="bg-white px-3 py-2 rounded-lg border border-slate-200">
+                        <div className="text-[10px] font-semibold text-slate-500">Total nas Parcelas</div>
+                        <div className="text-sm font-bold font-mono tabular-nums text-slate-900">
+                          {formatBRL(allocatedTotal)}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {payments.length} {payments.length === 1 ? 'lançamento' : 'lançamentos'}
+                        </div>
+                      </div>
+
+                      <div className="bg-white px-3 py-2 rounded-lg border border-slate-200">
+                        <div className="text-[10px] font-semibold text-slate-500">Já Pago (Entrada/Parc.)</div>
+                        <div className="text-sm font-bold font-mono tabular-nums text-emerald-700">
+                          {formatBRL(paidTotal)}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          A receber: {formatBRL(Math.max(0, modalGrandTotal - paidTotal))}
+                        </div>
+                      </div>
+
+                      <div
+                        className={`px-3 py-2 rounded-lg border ${
+                          isBalanced
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : 'bg-amber-50 border-amber-300'
+                        }`}
+                      >
+                        <div className="text-[10px] font-semibold text-slate-600">
+                          {isBalanced ? 'Conferência' : diff > 0 ? 'Falta Alocar' : 'Valor Excedente'}
+                        </div>
+                        <div
+                          className={`text-sm font-bold font-mono tabular-nums ${
+                            isBalanced ? 'text-emerald-700' : 'text-amber-800'
+                          }`}
+                        >
+                          {isBalanced ? 'Total Conferido' : formatBRL(Math.abs(diff))}
+                        </div>
+                        {!isBalanced && (
+                          <button
+                            type="button"
+                            onClick={handleBalanceRemainingToLastPending}
+                            className="text-[10px] font-bold text-blue-700 hover:underline cursor-pointer mt-0.5"
+                          >
+                            Ajustar na última parcela
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Calculadora Automática de Entrada e Divisão de Parcelas */}
+                <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-[#53383e]" />
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">
+                          Calculadora Automática de Entrada & Parcelamento
+                        </h5>
+                        <p className="text-[11px] text-slate-500">
+                          Defina uma entrada opcional e divida o restante em parcelas com datas automáticas; depois edite qualquer linha abaixo se precisar.
+                        </p>
+                      </div>
+                    </div>
+                    {(() => {
+                      const entryPreview = Math.min(modalGrandTotal, Math.max(0, Number(String(calcEntryAmount).replace(',', '.')) || 0));
+                      const balancePreview = Math.max(0, Number((modalGrandTotal - entryPreview).toFixed(2)));
+                      const instPreview = Math.max(1, Math.min(24, Math.floor(Number(calcInstallments) || 1)));
+                      const perInst = balancePreview / instPreview;
+                      return (
+                        <div className="text-right font-mono tabular-nums text-[11px] text-slate-700 shrink-0 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                          {entryPreview > 0 ? (
+                            <span>
+                              Entrada <strong>{formatBRL(entryPreview)}</strong> + {instPreview}x de{' '}
+                              <strong className="text-[#53383e]">{formatBRL(perInst)}</strong>
+                            </span>
+                          ) : (
+                            <span>
+                              {instPreview}x de <strong className="text-[#53383e]">{formatBRL(perInst)}</strong>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
+
+                  {/* Linha 1 da Calculadora: Entrada */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                    <div className="sm:col-span-3">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Valor da Entrada (R$)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0,00 (Sem entrada)"
+                        value={calcEntryAmount}
+                        onChange={(e) => setCalcEntryAmount(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold tabular-nums text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Forma da Entrada
+                      </label>
+                      <select
+                        value={calcEntryMethod}
+                        onChange={(e) => setCalcEntryMethod(e.target.value as PaymentMethod)}
+                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                      >
+                        <option value="dinheiro">Dinheiro</option>
+                        <option value="pix">PIX</option>
+                        <option value="cartao_debito">Cartão de Débito</option>
+                        <option value="cartao_credito">Cartão de Crédito</option>
+                        <option value="boleto">Boleto Bancário</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Data da Entrada
+                      </label>
+                      <input
+                        type="date"
+                        value={calcEntryDate}
+                        onChange={(e) => setCalcEntryDate(e.target.value)}
+                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3 flex items-center justify-between gap-2 pb-1">
+                      <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={calcEntryPaid}
+                          onChange={(e) => setCalcEntryPaid(e.target.checked)}
+                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span>Entrada já paga</span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        {[0, 30, 50].map(pct => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() =>
+                              setCalcEntryAmount(
+                                pct === 0 ? '' : String(Number(((modalGrandTotal * pct) / 100).toFixed(2)))
+                              )
+                            }
+                            className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded cursor-pointer"
+                            title={pct === 0 ? 'Limpar entrada' : `Aplicar ${pct}% de entrada`}
+                          >
+                            {pct === 0 ? '0%' : `${pct}%`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Linha 2 da Calculadora: Parcelas do Saldo */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end pt-2 border-t border-slate-100">
+                    <div className="sm:col-span-3">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Forma das Parcelas
+                      </label>
+                      <select
+                        value={calcInstallmentMethod}
+                        onChange={(e) => setCalcInstallmentMethod(e.target.value as PaymentMethod)}
+                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                      >
+                        <option value="cartao_credito">Cartão de Crédito</option>
+                        <option value="boleto">Boleto Bancário</option>
+                        <option value="pix">PIX</option>
+                        <option value="dinheiro">Dinheiro</option>
+                        <option value="cartao_debito">Cartão de Débito</option>
+                        <option value="faturado_30d">Faturado 30d</option>
+                      </select>
+                    </div>
+
+                    {(calcInstallmentMethod === 'cartao_credito' || calcInstallmentMethod === 'cartao_debito') && (
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Bandeira</label>
+                        <select
+                          value={calcCardBrand}
+                          onChange={(e) => setCalcCardBrand(e.target.value as CardBrand)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        >
+                          <option value="visa">Visa</option>
+                          <option value="mastercard">Mastercard</option>
+                          <option value="elo">Elo</option>
+                          <option value="hipercard">Hipercard</option>
+                          <option value="outra">Outra</option>
+                        </select>
+                      </div>
+                    )}
+
+                    <div className={calcInstallmentMethod === 'cartao_credito' || calcInstallmentMethod === 'cartao_debito' ? 'sm:col-span-2' : 'sm:col-span-2'}>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Qtd. Parcelas</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="24"
+                        value={calcInstallments}
+                        onChange={(e) => setCalcInstallments(Math.max(1, Math.min(24, Number(e.target.value) || 1)))}
+                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-center text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">1º Vencimento</label>
+                      <input
+                        type="date"
+                        value={calcFirstDueDate}
+                        onChange={(e) => setCalcFirstDueDate(e.target.value)}
+                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-1">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1" title="Intervalo em dias entre parcelas">
+                        Dias
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="365"
+                        value={calcIntervalDays}
+                        onChange={(e) => setCalcIntervalDays(Math.max(0, Number(e.target.value) || 0))}
+                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-center text-xs"
+                      />
+                    </div>
+
+                    <div className={calcInstallmentMethod === 'cartao_credito' || calcInstallmentMethod === 'cartao_debito' ? 'sm:col-span-2' : 'sm:col-span-4'}>
+                      <button
+                        type="button"
+                        onClick={handleGenerateInstallments}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        <Calculator className="w-3.5 h-3.5" />
+                        <span>Calcular e Dividir</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lista Editável Individual de Entrada e Parcelas */}
+                <div className="pt-1">
+                  <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
+                    <div>
+                      <span className="font-bold text-slate-800">
+                        Parcelas e Formas de Pagamento (Edição Individual)
+                      </span>
+                      <span className="block text-[11px] text-slate-500">
+                        Altere livremente data, tipo (Entrada / Parcela / À Vista), forma (ex: Dinheiro) ou marque como Pago em uma data específica.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSplitPayment}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg cursor-pointer whitespace-nowrap"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Adicionar Parcela / Forma</span>
+                    </button>
+                  </div>
+
+                  {payments.length === 0 ? (
+                    <div className="p-4 bg-white border border-dashed border-slate-300 rounded-xl text-center text-slate-500 text-xs">
+                      Nenhuma parcela cadastrada. Use a calculadora acima ou clique em "Adicionar Parcela / Forma".
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {payments.map((pay, idx) => {
+                        const rowType: PaymentEntryType = pay.entryType || (payments.length > 1 ? 'parcela' : 'vista');
+                        const rowStatus: PaymentSplitStatus = pay.status || 'pendente';
+                        const isCard = pay.method === 'cartao_credito' || pay.method === 'cartao_debito';
+
+                        return (
+                          <div
+                            key={pay.id || idx}
+                            className={`p-2.5 rounded-xl border transition-colors ${
+                              rowStatus === 'pago'
+                                ? 'bg-emerald-50/40 border-emerald-200'
+                                : 'bg-white border-slate-200'
+                            }`}
+                          >
+                            {/* Linha principal editável */}
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                              {/* Tipo (Entrada / Parcela / À Vista) */}
+                              <div className="sm:col-span-2">
+                                <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                                  Tipo {pay.installmentNumber && pay.totalInstallments ? `(${pay.installmentNumber}/${pay.totalInstallments})` : `#${idx + 1}`}
+                                </label>
+                                <select
+                                  value={rowType}
+                                  onChange={(e) => {
+                                    const nextType = e.target.value as PaymentEntryType;
+                                    handleUpdatePaymentRow(idx, {
+                                      entryType: nextType,
+                                      notes:
+                                        nextType === 'entrada'
+                                          ? 'Entrada'
+                                          : nextType === 'vista'
+                                          ? 'Pagamento À Vista'
+                                          : pay.notes === 'Entrada' || pay.notes === 'Pagamento À Vista'
+                                          ? `Parcela ${idx + 1}`
+                                          : pay.notes
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                                >
+                                  <option value="entrada">Entrada</option>
+                                  <option value="parcela">Parcela</option>
+                                  <option value="vista">À Vista</option>
+                                </select>
+                              </div>
+
+                              {/* Forma de Pagamento */}
+                              <div className={isCard ? 'sm:col-span-3' : 'sm:col-span-4'}>
+                                <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                                  Forma de Pagamento
+                                </label>
+                                <select
+                                  value={pay.method}
+                                  onChange={(e) =>
+                                    handleUpdatePaymentRow(idx, { method: e.target.value as PaymentMethod })
+                                  }
+                                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                                >
+                                  <option value="pix">PIX (Sem Taxa)</option>
+                                  <option value="dinheiro">Dinheiro</option>
+                                  <option value="cartao_credito">Cartão de Crédito</option>
+                                  <option value="cartao_debito">Cartão de Débito</option>
+                                  <option value="boleto">Boleto Bancário</option>
+                                  <option value="faturado_30d">Faturado 30d</option>
+                                </select>
+                              </div>
+
+                              {/* Bandeira (se cartão) */}
+                              {isCard && (
+                                <div className="sm:col-span-2">
+                                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                                    Bandeira {pay.ratePercentage ? `(${pay.ratePercentage}%)` : ''}
+                                  </label>
+                                  <select
+                                    value={pay.cardBrand || 'visa'}
+                                    onChange={(e) =>
+                                      handleUpdatePaymentRow(idx, { cardBrand: e.target.value as CardBrand })
+                                    }
+                                    className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                                  >
+                                    <option value="visa">Visa</option>
+                                    <option value="mastercard">Mastercard</option>
+                                    <option value="elo">Elo</option>
+                                    <option value="hipercard">Hipercard</option>
+                                    <option value="outra">Outra</option>
+                                  </select>
+                                </div>
+                              )}
+
+                              {/* Data Prevista / Vencimento */}
+                              <div className={isCard ? 'sm:col-span-2' : 'sm:col-span-3'}>
+                                <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                                  Data / Vencimento
+                                </label>
+                                <input
+                                  type="date"
+                                  value={pay.dueDate || ''}
+                                  onChange={(e) => handleUpdatePaymentRow(idx, { dueDate: e.target.value })}
+                                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+                                />
+                              </div>
+
+                              {/* Valor (R$) + Excluir */}
+                              <div className={isCard ? 'sm:col-span-3' : 'sm:col-span-3'}>
+                                <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                                  Valor (R$)
+                                </label>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="0,00"
+                                    value={pay.amount}
+                                    onChange={(e) =>
+                                      handleUpdatePaymentRow(idx, { amount: Number(e.target.value) || 0 })
+                                    }
+                                    className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold tabular-nums text-xs text-slate-900"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePaymentRow(idx)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                                    title="Remover esta parcela / forma"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Linha secundária: Status Pago/Pendente, Data específica de pagamento, Observação e Líquido */}
+                            <div className="mt-2 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdatePaymentRow(idx, { status: 'pendente' })}
+                                    className={`px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+                                      rowStatus === 'pendente'
+                                        ? 'bg-amber-600 text-white'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                  >
+                                    Pendente
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleUpdatePaymentRow(idx, {
+                                        status: 'pago',
+                                        paidAt: pay.paidAt || pay.dueDate || getTodayIso()
+                                      })
+                                    }
+                                    className={`px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+                                      rowStatus === 'pago'
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'text-slate-600 hover:text-emerald-700'
+                                    }`}
+                                  >
+                                    Pago
+                                  </button>
+                                </div>
+
+                                {rowStatus === 'pago' && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-semibold text-emerald-800 whitespace-nowrap">
+                                      Pago em:
+                                    </span>
+                                    <input
+                                      type="date"
+                                      value={pay.paidAt || pay.dueDate || getTodayIso()}
+                                      onChange={(e) => handleUpdatePaymentRow(idx, { paidAt: e.target.value })}
+                                      className="px-2 py-1 bg-white border border-emerald-300 rounded-md font-mono text-[11px] text-emerald-900"
+                                    />
+                                  </div>
+                                )}
+
+                                <input
+                                  type="text"
+                                  placeholder="Obs. (ex: pago em dinheiro na loja)"
+                                  value={pay.notes || ''}
+                                  onChange={(e) => handleUpdatePaymentRow(idx, { notes: e.target.value })}
+                                  className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-[11px] text-slate-700 w-52 sm:w-60"
+                                />
+                              </div>
+
+                              <div className="text-[11px] font-mono tabular-nums text-slate-600">
+                                Líquido:{' '}
+                                <strong className="text-slate-900">{formatBRL(pay.netAmount ?? pay.amount)}</strong>
+                                {Number(pay.rateAmount || 0) > 0 && (
+                                  <span className="text-rose-600 ml-1">(-{formatBRL(pay.rateAmount || 0)})</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

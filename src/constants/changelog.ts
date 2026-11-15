@@ -16,6 +16,36 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.3',
+    date: '14/11/2026',
+    title: 'Calculadora de Parcelas e Edição Individual de Pagamentos na Modal de OS',
+    summary:
+      'Atualização da modal de Ordem de Serviço para calcular automaticamente o total líquido e dividir entrada e parcelas com datas escalonadas, permitindo editar manualmente data, tipo (Entrada/Parcela/À Vista), forma de pagamento (ex: Dinheiro) e data específica de quitação em cada lançamento.',
+    highlights: [
+      'Calculadora automática de Entrada + divisão exata em parcelas com cálculo de taxas e líquido',
+      'Edição individual de tipo (Entrada / Parcela / À Vista), data de vencimento, forma e valor por linha',
+      'Marcação de status Pago com data específica de recebimento (ex: parcela em dinheiro paga em tal dia)',
+      'Sincronização com impressão A4 da OS, exportação HTML e pré-carregamento no PDV Caixa'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Calculadora Automática de Entrada & Parcelamento na modal de Ordem de Serviço (ServiceOrdersView) com divisão exata em centavos, intervalo de dias configurável e pré-visualização instantânea.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Editor individual por parcela permitindo alterar tipo (Entrada / Parcela / À Vista), forma de pagamento (PIX, Dinheiro, Cartão, Boleto, Faturado), data de vencimento, valor, observação e status Pago com campo de data específica de pagamento (paidAt).'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Estendido o tipo PaymentSplit (src/types.ts), o comprovante de impressão A4 (ServiceOrderPrintTemplate), a exportação HTML e o checkout do PDV (PdvView) para refletirem valores já quitados em entrada/parcelas e as condições programadas.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.2',
     date: '14/11/2026',
     title: 'Ampliação de 15% na Tipografia Global para Computador',

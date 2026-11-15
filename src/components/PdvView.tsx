@@ -495,21 +495,28 @@ export const PdvView: React.FC = () => {
   const openCheckoutForTarget = (target: CheckoutTarget) => {
     setCheckoutTarget(target);
     setCheckoutError(null);
-    setIsMultiSplit(false);
-    setPayMethod('pix');
-    setCardBrand('visa');
-    setInstallments(1);
+    const planned = target.orderObj?.payments;
+    const firstPlanned = planned?.[0];
+    setPayMethod(firstPlanned?.method || 'pix');
+    setCardBrand(firstPlanned?.cardBrand || 'visa');
+    setInstallments(firstPlanned?.installments || 1);
     setCashReceived(String(target.total.toFixed(2)));
     setNsuCode('');
     setCopiedPix(false);
-    setSplits([
-      {
-        id: `sp-${Date.now()}`,
-        method: 'pix',
-        amount: target.total,
-        netAmount: target.total
-      }
-    ]);
+    if (planned && planned.length > 0) {
+      setIsMultiSplit(planned.length > 1);
+      setSplits(planned);
+    } else {
+      setIsMultiSplit(false);
+      setSplits([
+        {
+          id: `sp-${Date.now()}`,
+          method: 'pix',
+          amount: target.total,
+          netAmount: target.total
+        }
+      ]);
+    }
   };
 
   // Confirm settlement in Caixa

@@ -23,7 +23,11 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
   const grandTotal = Math.max(0, partsTotal + servicesTotal + visitFee - discount);
 
   const isPaid = os.paymentStatus === 'pago';
-  const totalPaid = isPaid ? grandTotal : 0;
+  const partialPaid = (os.payments || []).reduce(
+    (acc, p) => (p.status === 'pago' ? acc + Number(p.amount || 0) : acc),
+    0
+  );
+  const totalPaid = isPaid ? grandTotal : Math.min(grandTotal, partialPaid);
   const totalDue = Math.max(0, grandTotal - totalPaid);
 
   // Address parsing
@@ -425,6 +429,55 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
               </tr>
             </tbody>
           </table>
+          {os.payments && os.payments.length > 0 && (
+            <div className="border-t border-slate-300 bg-slate-50 px-2 py-1.5">
+              <div className="text-[8.5px] font-bold uppercase tracking-wide text-slate-700 mb-1">
+                CONDIÇÕES E PARCELAS
+              </div>
+              <table className="w-full text-[9px]">
+                <tbody className="divide-y divide-slate-200">
+                  {os.payments.map((p, idx) => {
+                    const tipoLabel =
+                      p.entryType === 'entrada'
+                        ? 'Entrada'
+                        : p.entryType === 'parcela'
+                        ? `Parcela ${p.installmentNumber || idx + 1}${p.totalInstallments ? `/${p.totalInstallments}` : ''}`
+                        : 'À Vista';
+                    const methodLabel =
+                      p.method === 'pix'
+                        ? 'PIX'
+                        : p.method === 'dinheiro'
+                        ? 'Dinheiro'
+                        : p.method === 'cartao_credito'
+                        ? 'Crédito'
+                        : p.method === 'cartao_debito'
+                        ? 'Débito'
+                        : p.method === 'boleto'
+                        ? 'Boleto'
+                        : 'Faturado 30d';
+                    const statusText =
+                      p.status === 'pago'
+                        ? `Pago${p.paidAt ? ` em ${formatDateBR(p.paidAt)}` : ''}`
+                        : `Venc. ${p.dueDate ? formatDateBR(p.dueDate) : '-'}`;
+
+                    return (
+                      <tr key={p.id || idx}>
+                        <td className="py-0.5 text-slate-800">
+                          <span className="font-bold">{tipoLabel}</span> · {methodLabel}
+                        </td>
+                        <td className={`py-0.5 ${p.status === 'pago' ? 'text-emerald-700 font-semibold' : 'text-slate-600'}`}>
+                          {statusText}
+                        </td>
+                        <td className="py-0.5 text-right font-mono tabular-nums font-bold text-slate-900">
+                          {formatBRL(Number(p.amount || 0))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Pagamento via Pix */}
