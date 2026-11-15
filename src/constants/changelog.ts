@@ -16,6 +16,23 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.6.4',
+    date: '14/11/2026',
+    title: 'Ajuste Tipográfico na Chamada da Tela de Login',
+    summary:
+      'Redução da escala de fonte de "Controle em tempo real." posicionando-o logo abaixo do título principal "Gestão completa." para maior destaque hierárquico.',
+    highlights: [
+      'Título principal "Gestão completa." em destaque acima de "Controle em tempo real."'
+    ],
+    changes: [
+      {
+        category: 'Alterado',
+        description:
+          'Diminuído o tamanho da fonte do texto "Controle em tempo real." e posicionado como subtítulo diretamente abaixo de "Gestão completa." na tela de login.'
+      }
+    ]
+  },
+  {
     version: 'v2.6.3',
     date: '14/11/2026',
     title: 'Limpeza Visual no Bloco de Marca da Tela de Login',

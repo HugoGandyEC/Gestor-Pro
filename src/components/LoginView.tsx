@@ -99,13 +99,16 @@ export const LoginView: React.FC = () => {
               </div>
             </div>
 
-            {/* Chamada Principal em Fonte Ampliada */}
+            {/* Chamada Principal e Subtítulo */}
             <div className="space-y-3 max-w-xl">
-              <h1 className="text-3xl sm:text-4xl lg:text-[44px] font-extrabold text-white tracking-tight leading-[1.15] text-balance">
-                Gestão completa.
-                <br />
-                Controle em tempo real.
-              </h1>
+              <div>
+                <h1 className="text-3xl sm:text-4xl lg:text-[44px] font-extrabold text-white tracking-tight leading-[1.15]">
+                  Gestão completa.
+                </h1>
+                <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-blue-200 tracking-tight mt-1.5">
+                  Controle em tempo real.
+                </p>
+              </div>
               <p className="text-base sm:text-lg text-blue-100/85 leading-relaxed">
                 Ordens de Serviço, Frente de Caixa (PDV), Vendas, Estoque e Financeiro integrados para sua equipe operar do balcão ao campo.
               </p>

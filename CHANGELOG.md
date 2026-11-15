@@ -1,6 +1,14 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.6.3`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.6.4`).
+
+---
+
+## [v2.6.4] — 14/11/2026
+**Ajuste Tipográfico na Chamada da Tela de Login**
+
+### Alterado
+- Diminuído o tamanho da fonte do texto *"Controle em tempo real."* e posicionado logo abaixo do título principal *"Gestão completa."* na tela de login (`LoginView`).
 
 ---
 
