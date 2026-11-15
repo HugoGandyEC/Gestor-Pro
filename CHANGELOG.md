@@ -1,6 +1,14 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.6.2`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.6.3`).
+
+---
+
+## [v2.6.3] — 14/11/2026
+**Limpeza Visual no Bloco de Marca da Tela de Login**
+
+### Removido
+- Retirado o dado secundário da empresa (razão social) exibido abaixo do nome da empresa ao lado da logo na tela de login (`LoginView`), mantendo o cabeçalho de marca mais limpo.
 
 ---
 

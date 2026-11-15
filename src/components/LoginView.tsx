@@ -5,7 +5,6 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Building2,
   AlertCircle,
   Info
 } from 'lucide-react';
@@ -25,10 +24,6 @@ export const LoginView: React.FC = () => {
 
   const companyDisplayName =
     companySettings.tradeName || companySettings.companyName || 'GestãoPro ERP';
-  const companyLegalName =
-    companySettings.companyName && companySettings.companyName !== companyDisplayName
-      ? companySettings.companyName
-      : '';
 
   const formattedStreet = [companySettings.street, companySettings.number]
     .filter(Boolean)
@@ -97,16 +92,10 @@ export const LoginView: React.FC = () => {
                 </div>
               )}
 
-              <div className="space-y-1">
-                <div className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+              <div>
+                <div className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
                   {companyDisplayName}
                 </div>
-                {companyLegalName && (
-                  <div className="text-sm text-blue-200/80 font-medium flex items-center justify-center lg:justify-start gap-1.5">
-                    <Building2 className="w-4 h-4 text-blue-400 shrink-0" />
-                    <span>{companyLegalName}</span>
-                  </div>
-                )}
               </div>
             </div>
 

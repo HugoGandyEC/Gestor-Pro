@@ -16,6 +16,23 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.6.3',
+    date: '14/11/2026',
+    title: 'Limpeza Visual no Bloco de Marca da Tela de Login',
+    summary:
+      'Remoção da linha secundária com dado da empresa exibida abaixo do nome principal ao lado da logo na tela de login, mantendo o visual mais limpo.',
+    highlights: [
+      'Apenas logo e nome principal no cabeçalho de marca do login'
+    ],
+    changes: [
+      {
+        category: 'Removido',
+        description:
+          'Retirado o dado secundário da empresa (razão social) exibido abaixo do nome da empresa ao lado da logo na tela de login (LoginView).'
+      }
+    ]
+  },
+  {
     version: 'v2.6.2',
     date: '14/11/2026',
     title: 'Exibição de Endereço no Login & Detalhamento Completo de Mini-Alterações',
