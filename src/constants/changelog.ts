@@ -16,6 +16,24 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.2',
+    date: '14/11/2026',
+    title: 'Ampliação de 15% na Tipografia Global para Computador',
+    summary:
+      'Aumento proporcional de 15% em todos os textos do sistema exclusivamente para telas de computador (>= 1024px), melhorando a legibilidade sem alterar a visualização mobile nem a impressão A4.',
+    highlights: [
+      'Aumento global de +15% em títulos, rótulos, tabelas, campos e textos no desktop',
+      'Preservação integral do layout responsivo no celular e da escala de impressão'
+    ],
+    changes: [
+      {
+        category: 'Alterado',
+        description:
+          'Aplicada escala tipográfica de +15% em todas as variáveis de tamanho de fonte (--text-xs até --text-5xl), texto base do corpo e classes de fonte fixa para visualização em telas de computador (@media screen and (min-width: 1024px)).'
+      }
+    ]
+  },
+  {
     version: 'v2.7.1',
     date: '14/11/2026',
     title: 'Atalho de Cadastro Rápido de Cliente (Modal) no PDV',

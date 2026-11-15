@@ -1,6 +1,14 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.1`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.2`).
+
+---
+
+## [v2.7.2] — 14/11/2026
+**Ampliação de 15% na Tipografia Global para Computador**
+
+### Alterado
+- Aplicado aumento proporcional de **+15%** em todos os textos do sistema exclusivamente para telas de computador (`@media screen and (min-width: 1024px)`), cobrindo títulos, tabelas, botões, formulários e textos auxiliares em `src/index.css`, mantendo o layout mobile e os comprovantes de impressão intactos.
 
 ---
 
