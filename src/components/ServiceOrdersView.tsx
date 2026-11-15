@@ -200,8 +200,29 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [vehicleId, setVehicleId] = useState(vehicles[0]?.id || '');
   const [kmDriven, setKmDriven] = useState(40);
   const [description, setDescription] = useState('');
-  const [forecastDate, setForecastDate] = useState('2026-10-31');
+  const [forecastDate, setForecastDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [completionDate, setCompletionDate] = useState<string>('');
   const [status, setStatus] = useState<ServiceOrderStatus>('orcamento_aberto');
+
+  // Quick Status & Delivery Date Modal + Detail Modal Inline Controls
+  const [statusModalOS, setStatusModalOS] = useState<ServiceOrder | null>(null);
+  const [quickStatus, setQuickStatus] = useState<ServiceOrderStatus>('aprovada_em_andamento');
+  const [quickForecastDate, setQuickForecastDate] = useState<string>('');
+  const [quickCompletionDate, setQuickCompletionDate] = useState<string>('');
+
+  const [detailStatus, setDetailStatus] = useState<ServiceOrderStatus>('orcamento_aberto');
+  const [detailForecastDate, setDetailForecastDate] = useState<string>('');
+  const [detailCompletionDate, setDetailCompletionDate] = useState<string>('');
+  const [detailSavedMsg, setDetailSavedMsg] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (modalOSInfo) {
+      setDetailStatus(modalOSInfo.status);
+      setDetailForecastDate(modalOSInfo.forecastDate || '');
+      setDetailCompletionDate(modalOSInfo.completionDate || '');
+      setDetailSavedMsg(null);
+    }
+  }, [modalOSInfo]);
 
   // Equipment & Warranty
   const [equipmentType, setEquipmentType] = useState('Reservatório Térmico Solar 600L Inox 316');
@@ -769,6 +790,9 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     const today = getTodayIso();
     setEditingOSId(null);
     setEditingOSCode(null);
+    setStatus('orcamento_aberto');
+    setForecastDate(today);
+    setCompletionDate('');
     setHasCustomPayments(false);
     setCalcEntryAmount('');
     setCalcEntryMethod('dinheiro');
@@ -802,7 +826,8 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     setVehicleId(os.vehicleId || '');
     setKmDriven(os.kmDriven || 0);
     setDescription(os.description || '');
-    setForecastDate(os.forecastDate || '2026-10-31');
+    setForecastDate(os.forecastDate || today);
+    setCompletionDate(os.completionDate || '');
     setStatus(os.status);
     setEquipmentType(os.equipmentType || '');
     setEquipmentModel(os.equipmentModel || '');
@@ -981,8 +1006,9 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
           <div><span class="label">ENTRADA: </span>${formatDateBR(os.openDate)}</div>
           <div><span class="label">PREVISÃO: </span>${formatDateBR(os.forecastDate)}</div>
         </div>
-        <div style="margin-top: 3px;">
-          <span class="label">GARANTIA: </span>${os.warrantyPeriodDays} Dias ${os.warrantyExpiresAt ? `(até ${formatDateBR(os.warrantyExpiresAt)})` : ''}
+        <div style="display: flex; justify-content: space-between; margin-top: 3px;">
+          <div><span class="label">ENTREGA SERVIÇOS: </span>${os.completionDate ? formatDateBR(os.completionDate) : 'Em andamento'}</div>
+          <div><span class="label">GARANTIA: </span>${os.warrantyPeriodDays} Dias</div>
         </div>
         <div style="margin-top: 3px;">
           <span class="label">TÉCNICO: </span><span style="font-weight: bold; text-transform: uppercase;">${technician}</span>
@@ -1377,6 +1403,12 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       ? `[${clientAddrObj.title}] ${clientAddrObj.street}, ${clientAddrObj.number}${clientAddrObj.complement ? ` (${clientAddrObj.complement})` : ''} - ${clientAddrObj.neighborhood}, ${clientAddrObj.city}/${clientAddrObj.state}`
       : `${clientObj.street}, ${clientObj.number} - ${clientObj.city}/${clientObj.state}`;
 
+    const resolvedCompletionDate = completionDate
+      ? completionDate
+      : (status === 'concluida_aguardando_retirada' || status === 'entregue_finalizada')
+      ? getTodayIso()
+      : undefined;
+
     if (editingOSId) {
       updateServiceOrder(editingOSId, {
         clientId: clientObj.id,
@@ -1389,7 +1421,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         kmDriven: Number(kmDriven) || 0,
         status,
         forecastDate,
-        completionDate: (status === 'concluida_aguardando_retirada' || status === 'entregue_finalizada') ? new Date().toISOString().split('T')[0] : undefined,
+        completionDate: resolvedCompletionDate,
         equipmentType,
         equipmentModel,
         equipmentSerial,
@@ -1426,7 +1458,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       status,
       openDate: new Date().toISOString().split('T')[0],
       forecastDate,
-      completionDate: (status === 'concluida_aguardando_retirada' || status === 'entregue_finalizada') ? new Date().toISOString().split('T')[0] : undefined,
+      completionDate: resolvedCompletionDate,
       equipmentType,
       equipmentModel,
       equipmentSerial,
@@ -1453,8 +1485,43 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
     });
 
     setHasCustomPayments(false);
+    setCompletionDate('');
     setIsNewModalOpen(false);
     setDescription('');
+  };
+
+  const handleOpenQuickStatusModal = (os: ServiceOrder, nextStatusOverride?: ServiceOrderStatus) => {
+    const targetStatus = nextStatusOverride || os.status;
+    setStatusModalOS(os);
+    setQuickStatus(targetStatus);
+    setQuickForecastDate(os.forecastDate || getTodayIso());
+    setQuickCompletionDate(
+      os.completionDate ||
+        (targetStatus === 'concluida_aguardando_retirada' || targetStatus === 'entregue_finalizada'
+          ? getTodayIso()
+          : '')
+    );
+  };
+
+  const handleSaveQuickStatus = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statusModalOS) return;
+    const cleanCompletion = quickCompletionDate.trim() || undefined;
+    const cleanForecast = quickForecastDate.trim() || statusModalOS.forecastDate;
+    updateServiceOrder(statusModalOS.id, {
+      status: quickStatus,
+      forecastDate: cleanForecast,
+      completionDate: cleanCompletion
+    });
+    if (modalOSInfo && modalOSInfo.id === statusModalOS.id) {
+      setModalOSInfo({
+        ...modalOSInfo,
+        status: quickStatus,
+        forecastDate: cleanForecast,
+        completionDate: cleanCompletion
+      });
+    }
+    setStatusModalOS(null);
   };
 
   const handleConfirmSignature = () => {
@@ -1470,7 +1537,8 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         signedByDocument: signerDocument || 'Documento Validado',
         signedAt: formatted
       },
-      status: 'entregue_finalizada'
+      status: 'entregue_finalizada',
+      completionDate: signOrder.completionDate || getTodayIso()
     });
 
     setSignOrder(null);
@@ -1600,9 +1668,12 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
           {[
             { id: 'todas', label: 'Todas' },
             { id: 'orcamento_aberto', label: 'Orçamentos' },
+            { id: 'aguardando_aprovacao', label: 'Aprovação' },
             { id: 'aprovada_em_andamento', label: 'Em Andamento' },
+            { id: 'aguardando_pecas', label: 'Aguard. Peças' },
             { id: 'concluida_aguardando_retirada', label: 'Concluídas' },
-            { id: 'entregue_finalizada', label: 'Finalizadas' }
+            { id: 'entregue_finalizada', label: 'Finalizadas' },
+            { id: 'cancelada', label: 'Canceladas' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -1617,7 +1688,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         </div>
       </div>
 
-      {/* Listagem Abreviada em Linha Única + Sinal de (+) para Modal Completa */}
+      {/* Listagem Abreviada em Linha Única + Status/Entrega + Sinal de (+) para Modal Completa */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         {filteredOrders.length === 0 ? (
           <div className="py-10 px-4 text-center text-xs text-slate-400">
@@ -1629,8 +1700,9 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Status</th>
-                  <th>Data</th>
+                  <th>Status da OS</th>
+                  <th>Abertura</th>
+                  <th>Entrega Serviços</th>
                   <th>Cliente / Responsável</th>
                   <th className="text-right">
                     {currentRole === 'tecnico' ? 'A Receber' : 'Total OS'}
@@ -1648,12 +1720,66 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   const techRate = (tech?.commissionRate || 8) / 100;
                   const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
                   const statusMeta = getCompactStatusMeta(os.status);
+                  const canEditStatus = currentRole !== 'cliente';
 
                   return (
                     <tr key={os.id} className="dense-row">
                       <td className="font-mono font-bold text-[#53383e]">{os.code}</td>
-                      <td className={`font-semibold ${statusMeta.className}`}>{statusMeta.label}</td>
+                      <td>
+                        {canEditStatus ? (
+                          <select
+                            value={os.status}
+                            aria-label={`Alterar status da OS ${os.code}`}
+                            onChange={(e) => {
+                              const nextSt = e.target.value as ServiceOrderStatus;
+                              if (nextSt === 'concluida_aguardando_retirada' || nextSt === 'entregue_finalizada') {
+                                handleOpenQuickStatusModal(os, nextSt);
+                              } else {
+                                updateServiceOrder(os.id, { status: nextSt });
+                              }
+                            }}
+                            className={`bg-slate-50 hover:bg-white border border-slate-200 rounded-md px-2 py-1 text-xs font-semibold cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-[#53383e] ${statusMeta.className}`}
+                          >
+                            <option value="orcamento_aberto">Orçamento</option>
+                            <option value="aguardando_aprovacao">Aprovação</option>
+                            <option value="aprovada_em_andamento">Em Andamento</option>
+                            <option value="aguardando_pecas">Aguard. Peças</option>
+                            <option value="concluida_aguardando_retirada">Concluída</option>
+                            <option value="entregue_finalizada">Finalizada</option>
+                            <option value="cancelada">Cancelada</option>
+                          </select>
+                        ) : (
+                          <span className={`font-semibold ${statusMeta.className}`}>{statusMeta.label}</span>
+                        )}
+                      </td>
                       <td className="font-mono text-slate-600 tabular-nums">{formatDateBR(os.openDate)}</td>
+                      <td>
+                        {canEditStatus ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenQuickStatusModal(os)}
+                            title="Clique para alterar status e informar a data de entrega dos serviços"
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-mono tabular-nums transition-colors cursor-pointer ${
+                              os.completionDate
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-bold'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            <Calendar className="w-3 h-3 shrink-0" />
+                            <span>
+                              {os.completionDate
+                                ? formatDateBR(os.completionDate)
+                                : os.forecastDate
+                                ? `Prev. ${formatDateBR(os.forecastDate)}`
+                                : 'Definir entrega'}
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="font-mono text-slate-700 tabular-nums">
+                            {os.completionDate ? formatDateBR(os.completionDate) : `Prev. ${formatDateBR(os.forecastDate)}`}
+                          </span>
+                        )}
+                      </td>
                       <td className="font-semibold text-slate-900">{os.clientName}</td>
                       <td className="text-right font-mono font-bold text-emerald-700 tabular-nums">
                         {currentRole === 'tecnico' ? formatBRL(techEarnings) : formatBRL(grandTotal)}
@@ -1729,16 +1855,17 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
             isOpen={true}
             onClose={() => setModalOSInfo(null)}
             title={`Ordem de Serviço ${os.code}`}
-            subtitle={`Abertura: ${formatDateBR(os.openDate)}${os.forecastDate ? ` · Previsão: ${formatDateBR(os.forecastDate)}` : ''}`}
+            subtitle={`Abertura: ${formatDateBR(os.openDate)}${os.forecastDate ? ` · Previsão: ${formatDateBR(os.forecastDate)}` : ''}${os.completionDate ? ` · Entrega: ${formatDateBR(os.completionDate)}` : ''}`}
             statusText={statusMeta.label}
             statusClassName={statusMeta.className}
             sections={[
               {
-                heading: 'Cliente & Local de Atendimento',
+                heading: 'Cliente & Prazos',
                 fields: [
                   { label: 'Cliente / Responsável', value: os.clientName },
                   { label: 'Telefone', value: os.clientPhone || 'Não informado' },
                   { label: 'CPF / CNPJ', value: os.clientDocument || 'Não informado' },
+                  { label: 'Data de Entrega dos Serviços', value: os.completionDate ? formatDateBR(os.completionDate) : 'Ainda não entregue' },
                   { label: 'Endereço Completo', value: os.clientAddress || 'Não informado', fullWidth: true }
                 ]
               },
@@ -1772,6 +1899,104 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
             ]}
             customContent={
               <div className="space-y-4">
+                {currentRole !== 'cliente' && (
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                        Alterar Status & Data de Entrega dos Serviços
+                      </h4>
+                      {detailSavedMsg && (
+                        <span className="text-[11px] font-semibold text-emerald-700">
+                          {detailSavedMsg}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                      <div className="sm:col-span-4">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Status da OS
+                        </label>
+                        <select
+                          value={detailStatus}
+                          onChange={(e) => {
+                            const next = e.target.value as ServiceOrderStatus;
+                            setDetailStatus(next);
+                            if ((next === 'concluida_aguardando_retirada' || next === 'entregue_finalizada') && !detailCompletionDate) {
+                              setDetailCompletionDate(getTodayIso());
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
+                        >
+                          <option value="orcamento_aberto">Orçamento Aberto</option>
+                          <option value="aguardando_aprovacao">Aguardando Aprovação</option>
+                          <option value="aprovada_em_andamento">Aprovada / Em Andamento</option>
+                          <option value="aguardando_pecas">Aguardando Peças</option>
+                          <option value="concluida_aguardando_retirada">Concluída (Aguard. Retirada)</option>
+                          <option value="entregue_finalizada">Entregue / Finalizada</option>
+                          <option value="cancelada">Cancelada</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Previsão
+                        </label>
+                        <input
+                          type="date"
+                          value={detailForecastDate}
+                          onChange={(e) => setDetailForecastDate(e.target.value)}
+                          className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Data de Entrega
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="date"
+                            value={detailCompletionDate}
+                            onChange={(e) => setDetailCompletionDate(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setDetailCompletionDate(getTodayIso())}
+                            className="px-2 py-1.5 text-[10px] font-bold bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer shrink-0"
+                            title="Preencher com a data de hoje"
+                          >
+                            Hoje
+                          </button>
+                        </div>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextCompletion = detailCompletionDate.trim() || undefined;
+                            const nextForecast = detailForecastDate.trim() || os.forecastDate;
+                            updateServiceOrder(os.id, {
+                              status: detailStatus,
+                              forecastDate: nextForecast,
+                              completionDate: nextCompletion
+                            });
+                            setModalOSInfo({
+                              ...os,
+                              status: detailStatus,
+                              forecastDate: nextForecast,
+                              completionDate: nextCompletion
+                            });
+                            setDetailSavedMsg('Status e entrega salvos!');
+                            setTimeout(() => setDetailSavedMsg(null), 3000);
+                          }}
+                          className="w-full px-3 py-1.5 bg-[#53383e] hover:bg-[#432c32] text-white rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap"
+                        >
+                          Salvar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
                     Serviços ({os.services.length})
@@ -2205,6 +2430,80 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                     </div>
                   );
                 })()}
+              </div>
+
+              {/* Bloco Status da OS & Data de Entrega dos Serviços */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#53383e]" />
+                  <span>Status da Ordem de Serviço & Prazos / Entrega dos Serviços</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Status da O.S. *</label>
+                    <select
+                      value={status}
+                      onChange={(e) => {
+                        const nextSt = e.target.value as ServiceOrderStatus;
+                        setStatus(nextSt);
+                        if ((nextSt === 'concluida_aguardando_retirada' || nextSt === 'entregue_finalizada') && !completionDate) {
+                          setCompletionDate(getTodayIso());
+                        }
+                      }}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 text-xs"
+                    >
+                      <option value="orcamento_aberto">Orçamento Aberto</option>
+                      <option value="aguardando_aprovacao">Aguardando Aprovação</option>
+                      <option value="aprovada_em_andamento">Aprovada / Em Andamento</option>
+                      <option value="aguardando_pecas">Aguardando Peças</option>
+                      <option value="concluida_aguardando_retirada">Concluída (Aguardando Retirada)</option>
+                      <option value="entregue_finalizada">Entregue / Finalizada</option>
+                      <option value="cancelada">Cancelada</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Previsão de Entrega</label>
+                    <input
+                      type="date"
+                      value={forecastDate}
+                      onChange={(e) => setForecastDate(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono text-xs text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">
+                      Data de Entrega dos Serviços
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="date"
+                        value={completionDate}
+                        onChange={(e) => setCompletionDate(e.target.value)}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono text-xs text-slate-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCompletionDate(getTodayIso())}
+                        className="px-2.5 py-2 text-[11px] font-bold bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-slate-700 cursor-pointer shrink-0"
+                        title="Definir entrega para hoje"
+                      >
+                        Hoje
+                      </button>
+                      {completionDate && (
+                        <button
+                          type="button"
+                          onClick={() => setCompletionDate('')}
+                          className="px-2 py-2 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-500 cursor-pointer shrink-0"
+                          title="Limpar data de entrega"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* 2. Equipamento & Termo de Garantia */}
@@ -3664,6 +3963,119 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                 >
                   {editingOSId ? 'Salvar Alterações da OS' : 'Gerar Ordem de Serviço'}
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Rápida: Alterar Status e Data de Entrega dos Serviços */}
+      {statusModalOS && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setStatusModalOS(null);
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Alterar Status & Entrega · OS {statusModalOS.code}
+                </h3>
+                <p className="text-[11px] text-slate-500">{statusModalOS.clientName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStatusModalOS(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuickStatus} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Status da Ordem de Serviço *</label>
+                <select
+                  value={quickStatus}
+                  onChange={(e) => {
+                    const next = e.target.value as ServiceOrderStatus;
+                    setQuickStatus(next);
+                    if ((next === 'concluida_aguardando_retirada' || next === 'entregue_finalizada') && !quickCompletionDate) {
+                      setQuickCompletionDate(getTodayIso());
+                    }
+                  }}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold text-slate-900"
+                >
+                  <option value="orcamento_aberto">Orçamento Aberto</option>
+                  <option value="aguardando_aprovacao">Aguardando Aprovação</option>
+                  <option value="aprovada_em_andamento">Aprovada / Em Andamento</option>
+                  <option value="aguardando_pecas">Aguardando Peças</option>
+                  <option value="concluida_aguardando_retirada">Concluída (Aguardando Retirada)</option>
+                  <option value="entregue_finalizada">Entregue / Finalizada</option>
+                  <option value="cancelada">Cancelada</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Previsão de Entrega</label>
+                  <input
+                    type="date"
+                    value={quickForecastDate}
+                    onChange={(e) => setQuickForecastDate(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Data de Entrega dos Serviços</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={quickCompletionDate}
+                      onChange={(e) => setQuickCompletionDate(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setQuickCompletionDate(getTodayIso())}
+                      className="px-2.5 py-2 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-slate-700 cursor-pointer shrink-0"
+                    >
+                      Hoje
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200 gap-2">
+                {quickCompletionDate ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuickCompletionDate('')}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-rose-600 cursor-pointer"
+                  >
+                    Limpar data de entrega
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-slate-400">Opcional enquanto em aberto</span>
+                )}
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setStatusModalOS(null)}
+                    className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
+                  >
+                    Salvar Status e Entrega
+                  </button>
+                </div>
               </div>
             </form>
           </div>

@@ -1,6 +1,19 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.6`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.7`).
+
+---
+
+## [v2.7.7] — 14/11/2026
+**Alteração de Status e Data de Entrega dos Serviços na Tela de Ordens de Serviço**
+
+### Adicionado
+- **Alteração Direta na Listagem (`ServiceOrdersView`)**: seletor de Status na própria linha única da OS, coluna clicável **Entrega Serviços** e abas de filtro para todos os status (incluindo Aprovação, Aguardando Peças e Canceladas).
+- **Modal Rápida "Alterar Status & Entrega"**: aberta ao clicar na data de entrega da linha ou ao mudar o status para **Concluída / Finalizada**, permitindo definir a **Data de Entrega dos Serviços** (com botão rápido **Hoje**) e a **Previsão de Entrega**.
+- **Edição na Modal Completa (`+`) e na Modal de Abertura/Edição**: blocos dedicados para alterar o **Status da O.S.**, a **Previsão de Entrega** e a **Data de Entrega dos Serviços**.
+
+### Alterado
+- **Impressão A4 & HTML (`ServiceOrderPrintTemplate` / exportação HTML)**: exibição da **Data de Entrega dos Serviços** no quadro *Prazos e Responsável*.
 
 ---
 

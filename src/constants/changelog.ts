@@ -16,6 +16,36 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.7',
+    date: '14/11/2026',
+    title: 'Alteração de Status e Data de Entrega dos Serviços na Tela de Ordens de Serviço',
+    summary:
+      'Adicionados controles completos na tela de Ordens de Serviço para alterar o status diretamente na listagem, na modal de detalhes (+), em modal rápida dedicada e no cadastro/edição da OS, com registro específico da Data de Entrega dos Serviços e Previsão de Entrega.',
+    highlights: [
+      'Seletor rápido de Status e botão da coluna Entrega Serviços diretamente na listagem em linha única de OS',
+      'Modal rápida "Alterar Status & Entrega" ao concluir/finalizar ou clicar na data de entrega',
+      'Painel inline de edição de Status, Previsão e Data de Entrega dentro da modal (+) de detalhes da OS',
+      'Campos dedicados de Status, Previsão e Data de Entrega dos Serviços na modal de Nova/Editar OS e na ficha A4 impressa'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Adicionado seletor de alteração rápida de Status na tabela de Ordens de Serviço (ServiceOrdersView), coluna clicável "Entrega Serviços", filtros completos para todos os status (incluindo Aprovação, Aguardando Peças e Canceladas) e modal rápida "Alterar Status & Entrega" com botão "Hoje".'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Incluído editor de Status da OS, Previsão de Entrega e Data de Entrega dos Serviços na modal completa (+) da Ordem de Serviço e na modal de abertura/edição de OS.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Atualizados o modelo de impressão A4 (ServiceOrderPrintTemplate) e a exportação HTML de OS para exibirem a Data de Entrega dos Serviços no bloco Prazos e Responsável.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.6',
     date: '14/11/2026',
     title: 'Listas Abreviadas em Linha Única com Botão (+) para Modal Completa de Dados',

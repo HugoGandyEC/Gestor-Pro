@@ -164,7 +164,7 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
             PRAZOS E RESPONSÁVEL
           </div>
           <div className="p-2.5 space-y-1 text-[11px]">
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2">
               <div>
                 <span className="font-bold text-slate-700">ENTRADA: </span>
                 <span className="text-slate-900">{formatDateBR(os.openDate)}</span>
@@ -174,11 +174,19 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
                 <span className="text-slate-900">{formatDateBR(os.forecastDate)}</span>
               </div>
             </div>
-            <div>
-              <span className="font-bold text-slate-700">GARANTIA: </span>
-              <span className="text-slate-900 font-medium">
-                {os.warrantyPeriodDays} Dias {os.warrantyExpiresAt ? `(até ${formatDateBR(os.warrantyExpiresAt)})` : ''}
-              </span>
+            <div className="flex justify-between gap-2">
+              <div>
+                <span className="font-bold text-slate-700">ENTREGA SERVIÇOS: </span>
+                <span className="font-semibold text-slate-900">
+                  {os.completionDate ? formatDateBR(os.completionDate) : 'Em andamento'}
+                </span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-700">GARANTIA: </span>
+                <span className="text-slate-900 font-medium">
+                  {os.warrantyPeriodDays} Dias {os.warrantyExpiresAt ? `(até ${formatDateBR(os.warrantyExpiresAt)})` : ''}
+                </span>
+              </div>
             </div>
             <div>
               <span className="font-bold text-slate-700">TÉCNICO: </span>
