@@ -174,7 +174,7 @@ interface AppContextType {
   importCsvClients: (csvContent: string) => { success: boolean; message: string; count?: number };
 
   // CRUD Operations
-  addClient: (c: Omit<Client, 'id' | 'createdAt'>) => void;
+  addClient: (c: Omit<Client, 'id' | 'createdAt'>) => Client;
   updateClient: (id: string, updates: Partial<Client>) => void;
   deleteClient: (id: string) => void;
 
@@ -1655,7 +1655,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   };
 
   // Client CRUD
-  const addClient = (c: Omit<Client, 'id' | 'createdAt'>) => {
+  const addClient = (c: Omit<Client, 'id' | 'createdAt'>): Client => {
     const newClient: Client = {
       ...c,
       customerType: c.customerType || 'varejo',
@@ -1665,6 +1665,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setClients(prev => [newClient, ...prev]);
     syncClientToCloud(newClient);
     addAuditLog('Novo Cliente', `Cliente ${c.name} (${newClient.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}) cadastrado no sistema.`);
+    return newClient;
   };
 
   const updateClient = (id: string, updates: Partial<Client>) => {

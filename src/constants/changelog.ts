@@ -16,6 +16,30 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.1',
+    date: '14/11/2026',
+    title: 'Atalho de Cadastro Rápido de Cliente (Modal) no PDV',
+    summary:
+      'Adicionado atalho direto no PDV (cabeçalho e Balcão PDV Rápido) para abrir janela modal de cadastro rápido de cliente, com definição de Varejista/Atacadista, consulta de CNPJ/CEP e seleção automática na venda.',
+    highlights: [
+      'Botão "Novo Cliente" no cabeçalho do PDV e botão "Cadastrar" ao lado da busca no Balcão PDV',
+      'Cadastro rápido com escolha PF/PJ, perfil Varejista/Atacadista e busca automática de CNPJ e CEP',
+      'Seleção automática do cliente recém-cadastrado e liberação imediata de atacado se Atacadista'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Atalho e janela modal "Cadastro Rápido de Cliente (PDV)" acessíveis pelo cabeçalho do PDV, pelo botão "Cadastrar" no carrinho e quando a busca não encontrar um cliente.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'addClient no AppContext agora retorna o cliente recém-criado para selecioná-lo automaticamente no Balcão PDV Rápido logo após salvar.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.0',
     date: '14/11/2026',
     title: 'Liberação de Preços de Atacado Exclusiva para Clientes Atacadistas',

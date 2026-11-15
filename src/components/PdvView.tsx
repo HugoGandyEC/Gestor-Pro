@@ -25,7 +25,10 @@ import {
   Copy,
   History,
   Split,
-  Calculator
+  Calculator,
+  UserPlus,
+  Building2,
+  User
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import {
@@ -96,6 +99,9 @@ export const PdvView: React.FC = () => {
     closeCashSession,
     addCashManualMovement,
     addDirectSale,
+    addClient,
+    lookupCep,
+    lookupCnpj,
     settleSaleInPdv,
     settleServiceOrderInPdv
   } = useApp();
@@ -142,7 +148,163 @@ export const PdvView: React.FC = () => {
   const [posDiscountValue, setPosDiscountValue] = useState(0);
   const [posCart, setPosCart] = useState<{ product: Product; quantity: number; unitPrice: number }[]>([]);
   const [posFeedback, setPosFeedback] = useState<string | null>(null);
+  const [posClientSuccess, setPosClientSuccess] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Quick Client Registration Modal State (Atalho no PDV)
+  const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  const [ncPersonType, setNcPersonType] = useState<'PJ' | 'PF'>('PF');
+  const [ncCustomerType, setNcCustomerType] = useState<'varejo' | 'atacado'>('varejo');
+  const [ncName, setNcName] = useState('');
+  const [ncTradeName, setNcTradeName] = useState('');
+  const [ncDocument, setNcDocument] = useState('');
+  const [ncPhone, setNcPhone] = useState('');
+  const [ncEmail, setNcEmail] = useState('');
+  const [ncCep, setNcCep] = useState('');
+  const [ncStreet, setNcStreet] = useState('');
+  const [ncNumber, setNcNumber] = useState('');
+  const [ncNeighborhood, setNcNeighborhood] = useState('');
+  const [ncCity, setNcCity] = useState('');
+  const [ncState, setNcState] = useState('SP');
+  const [ncNotes, setNcNotes] = useState('');
+  const [ncLookupLoading, setNcLookupLoading] = useState(false);
+  const [ncMessage, setNcMessage] = useState<string | null>(null);
+
+  const handleOpenQuickClientModal = (prefillTerm?: string) => {
+    const clean = (prefillTerm || '').trim();
+    const digitsOnly = clean.replace(/\D/g, '');
+    const looksLikeDoc = digitsOnly.length >= 8 && /^[0-9.\-/]+$/.test(clean);
+
+    setNcPersonType(digitsOnly.length === 14 ? 'PJ' : 'PF');
+    setNcCustomerType('varejo');
+    setNcName(!looksLikeDoc ? clean : '');
+    setNcTradeName('');
+    setNcDocument(looksLikeDoc ? clean : '');
+    setNcPhone('');
+    setNcEmail('');
+    setNcCep('');
+    setNcStreet('');
+    setNcNumber('');
+    setNcNeighborhood('');
+    setNcCity('');
+    setNcState('SP');
+    setNcNotes('');
+    setNcMessage(null);
+    setIsNewClientModalOpen(true);
+  };
+
+  const handleQuickCnpjLookup = async () => {
+    const digits = ncDocument.replace(/\D/g, '');
+    if (digits.length !== 14) {
+      setNcMessage('Informe um CNPJ válido com 14 dígitos para consultar.');
+      return;
+    }
+    setNcLookupLoading(true);
+    setNcMessage(null);
+    try {
+      const data = await lookupCnpj(ncDocument);
+      if (data) {
+        setNcPersonType('PJ');
+        if (data.name) setNcName(data.name);
+        if (data.tradeName) setNcTradeName(data.tradeName);
+        if (data.phone) setNcPhone(data.phone);
+        if (data.email) setNcEmail(data.email);
+        if (data.cep) setNcCep(data.cep);
+        if (data.street) setNcStreet(data.street);
+        if (data.number) setNcNumber(data.number);
+        if ((data as any).neighborhood) setNcNeighborhood((data as any).neighborhood);
+        if (data.city) setNcCity(data.city);
+        if (data.state) setNcState(data.state);
+        setNcMessage('Dados preenchidos pela consulta de CNPJ.');
+      } else {
+        setNcMessage('CNPJ não localizado na consulta automática.');
+      }
+    } catch {
+      setNcMessage('Não foi possível consultar o CNPJ no momento.');
+    } finally {
+      setNcLookupLoading(false);
+    }
+  };
+
+  const handleQuickCepLookup = async () => {
+    const digits = ncCep.replace(/\D/g, '');
+    if (digits.length !== 8) {
+      setNcMessage('Informe um CEP com 8 dígitos.');
+      return;
+    }
+    setNcLookupLoading(true);
+    setNcMessage(null);
+    try {
+      const data = await lookupCep(ncCep);
+      if (data) {
+        if (data.street) setNcStreet(data.street);
+        if (data.neighborhood) setNcNeighborhood(data.neighborhood);
+        if (data.city) setNcCity(data.city);
+        if (data.state) setNcState(data.state);
+        setNcMessage('Endereço preenchido via CEP.');
+      } else {
+        setNcMessage('CEP não localizado.');
+      }
+    } catch {
+      setNcMessage('Erro ao consultar CEP.');
+    } finally {
+      setNcLookupLoading(false);
+    }
+  };
+
+  const handleSaveQuickClient = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ncName.trim()) {
+      setNcMessage('Informe o nome ou razão social do cliente.');
+      return;
+    }
+
+    const cityVal = ncCity.trim() || 'São Paulo';
+    const stateVal = ncState.trim().toUpperCase() || 'SP';
+    const streetVal = ncStreet.trim() || 'Balcão / Não informado';
+    const numberVal = ncNumber.trim() || 'S/N';
+    const neighborhoodVal = ncNeighborhood.trim() || 'Centro';
+    const cepVal = ncCep.trim() || '01001-000';
+
+    const createdClient = addClient({
+      personType: ncPersonType,
+      customerType: ncCustomerType,
+      name: ncName.trim(),
+      tradeName: ncTradeName.trim() || undefined,
+      document: ncDocument.trim(),
+      email: ncEmail.trim() || 'cliente@contato.com.br',
+      phone: ncPhone.trim() || '(11) 90000-0000',
+      cep: cepVal,
+      street: streetVal,
+      number: numberVal,
+      neighborhood: neighborhoodVal,
+      city: cityVal,
+      state: stateVal,
+      addresses: [
+        {
+          id: `addr-${Date.now()}`,
+          title: ncPersonType === 'PJ' ? 'Sede Principal' : 'Residência Principal',
+          isDefault: true,
+          cep: cepVal,
+          street: streetVal,
+          number: numberVal,
+          neighborhood: neighborhoodVal,
+          city: cityVal,
+          state: stateVal
+        }
+      ],
+      notes: ncNotes.trim() || undefined
+    });
+
+    setPosClientId(createdClient.id);
+    setPosClientSearch('');
+    handlePosPriceTypeChange(createdClient.customerType === 'atacado' ? 'atacado' : 'varejo', true);
+    setPosClientSuccess(
+      `Cliente "${createdClient.name}" (${createdClient.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}) cadastrado e selecionado no PDV!`
+    );
+    setIsNewClientModalOpen(false);
+    setSubTab('balcao');
+  };
 
   const selectedPosClient = useMemo(
     () => clients.find(c => c.id === posClientId) || null,
@@ -634,6 +796,16 @@ export const PdvView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => handleOpenQuickClientModal()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#363739] bg-white hover:bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg shadow-2xs cursor-pointer"
+            title="Atalho para cadastrar novo cliente sem sair do PDV"
+          >
+            <UserPlus className="w-4 h-4 text-[#53383e]" />
+            <span>Novo Cliente</span>
+          </button>
+
           {!activeCashSession ? (
             <button
               type="button"
@@ -1037,22 +1209,46 @@ export const PdvView: React.FC = () => {
                 </div>
               )}
 
+              {posClientSuccess && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 flex items-center justify-between gap-2">
+                  <span>{posClientSuccess}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPosClientSuccess(null)}
+                    className="text-emerald-700 hover:text-emerald-950 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               {/* Busca de Cliente + Vendedor */}
               <div className="space-y-2 text-xs">
                 <div>
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between gap-2 mb-1">
                     <label className="block text-[11px] text-[#707174] font-medium">
                       Buscar e Selecionar Cliente
                     </label>
-                    {selectedPosClient && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        isPosWholesaleUnlocked
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {isPosWholesaleUnlocked ? 'Atacadista (Atacado Liberado)' : 'Varejista (Somente Varejo)'}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {selectedPosClient && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          isPosWholesaleUnlocked
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {isPosWholesaleUnlocked ? 'Atacadista (Atacado Liberado)' : 'Varejista (Somente Varejo)'}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenQuickClientModal(posClientSearch)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#53383e] hover:bg-[#432c32] text-white text-[10px] font-bold cursor-pointer transition-colors"
+                        title="Cadastrar novo cliente rapidamente"
+                      >
+                        <UserPlus className="w-3 h-3" />
+                        <span>Cadastrar</span>
+                      </button>
+                    </div>
                   </div>
                   <div className="relative mb-1.5">
                     <Search className="w-3.5 h-3.5 text-[#707174] absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -1077,8 +1273,16 @@ export const PdvView: React.FC = () => {
                   {posClientSearch.trim() && (
                     <div className="mb-1.5 max-h-32 overflow-y-auto rounded-lg border border-[#d8d8d8] bg-white divide-y divide-[#ececef]">
                       {filteredPosClients.length === 0 ? (
-                        <div className="p-2 text-[11px] text-[#707174] text-center">
-                          Nenhum cliente encontrado para "{posClientSearch}".
+                        <div className="p-2.5 text-[11px] text-[#707174] text-center space-y-1.5">
+                          <div>Nenhum cliente encontrado para "{posClientSearch}".</div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenQuickClientModal(posClientSearch)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#53383e] hover:bg-[#432c32] text-white font-bold text-[11px] cursor-pointer"
+                          >
+                            <UserPlus className="w-3 h-3" />
+                            <span>Cadastrar "{posClientSearch.trim()}" agora</span>
+                          </button>
                         </div>
                       ) : (
                         filteredPosClients.slice(0, 8).map(c => (
@@ -2038,6 +2242,288 @@ export const PdvView: React.FC = () => {
                 Concluir
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CADASTRO RÁPIDO DE CLIENTE NO PDV */}
+      {isNewClientModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto border border-[#d8d8d8] flex flex-col">
+            <div className="sticky top-0 bg-white px-5 py-4 border-b border-[#d8d8d8] flex items-center justify-between z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#53383e]/10 text-[#53383e] flex items-center justify-center">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#363739] text-base">
+                    Cadastro Rápido de Cliente (PDV)
+                  </h3>
+                  <p className="text-[11px] text-[#707174]">
+                    Cadastre e selecione o cliente direto no caixa, definindo Varejo ou Atacado.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewClientModalOpen(false)}
+                className="text-[#707174] hover:text-[#363739] p-1 rounded-lg hover:bg-[#f4f5f6] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuickClient} className="p-5 space-y-4 text-xs">
+              {ncMessage && (
+                <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 font-medium">
+                  {ncMessage}
+                </div>
+              )}
+
+              {/* Tipo de Pessoa + Tipo Comercial */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <span className="block text-[11px] font-bold text-[#363739] uppercase tracking-wider">
+                    Tipo de Pessoa
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5 bg-[#f4f5f6] p-1 rounded-lg border border-[#d8d8d8]">
+                    <button
+                      type="button"
+                      onClick={() => setNcPersonType('PF')}
+                      className={`inline-flex items-center justify-center gap-1 py-1.5 rounded-md font-bold cursor-pointer ${
+                        ncPersonType === 'PF' ? 'bg-[#363739] text-white shadow-2xs' : 'text-[#5a5b5e]'
+                      }`}
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      <span>PF (CPF)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNcPersonType('PJ')}
+                      className={`inline-flex items-center justify-center gap-1 py-1.5 rounded-md font-bold cursor-pointer ${
+                        ncPersonType === 'PJ' ? 'bg-[#53383e] text-white shadow-2xs' : 'text-[#5a5b5e]'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>PJ (CNPJ)</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="block text-[11px] font-bold text-[#363739] uppercase tracking-wider">
+                    Tabela de Preço *
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5 bg-[#f4f5f6] p-1 rounded-lg border border-[#d8d8d8]">
+                    <button
+                      type="button"
+                      onClick={() => setNcCustomerType('varejo')}
+                      className={`py-1.5 rounded-md font-bold cursor-pointer ${
+                        ncCustomerType === 'varejo' ? 'bg-slate-800 text-white shadow-2xs' : 'text-[#5a5b5e]'
+                      }`}
+                    >
+                      Varejista
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNcCustomerType('atacado')}
+                      className={`py-1.5 rounded-md font-bold cursor-pointer ${
+                        ncCustomerType === 'atacado' ? 'bg-purple-700 text-white shadow-2xs' : 'text-purple-800'
+                      }`}
+                    >
+                      Atacadista
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Documento (CPF/CNPJ) + Consulta */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                <div className={ncPersonType === 'PJ' ? 'sm:col-span-2' : 'sm:col-span-3'}>
+                  <label className="block font-semibold text-[#363739] mb-1">
+                    {ncPersonType === 'PJ' ? 'CNPJ (Opcional)' : 'CPF (Opcional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={ncDocument}
+                    onChange={(e) => setNcDocument(e.target.value)}
+                    placeholder={ncPersonType === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
+                    className="w-full p-2 bg-white border border-[#d8d8d8] rounded-lg font-mono text-[#363739]"
+                  />
+                </div>
+                {ncPersonType === 'PJ' && (
+                  <button
+                    type="button"
+                    disabled={ncLookupLoading}
+                    onClick={handleQuickCnpjLookup}
+                    className="px-3 py-2 bg-[#363739] hover:bg-[#252627] text-white rounded-lg font-semibold cursor-pointer h-[34px]"
+                  >
+                    {ncLookupLoading ? 'Buscando...' : 'Buscar CNPJ'}
+                  </button>
+                )}
+              </div>
+
+              {/* Nome / Razão Social + Nome Fantasia */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={ncPersonType === 'PF' ? 'sm:col-span-2' : ''}>
+                  <label className="block font-semibold text-[#363739] mb-1">
+                    {ncPersonType === 'PJ' ? 'Razão Social *' : 'Nome Completo *'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={ncName}
+                    onChange={(e) => setNcName(e.target.value)}
+                    placeholder={ncPersonType === 'PJ' ? 'Ex: Hidráulica Central Ltda' : 'Ex: João Carlos da Silva'}
+                    className="w-full p-2 bg-white border border-[#d8d8d8] rounded-lg text-[#363739]"
+                  />
+                </div>
+                {ncPersonType === 'PJ' && (
+                  <div>
+                    <label className="block font-semibold text-[#363739] mb-1">Nome Fantasia</label>
+                    <input
+                      type="text"
+                      value={ncTradeName}
+                      onChange={(e) => setNcTradeName(e.target.value)}
+                      placeholder="Ex: Central Aquecedores"
+                      className="w-full p-2 bg-white border border-[#d8d8d8] rounded-lg text-[#363739]"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Telefone + E-mail */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-[#363739] mb-1">Telefone / WhatsApp *</label>
+                  <input
+                    type="text"
+                    required
+                    value={ncPhone}
+                    onChange={(e) => setNcPhone(e.target.value)}
+                    placeholder="(11) 99999-9999"
+                    className="w-full p-2 bg-white border border-[#d8d8d8] rounded-lg text-[#363739]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-[#363739] mb-1">E-mail (Opcional)</label>
+                  <input
+                    type="email"
+                    value={ncEmail}
+                    onChange={(e) => setNcEmail(e.target.value)}
+                    placeholder="cliente@email.com"
+                    className="w-full p-2 bg-white border border-[#d8d8d8] rounded-lg text-[#363739]"
+                  />
+                </div>
+              </div>
+
+              {/* Endereço Resumido */}
+              <div className="p-3 bg-[#f4f5f6] rounded-xl border border-[#d8d8d8] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#363739] text-[11px] uppercase tracking-wider">
+                    Endereço (Opcional no Balcão)
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 items-end">
+                  <div className="col-span-2">
+                    <label className="block text-[11px] text-[#5a5b5e] mb-1">CEP</label>
+                    <input
+                      type="text"
+                      value={ncCep}
+                      onChange={(e) => setNcCep(e.target.value)}
+                      placeholder="00000-000"
+                      className="w-full p-1.5 bg-white border border-[#d8d8d8] rounded-lg font-mono"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={ncLookupLoading}
+                    onClick={handleQuickCepLookup}
+                    className="px-2.5 py-1.5 bg-white hover:bg-[#e5e6e8] text-[#363739] border border-[#d8d8d8] rounded-lg font-semibold cursor-pointer h-[30px]"
+                  >
+                    Buscar CEP
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={ncStreet}
+                      onChange={(e) => setNcStreet(e.target.value)}
+                      placeholder="Rua / Avenida"
+                      className="w-full p-1.5 bg-white border border-[#d8d8d8] rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={ncNumber}
+                      onChange={(e) => setNcNumber(e.target.value)}
+                      placeholder="Nº"
+                      className="w-full p-1.5 bg-white border border-[#d8d8d8] rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={ncNeighborhood}
+                      onChange={(e) => setNcNeighborhood(e.target.value)}
+                      placeholder="Bairro"
+                      className="w-full p-1.5 bg-white border border-[#d8d8d8] rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={ncCity}
+                      onChange={(e) => setNcCity(e.target.value)}
+                      placeholder="Cidade"
+                      className="w-full p-1.5 bg-white border border-[#d8d8d8] rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      maxLength={2}
+                      value={ncState}
+                      onChange={(e) => setNcState(e.target.value.toUpperCase())}
+                      placeholder="UF"
+                      className="w-full p-1.5 bg-white border border-[#d8d8d8] rounded-lg uppercase text-center"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#363739] mb-1">Observações (Opcional)</label>
+                <input
+                  type="text"
+                  value={ncNotes}
+                  onChange={(e) => setNcNotes(e.target.value)}
+                  placeholder="Ex: Cliente atacadista recorrente / referência de entrega..."
+                  className="w-full p-2 bg-white border border-[#d8d8d8] rounded-lg text-[#363739]"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-[#d8d8d8] flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsNewClientModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-[#5a5b5e] bg-[#f4f5f6] hover:bg-[#e5e6e8] rounded-lg cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Salvar e Selecionar no PDV</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

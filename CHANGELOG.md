@@ -1,6 +1,18 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.0`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.1`).
+
+---
+
+## [v2.7.1] — 14/11/2026
+**Atalho de Cadastro Rápido de Cliente (Modal) no PDV**
+
+### Adicionado
+- Botão de atalho **Novo Cliente** no cabeçalho do **PDV** (`PdvView`), botão **Cadastrar** no painel de busca de cliente do **Balcão PDV Rápido** e atalho direto quando a pesquisa não localizar um cliente.
+- Janela modal **Cadastro Rápido de Cliente (PDV)** com escolha **PF / PJ**, perfil comercial **Varejista / Atacadista**, consulta automática de **CNPJ** e **CEP**, endereço opcional e observações.
+
+### Alterado
+- Ao salvar o novo cliente pela modal do PDV, o registro é sincronizado na nuvem, selecionado automaticamente no Balcão PDV Rápido e já aplica a tabela **Atacado** caso marcado como **Atacadista**.
 
 ---
 
