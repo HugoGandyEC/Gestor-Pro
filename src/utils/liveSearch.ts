@@ -80,7 +80,10 @@ export function setupLiveSearch({
     input.setAttribute('aria-expanded', 'true');
     modal.innerHTML = `
       <div class="search-modal-status" role="status" aria-live="polite">
-        <span>Buscando...</span>
+        <div style="display:inline-flex;align-items:center;gap:0.5rem;">
+          <span class="search-spinner" aria-hidden="true"></span>
+          <span>Buscando...</span>
+        </div>
       </div>
     `;
   };
@@ -191,7 +194,8 @@ export function setupLiveSearch({
           signal: abortController.signal
         });
         if (!response.ok) throw new Error('Falha ao buscar resultados');
-        data = await response.json();
+        const payload = await response.json();
+        data = Array.isArray(payload) ? payload : payload?.items || payload?.data || [];
       }
       renderResults(Array.isArray(data) ? data : [], query);
     } catch (err) {

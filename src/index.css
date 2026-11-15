@@ -288,6 +288,23 @@
   gap: 0.5rem;
 }
 
+.search-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #15803d;
+  border-radius: 9999px;
+  animation: searchSpin 0.7s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+@keyframes searchSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .search-item {
   width: 100%;
   min-height: 48px;
@@ -360,7 +377,7 @@
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   font-size: 0.8125rem;
-  color: #53383e;
+  color: #15803d;
   white-space: nowrap;
 }
 
