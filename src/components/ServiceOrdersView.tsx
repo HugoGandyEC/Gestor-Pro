@@ -62,6 +62,7 @@ import { getScopedServiceOrders } from '../security/secureDataAccess';
 import { WhatsAppModal } from './WhatsAppModal';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
+import { RecordDetailModal } from './RecordDetailModal';
 
 interface ServiceOrdersViewProps {
   isNewModalOpen: boolean;
@@ -99,11 +100,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todas');
   const [selectedOSForDetail, setSelectedOSForDetail] = useState<ServiceOrder | null>(null);
-  const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
-
-  const toggleExpandOrder = (orderId: string) => {
-    setExpandedOrderIds(prev => ({ ...prev, [orderId]: !prev[orderId] }));
-  };
+  const [modalOSInfo, setModalOSInfo] = useState<ServiceOrder | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -1620,555 +1617,80 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         </div>
       </div>
 
-      {/* Orders Listing: Desktop Linha Única Compacta + Mobile Cards Empilhados */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
+      {/* Listagem Abreviada em Linha Única + Sinal de (+) para Modal Completa */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         {filteredOrders.length === 0 ? (
           <div className="py-10 px-4 text-center text-xs text-slate-400">
             Nenhuma Ordem de Serviço encontrada com os filtros selecionados.
           </div>
         ) : (
-          <>
-            {/* DESKTOP VIEW: Tabela em Linha Única Compacta + Card Expansível (+) */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="dense-table text-left text-xs">
-                <thead>
-                  <tr>
-                    <th>ID Curto</th>
-                    <th>Status</th>
-                    <th>Data</th>
-                    <th>Cliente / Responsável</th>
-                    <th className="text-right">
-                      {currentRole === 'tecnico' ? 'Diária / A Receber' : 'Total OS'}
-                    </th>
-                    <th className="text-right">Ações & Detalhes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedOrders.map(os => {
-                    const tech = employees.find(e => e.id === os.employeeId);
-                    const veh = vehicles.find(v => v.id === os.vehicleId);
-                    const srvTotal = os.services.reduce((a, b) => a + Number(b.price || 0), 0);
-                    const prtTotal = os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
-                    const grandTotal = srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
+          <div className="overflow-x-auto">
+            <table className="dense-table text-left text-xs">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Status</th>
+                  <th>Data</th>
+                  <th>Cliente / Responsável</th>
+                  <th className="text-right">
+                    {currentRole === 'tecnico' ? 'A Receber' : 'Total OS'}
+                  </th>
+                  <th className="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedOrders.map(os => {
+                  const tech = employees.find(e => e.id === os.employeeId);
+                  const srvTotal = os.services.reduce((a, b) => a + Number(b.price || 0), 0);
+                  const prtTotal = os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
+                  const grandTotal = srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
 
-                    const techRate = (tech?.commissionRate || 8) / 100;
-                    const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
-                    const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
+                  const techRate = (tech?.commissionRate || 8) / 100;
+                  const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
+                  const statusMeta = getCompactStatusMeta(os.status);
 
-                    const todayIso = new Date().toISOString().split('T')[0];
-                    const isUnderWarranty = Boolean(
-                      os.warrantyExpiresAt &&
-                      os.warrantyExpiresAt >= todayIso &&
-                      Number(os.warrantyPeriodDays) > 0
-                    );
-                    const diffMs = os.warrantyExpiresAt ? new Date(os.warrantyExpiresAt).getTime() - new Date(todayIso).getTime() : 0;
-                    const warrantyDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-
-                    const statusMeta = getCompactStatusMeta(os.status);
-                    const isExpanded = Boolean(expandedOrderIds[os.id]);
-
-                    return (
-                      <React.Fragment key={os.id}>
-                        <tr className={`os-compact-row ${isExpanded ? 'is-expanded' : ''}`}>
-                          {/* 1. ID Curto */}
-                          <td className="font-mono font-bold text-[#53383e] whitespace-nowrap">
-                            {os.code}
-                          </td>
-
-                          {/* 2. Status compacto */}
-                          <td className={`whitespace-nowrap font-semibold ${statusMeta.className}`}>
-                            {statusMeta.label}
-                          </td>
-
-                          {/* 3. Data abreviada */}
-                          <td className="font-mono text-slate-600 whitespace-nowrap tabular-nums">
-                            {formatDateBR(os.openDate)}
-                          </td>
-
-                          {/* 4. Nome Completo do Cliente (sem cortes / truncate) */}
-                          <td className="text-slate-900 font-semibold whitespace-normal break-words">
-                            {os.clientName}
-                          </td>
-
-                          {/* 5. Valor Total */}
-                          <td className="text-right font-mono font-bold text-emerald-700 whitespace-nowrap tabular-nums">
-                            {currentRole === 'tecnico' ? formatBRL(techEarnings) : formatBRL(grandTotal)}
-                          </td>
-
-                          {/* 6. Ações rápidas + Card Expansível (+) */}
-                          <td className="text-right whitespace-nowrap">
-                            <div className="inline-flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenPDV(os)}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${
-                                  os.paymentStatus === 'pago'
-                                    ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
-                                    : 'bg-[#53383e] hover:bg-[#432c32] text-white'
-                                }`}
-                                title="Cobrar e enviar fatura ao PDV / Frente de Caixa"
-                              >
-                                <CreditCard className="w-3.5 h-3.5" />
-                                <span>{os.paymentStatus === 'pago' ? 'Pago' : 'PDV'}</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => toggleExpandOrder(os.id)}
-                                aria-expanded={isExpanded}
-                                aria-controls={`os-drawer-${os.id}`}
-                                className="os-expand-card-btn"
-                                title={isExpanded ? 'Recolher detalhes da O.S.' : 'Expandir detalhes da O.S.'}
-                              >
-                                {isExpanded ? '−' : '+'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-
-                        {/* Gaveta Expansível Inline da Ordem de Serviço */}
-                        {isExpanded && (
-                          <tr id={`os-drawer-${os.id}`}>
-                            <td colSpan={6} className="os-expanded-drawer">
-                              <div className="space-y-4">
-                                {/* Cabeçalho Técnico & Contato */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                                  <div>
-                                    <div className="text-[11px] font-semibold text-slate-500">Cliente & Contato</div>
-                                    <div className="font-bold text-slate-900 mt-0.5">{os.clientName}</div>
-                                    <div className="text-slate-600 mt-0.5">
-                                      {os.clientPhone || 'Sem telefone'}
-                                      {os.clientDocument ? ` · ${os.clientDocument}` : ''}
-                                    </div>
-                                    {os.clientAddress && (
-                                      <div className="text-[11px] text-slate-500 mt-0.5">{os.clientAddress}</div>
-                                    )}
-                                  </div>
-
-                                  <div>
-                                    <div className="text-[11px] font-semibold text-slate-500">Técnico & Deslocamento</div>
-                                    <div className="font-semibold text-slate-900 mt-0.5">{tech?.name || 'Não alocado'}</div>
-                                    <div className="text-slate-600 font-mono text-[11px] mt-0.5">
-                                      {veh ? `${veh.model} (${veh.plate})` : 'Sem veículo'} · {os.kmDriven} km
-                                    </div>
-                                    {os.forecastDate && (
-                                      <div className="text-[11px] text-slate-500 mt-0.5">
-                                        Previsão: {formatDateBR(os.forecastDate)}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div>
-                                    <div className="text-[11px] font-semibold text-slate-500">Equipamento & Garantia</div>
-                                    <div className="font-semibold text-slate-900 mt-0.5">
-                                      {os.equipmentType || 'Atendimento / Inspeção Técnica'}
-                                    </div>
-                                    {(os.equipmentModel || os.equipmentSerial) && (
-                                      <div className="text-[11px] text-slate-600 font-mono mt-0.5">
-                                        {os.equipmentModel ? `${os.equipmentModel} ` : ''}
-                                        {os.equipmentSerial ? `S/N: ${os.equipmentSerial}` : ''}
-                                      </div>
-                                    )}
-                                    {isUnderWarranty && (
-                                      <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
-                                        <ShieldCheck className="w-3.5 h-3.5" />
-                                        <span>
-                                          Garantia ativa · {warrantyDaysRemaining} {warrantyDaysRemaining === 1 ? 'dia' : 'dias'} (até {formatDateBR(os.warrantyExpiresAt!)})
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div>
-                                    <div className="text-[11px] font-semibold text-slate-500">Resumo Financeiro</div>
-                                    {currentRole === 'tecnico' ? (
-                                      <div className="font-mono font-bold text-emerald-700 text-sm mt-0.5">
-                                        {formatBRL(techEarnings)} <span className="text-[11px] font-sans font-normal text-slate-500">(Diária + Comissão)</span>
-                                      </div>
-                                    ) : (
-                                      <div className="space-y-0.5 font-mono text-[11px] mt-0.5 tabular-nums">
-                                        <div className="flex justify-between gap-2 text-slate-600">
-                                          <span>Serviços:</span>
-                                          <span>{formatBRL(srvTotal)}</span>
-                                        </div>
-                                        <div className="flex justify-between gap-2 text-slate-600">
-                                          <span>Peças:</span>
-                                          <span>{formatBRL(prtTotal)}</span>
-                                        </div>
-                                        {Number(os.visitFee || 0) > 0 && (
-                                          <div className="flex justify-between gap-2 text-slate-600">
-                                            <span>Visita:</span>
-                                            <span>{formatBRL(os.visitFee)}</span>
-                                          </div>
-                                        )}
-                                        {os.calculatedDiscount > 0 && (
-                                          <div className="flex justify-between gap-2 text-rose-600">
-                                            <span>Desconto:</span>
-                                            <span>-{formatBRL(os.calculatedDiscount)}</span>
-                                          </div>
-                                        )}
-                                        <div className="flex justify-between gap-2 font-bold text-emerald-700 pt-1 border-t border-slate-200">
-                                          <span>Total:</span>
-                                          <span>{formatBRL(grandTotal)}</span>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Descrição Técnica, Serviços e Peças */}
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-3 border-t border-slate-200 text-xs">
-                                  <div>
-                                    <div className="text-[11px] font-semibold text-slate-500 mb-1">Descrição Técnica / Defeito</div>
-                                    <p className="text-slate-700 leading-relaxed">
-                                      {os.description || 'Nenhuma descrição técnica informada.'}
-                                    </p>
-                                  </div>
-
-                                  <div>
-                                    <div className="text-[11px] font-semibold text-slate-500 mb-1">
-                                      Serviços ({os.services.length})
-                                    </div>
-                                    {os.services.length === 0 ? (
-                                      <p className="text-slate-400">Nenhum serviço listado.</p>
-                                    ) : (
-                                      <ul className="space-y-1 text-[11px] text-slate-700">
-                                        {os.services.map((srv, idx) => (
-                                          <li key={srv.id || idx} className="flex justify-between gap-2">
-                                            <span className="truncate">{srv.name}</span>
-                                            {currentRole !== 'tecnico' && (
-                                              <span className="font-mono font-semibold shrink-0 tabular-nums">{formatBRL(srv.price)}</span>
-                                            )}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    )}
-                                  </div>
-
-                                  <div>
-                                    <div className="text-[11px] font-semibold text-slate-500 mb-1">
-                                      Peças Utilizadas ({os.parts.length})
-                                    </div>
-                                    {os.parts.length === 0 ? (
-                                      <p className="text-slate-400">Nenhuma peça aplicada.</p>
-                                    ) : (
-                                      <ul className="space-y-1 text-[11px] text-slate-700">
-                                        {os.parts.map((prt, idx) => (
-                                          <li key={prt.id || idx} className="flex justify-between gap-2">
-                                            <span className="truncate">{prt.quantity}x {prt.name}</span>
-                                            {currentRole !== 'tecnico' && (
-                                              <span className="font-mono font-semibold shrink-0 tabular-nums">
-                                                {formatBRL(Number(prt.price || 0) * Number(prt.quantity || 1))}
-                                              </span>
-                                            )}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Histórico / Pagamentos Programados */}
-                                {os.payments && os.payments.length > 0 && currentRole !== 'tecnico' && (
-                                  <div className="pt-3 border-t border-slate-200 text-[11px] text-slate-700 flex flex-wrap items-center gap-x-4 gap-y-1">
-                                    <span className="font-semibold text-slate-500">Pagamentos / Parcelas:</span>
-                                    {os.payments.map((p, idx) => (
-                                      <span key={p.id || idx} className="font-mono tabular-nums">
-                                        {p.entryType === 'entrada' ? 'Entrada' : `P${idx + 1}`} ({p.method.replace('_', ' ')}):{' '}
-                                        <strong>{formatBRL(p.amount)}</strong>
-                                        {p.dueDate ? ` · Venc. ${formatDateBR(p.dueDate)}` : ''}
-                                        {p.status === 'pago' ? ' (Pago)' : ' (Pendente)'}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Barra de Ações Completas da O.S. */}
-                                <div className="pt-3 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedOSForDetail(os)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-md cursor-pointer"
-                                    >
-                                      <Eye className="w-3.5 h-3.5" />
-                                      <span>Ficha Completa</span>
-                                    </button>
-
-                                    {currentRole !== 'tecnico' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenEdit(os)}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-[#363739] bg-white hover:bg-slate-100 border border-slate-300 rounded-md cursor-pointer"
-                                      >
-                                        <Edit3 className="w-3.5 h-3.5" />
-                                        <span>Editar</span>
-                                      </button>
-                                    )}
-
-                                    <button
-                                      type="button"
-                                      onClick={() => handlePrintOS(os)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-slate-300 rounded-md cursor-pointer"
-                                    >
-                                      <Printer className="w-3.5 h-3.5" />
-                                      <span>Imprimir</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDownloadOS(os)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-slate-300 rounded-md cursor-pointer"
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                      <span>Baixar</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => handleScheduleOSInCalendar(os)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-purple-700 bg-white hover:bg-purple-50 border border-purple-200 rounded-md cursor-pointer"
-                                    >
-                                      <Calendar className="w-3.5 h-3.5" />
-                                      <span>Agendar</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenWhatsAppForOS(os)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-md cursor-pointer"
-                                    >
-                                      <MessageSquare className="w-3.5 h-3.5" />
-                                      <span>WhatsApp</span>
-                                    </button>
-
-                                    {isBudget && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (confirm(`Deseja aprovar e converter o orçamento ${os.code} em Ordem de Serviço em Execução?`)) {
-                                            convertBudgetToOrderOrSale(os.id, 'os_aprovada');
-                                          }
-                                        }}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-md cursor-pointer"
-                                      >
-                                        <ArrowRightCircle className="w-3.5 h-3.5" />
-                                        <span>Aprovar OS</span>
-                                      </button>
-                                    )}
-
-                                    {!os.signature && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSignOrder(os);
-                                          setSignerName(os.clientName);
-                                        }}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-white hover:bg-amber-50 border border-amber-200 rounded-md cursor-pointer"
-                                      >
-                                        <PenTool className="w-3.5 h-3.5" />
-                                        <span>Assinar</span>
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {currentRole === 'admin' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (confirm(`Excluir a OS ${os.code}?`)) {
-                                          deleteServiceOrder(os.id);
-                                        }
-                                      }}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                      <span>Excluir</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* MOBILE VIEW: Cards Empilhados sem Scroll Horizontal */}
-            <div className="md:hidden p-3 os-mobile-stack">
-              {paginatedOrders.map(os => {
-                const tech = employees.find(e => e.id === os.employeeId);
-                const veh = vehicles.find(v => v.id === os.vehicleId);
-                const srvTotal = os.services.reduce((a, b) => a + Number(b.price || 0), 0);
-                const prtTotal = os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
-                const grandTotal = srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
-                const techRate = (tech?.commissionRate || 8) / 100;
-                const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
-                const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
-                const statusMeta = getCompactStatusMeta(os.status);
-                const isExpanded = Boolean(expandedOrderIds[os.id]);
-
-                return (
-                  <div key={os.id} className={`os-mobile-card ${isExpanded ? 'is-expanded border-[#53383e]/40' : ''}`}>
-                    {/* Topo compacto do card: ID · Data · Status */}
-                    <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <div className="flex items-center gap-1.5 font-mono tabular-nums">
-                        <span className="font-bold text-[#53383e]">{os.code}</span>
-                        <span aria-hidden="true" className="text-slate-300">·</span>
-                        <span className="text-slate-500">{formatDateBR(os.openDate)}</span>
-                      </div>
-                      <span className={`font-semibold ${statusMeta.className}`}>{statusMeta.label}</span>
-                    </div>
-
-                    {/* Nome Completo do Cliente + Botão Card (+) */}
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-bold text-slate-900 leading-snug break-words">
-                          {os.clientName}
-                        </div>
-                        <div className="text-xs font-mono font-bold text-emerald-700 mt-1 tabular-nums">
-                          {currentRole === 'tecnico' ? formatBRL(techEarnings) : formatBRL(grandTotal)}
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleExpandOrder(os.id)}
-                        aria-expanded={isExpanded}
-                        aria-controls={`os-mobile-drawer-${os.id}`}
-                        className="os-expand-card-btn"
-                        title={isExpanded ? 'Recolher detalhes da O.S.' : 'Expandir detalhes da O.S.'}
-                      >
-                        {isExpanded ? '−' : '+'}
-                      </button>
-                    </div>
-
-                    {/* Gaveta Expansível Mobile */}
-                    {isExpanded && (
-                      <div id={`os-mobile-drawer-${os.id}`} className="mt-3 pt-3 border-t border-slate-200 space-y-3 text-xs">
-                        <div>
-                          <div className="text-[11px] font-semibold text-slate-500">Técnico & Aparelho</div>
-                          <div className="font-medium text-slate-800 mt-0.5">
-                            {tech?.name || 'Não alocado'}{veh ? ` · ${veh.plate} (${os.kmDriven} km)` : ''}
-                          </div>
-                          {os.equipmentType && (
-                            <div className="text-slate-600 mt-0.5">{os.equipmentType}</div>
-                          )}
-                        </div>
-
-                        {os.description && (
-                          <div>
-                            <div className="text-[11px] font-semibold text-slate-500">Descrição Técnica</div>
-                            <p className="text-slate-700 mt-0.5">{os.description}</p>
-                          </div>
-                        )}
-
-                        {(os.services.length > 0 || os.parts.length > 0) && (
-                          <div className="grid grid-cols-1 gap-2">
-                            {os.services.length > 0 && (
-                              <div>
-                                <div className="text-[11px] font-semibold text-slate-500">Serviços</div>
-                                <ul className="mt-0.5 space-y-0.5 text-[11px] text-slate-700">
-                                  {os.services.map((srv, i) => (
-                                    <li key={srv.id || i} className="flex justify-between gap-2">
-                                      <span>{srv.name}</span>
-                                      {currentRole !== 'tecnico' && (
-                                        <span className="font-mono tabular-nums">{formatBRL(srv.price)}</span>
-                                      )}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            {os.parts.length > 0 && (
-                              <div>
-                                <div className="text-[11px] font-semibold text-slate-500">Peças</div>
-                                <ul className="mt-0.5 space-y-0.5 text-[11px] text-slate-700">
-                                  {os.parts.map((prt, i) => (
-                                    <li key={prt.id || i} className="flex justify-between gap-2">
-                                      <span>{prt.quantity}x {prt.name}</span>
-                                      {currentRole !== 'tecnico' && (
-                                        <span className="font-mono tabular-nums">
-                                          {formatBRL(Number(prt.price || 0) * Number(prt.quantity || 1))}
-                                        </span>
-                                      )}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-2">
+                  return (
+                    <tr key={os.id} className="dense-row">
+                      <td className="font-mono font-bold text-[#53383e]">{os.code}</td>
+                      <td className={`font-semibold ${statusMeta.className}`}>{statusMeta.label}</td>
+                      <td className="font-mono text-slate-600 tabular-nums">{formatDateBR(os.openDate)}</td>
+                      <td className="font-semibold text-slate-900">{os.clientName}</td>
+                      <td className="text-right font-mono font-bold text-emerald-700 tabular-nums">
+                        {currentRole === 'tecnico' ? formatBRL(techEarnings) : formatBRL(grandTotal)}
+                      </td>
+                      <td className="text-right">
+                        <div className="inline-flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenPDV(os)}
-                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg bg-[#53383e] text-white"
+                            className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${
+                              os.paymentStatus === 'pago'
+                                ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                                : 'bg-[#53383e] hover:bg-[#432c32] text-white'
+                            }`}
+                            title="Cobrar no PDV"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
-                            <span>{os.paymentStatus === 'pago' ? 'PDV Pago' : 'Cobrar (PDV)'}</span>
+                            <span>{os.paymentStatus === 'pago' ? 'Pago' : 'PDV'}</span>
                           </button>
+
                           <button
                             type="button"
-                            onClick={() => setSelectedOSForDetail(os)}
-                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-slate-300 rounded-lg text-slate-700 bg-white"
+                            onClick={() => setModalOSInfo(os)}
+                            className="list-plus-btn"
+                            title="Abrir todos os dados da Ordem de Serviço"
+                            aria-label={`Abrir detalhes da OS ${os.code}`}
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Ficha</span>
+                            +
                           </button>
-                          {currentRole !== 'tecnico' && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEdit(os)}
-                              className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-slate-300 rounded-lg text-slate-700 bg-white"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              <span>Editar</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handlePrintOS(os)}
-                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-slate-300 rounded-lg text-blue-700 bg-white"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Imprimir</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenWhatsAppForOS(os)}
-                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-emerald-300 rounded-lg text-emerald-700 bg-white"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>WhatsApp</span>
-                          </button>
-                          {isBudget && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (confirm(`Deseja aprovar e converter o orçamento ${os.code} em Ordem de Serviço em Execução?`)) {
-                                  convertBudgetToOrderOrSale(os.id, 'os_aprovada');
-                                }
-                              }}
-                              className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold border border-indigo-200 rounded-lg text-indigo-700 bg-white"
-                            >
-                              <ArrowRightCircle className="w-3.5 h-3.5" />
-                              <span>Aprovar</span>
-                            </button>
-                          )}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {/* Paginação da Tabela de Ordens de Serviço */}
@@ -2181,6 +1703,261 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
           itemName="ordens de serviço"
         />
       </div>
+
+      {/* Modal Completa da O.S. (Aberta pelo botão + na lista) */}
+      {(() => {
+        if (!modalOSInfo) return null;
+        const os = modalOSInfo;
+        const tech = employees.find(e => e.id === os.employeeId);
+        const veh = vehicles.find(v => v.id === os.vehicleId);
+        const srvTotal = os.services.reduce((a, b) => a + Number(b.price || 0), 0);
+        const prtTotal = os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
+        const grandTotal = srvTotal + prtTotal + Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
+        const techRate = (tech?.commissionRate || 8) / 100;
+        const techEarnings = (srvTotal * techRate) + (Number(os.visitFee || 0) > 0 ? 80 : 0);
+        const isBudget = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao';
+        const statusMeta = getCompactStatusMeta(os.status);
+        const todayIso = new Date().toISOString().split('T')[0];
+        const isUnderWarranty = Boolean(
+          os.warrantyExpiresAt &&
+          os.warrantyExpiresAt >= todayIso &&
+          Number(os.warrantyPeriodDays) > 0
+        );
+
+        return (
+          <RecordDetailModal
+            isOpen={true}
+            onClose={() => setModalOSInfo(null)}
+            title={`Ordem de Serviço ${os.code}`}
+            subtitle={`Abertura: ${formatDateBR(os.openDate)}${os.forecastDate ? ` · Previsão: ${formatDateBR(os.forecastDate)}` : ''}`}
+            statusText={statusMeta.label}
+            statusClassName={statusMeta.className}
+            sections={[
+              {
+                heading: 'Cliente & Local de Atendimento',
+                fields: [
+                  { label: 'Cliente / Responsável', value: os.clientName },
+                  { label: 'Telefone', value: os.clientPhone || 'Não informado' },
+                  { label: 'CPF / CNPJ', value: os.clientDocument || 'Não informado' },
+                  { label: 'Endereço Completo', value: os.clientAddress || 'Não informado', fullWidth: true }
+                ]
+              },
+              {
+                heading: 'Execução Técnica & Equipamento',
+                fields: [
+                  { label: 'Técnico Alocado', value: tech?.name || 'Não alocado' },
+                  { label: 'Veículo & KM', value: veh ? `${veh.model} (${veh.plate}) · ${os.kmDriven} km` : `${os.kmDriven} km` },
+                  { label: 'Equipamento / Sistema', value: os.equipmentType || 'Atendimento Técnico' },
+                  {
+                    label: 'Modelo / Série / Garantia',
+                    value: `${os.equipmentModel || '—'}${os.equipmentSerial ? ` · S/N ${os.equipmentSerial}` : ''}${isUnderWarranty ? ` · Garantia até ${formatDateBR(os.warrantyExpiresAt!)}` : ''}`
+                  },
+                  { label: 'Descrição Técnica / Defeito', value: os.description || 'Nenhuma descrição registrada.', fullWidth: true }
+                ]
+              },
+              {
+                heading: 'Resumo Financeiro',
+                fields:
+                  currentRole === 'tecnico'
+                    ? [{ label: 'Diária + Comissão Prevista', value: formatBRL(techEarnings) }]
+                    : [
+                        { label: 'Serviços', value: formatBRL(srvTotal) },
+                        { label: 'Peças Utilizadas', value: formatBRL(prtTotal) },
+                        { label: 'Taxa de Visita', value: formatBRL(os.visitFee || 0) },
+                        { label: 'Desconto', value: `-${formatBRL(os.calculatedDiscount || 0)}` },
+                        { label: 'Total Líquido da OS', value: formatBRL(grandTotal) },
+                        { label: 'Status Financeiro', value: os.paymentStatus === 'pago' ? 'Pago / Liquidado' : 'Pendente no PDV' }
+                      ]
+              }
+            ]}
+            customContent={
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                    Serviços ({os.services.length})
+                  </h4>
+                  {os.services.length === 0 ? (
+                    <p className="text-slate-400 text-xs">Nenhum serviço lançado.</p>
+                  ) : (
+                    <ul className="space-y-1 text-xs text-slate-700 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                      {os.services.map((srv, idx) => (
+                        <li key={srv.id || idx} className="flex justify-between gap-2">
+                          <span>{srv.name}</span>
+                          {currentRole !== 'tecnico' && (
+                            <span className="font-mono font-semibold tabular-nums">{formatBRL(srv.price)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                    Peças Utilizadas ({os.parts.length})
+                  </h4>
+                  {os.parts.length === 0 ? (
+                    <p className="text-slate-400 text-xs">Nenhuma peça aplicada.</p>
+                  ) : (
+                    <ul className="space-y-1 text-xs text-slate-700 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                      {os.parts.map((prt, idx) => (
+                        <li key={prt.id || idx} className="flex justify-between gap-2">
+                          <span>{prt.quantity}x {prt.name}</span>
+                          {currentRole !== 'tecnico' && (
+                            <span className="font-mono font-semibold tabular-nums">
+                              {formatBRL(Number(prt.price || 0) * Number(prt.quantity || 1))}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {os.payments && os.payments.length > 0 && currentRole !== 'tecnico' && (
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                      Parcelas & Pagamentos ({os.payments.length})
+                    </h4>
+                    <div className="space-y-1 text-xs font-mono text-slate-700 border border-slate-200 rounded-lg p-3 bg-slate-50 tabular-nums">
+                      {os.payments.map((p, idx) => (
+                        <div key={p.id || idx} className="flex justify-between gap-2 flex-wrap">
+                          <span>
+                            {p.entryType === 'entrada' ? 'Entrada' : `Parcela ${idx + 1}`} · {p.method.replace('_', ' ')}
+                            {p.dueDate ? ` · Venc. ${formatDateBR(p.dueDate)}` : ''}
+                            {p.paidAt ? ` · Pago em ${formatDateBR(p.paidAt)}` : ''}
+                          </span>
+                          <span className="font-bold">
+                            {formatBRL(p.amount)} ({p.status === 'pago' ? 'Pago' : 'Pendente'})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            }
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalOSInfo(null);
+                    setSelectedOSForDetail(os);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Ficha A4</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalOSInfo(null);
+                    handleOpenPDV(os);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Cobrar PDV</span>
+                </button>
+                {currentRole !== 'tecnico' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalOSInfo(null);
+                      handleOpenEdit(os);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Editar</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handlePrintOS(os)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-slate-300 rounded-lg cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadOS(os)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-slate-300 rounded-lg cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Baixar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleScheduleOSInCalendar(os)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-purple-700 bg-white hover:bg-purple-50 border border-purple-200 rounded-lg cursor-pointer"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Agendar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalOSInfo(null);
+                    handleOpenWhatsAppForOS(os);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-lg cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </button>
+                {isBudget && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja aprovar e converter o orçamento ${os.code} em Ordem de Serviço em Execução?`)) {
+                        convertBudgetToOrderOrSale(os.id, 'os_aprovada');
+                        setModalOSInfo(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg cursor-pointer"
+                  >
+                    <ArrowRightCircle className="w-3.5 h-3.5" />
+                    <span>Aprovar OS</span>
+                  </button>
+                )}
+                {!os.signature && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalOSInfo(null);
+                      setSignOrder(os);
+                      setSignerName(os.clientName);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-white hover:bg-amber-50 border border-amber-200 rounded-lg cursor-pointer"
+                  >
+                    <PenTool className="w-3.5 h-3.5" />
+                    <span>Assinar</span>
+                  </button>
+                )}
+                {currentRole === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Excluir a OS ${os.code}?`)) {
+                        deleteServiceOrder(os.id);
+                        setModalOSInfo(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Excluir</span>
+                  </button>
+                )}
+              </>
+            }
+          />
+        );
+      })()}
 
       {/* Comprovante Completo com Checklist, Fotos e Assinatura Digital (Visualização / Impressão) */}
       {selectedOSForDetail && (

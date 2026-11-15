@@ -16,6 +16,36 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.6',
+    date: '14/11/2026',
+    title: 'Listas Abreviadas em Linha Única com Botão (+) para Modal Completa de Dados',
+    summary:
+      'Reversão dos cartões empilhados, gavetas abaixo da linha e tooltips flutuantes (hover), padronizando todas as listagens do sistema no formato lista abreviada em linha única com botão (+) que abre todos os dados completos do registro em uma janela modal.',
+    highlights: [
+      'Remoção de tooltips flutuantes (hover), gavetas abaixo da linha e cards empilhados multi-linha',
+      'Formato lista rigorosamente em 1 linha única (white-space: nowrap) com dados essenciais abreviados',
+      'Botão (+) padronizado em cada registro abrindo a Modal Completa (<RecordDetailModal />) com todos os dados e ações',
+      'Aplicado em Ordens de Serviço, Clientes, Produtos & Estoque, Vendas, Fornecedores, Equipe, Frota e Serviços'
+    ],
+    changes: [
+      {
+        category: 'Removido',
+        description:
+          'Removido o componente <RowHoverDetail />, removidas as gavetas expansíveis abaixo das linhas de O.S. (#os-drawer-*), removidos os blocos em cards empilhados (md:hidden) e eliminadas células com quebra de segunda linha nas tabelas.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Criado componente global <RecordDetailModal /> (src/components/RecordDetailModal.tsx), classe .list-plus-btn em src/index.css e controlador Vanilla JS setupListDetailModals em src/utils/uiPatterns.ts.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Padronizadas todas as listagens em formato lista abreviada de linha única (.dense-table / .dense-row) com botão (+) abrindo todos os dados completos e ações rápidas em modal nas telas de Ordens de Serviço, Clientes, Produtos & Estoque, Vendas, Fornecedores e Cadastro Geral.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.5',
     date: '14/11/2026',
     title: 'Padronização Global de Tabelas Compactas, Hover de Detalhes e O.S. em Linha Única Expansível (+)',

@@ -51,7 +51,7 @@ import {
 import { DuplicateUploadModal } from './DuplicateUploadModal';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
-import { RowHoverDetail } from './RowHoverDetail';
+import { RecordDetailModal } from './RecordDetailModal';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -98,6 +98,7 @@ export const ProductsAndStockView: React.FC = () => {
   const [stagingNFe, setStagingNFe] = useState<ParsedXmlNFe | null>(null);
   const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
   const [isGmailModalOpen, setIsGmailModalOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
   // Duplicate Upload Alert Modal State
   const [duplicateUploadState, setDuplicateUploadState] = useState<{
@@ -874,122 +875,61 @@ export const ProductsAndStockView: React.FC = () => {
             </div>
           </div>
 
-          {/* Table: Compacta no Desktop + Hover Details & Cards no Mobile */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
+          {/* Lista Abreviada em Linha Única + Botão (+) para Modal Completa */}
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
             {filteredProducts.length === 0 ? (
               <div className="py-12 text-center text-xs text-slate-400">
                 <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                 Nenhum produto encontrado com os filtros selecionados.
               </div>
             ) : (
-              <>
-                {/* Desktop Dense Table */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="dense-table text-left text-xs">
-                    <thead>
-                      <tr>
-                        <th>Código</th>
-                        <th>Produto / Marca</th>
-                        <th className="text-right">Custo</th>
-                        <th className="text-right">Varejo</th>
-                        <th className="text-right">Atacado</th>
-                        <th className="text-center">Estoque</th>
-                        {currentRole !== 'tecnico' && <th className="text-right">Ações</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedProducts.map(p => {
-                        const isLow = p.currentStock <= p.minStock;
-                        return (
-                          <tr key={p.id} className="dense-row">
-                            <td className="whitespace-nowrap">
-                              <div className="flex items-center gap-2">
-                                {p.photos && p.photos.length > 0 ? (
-                                  <img
-                                    src={p.photos[0]}
-                                    alt={p.name}
-                                    referrerPolicy="no-referrer"
-                                    className="w-8 h-8 rounded-md object-cover border border-slate-200 shrink-0"
-                                  />
-                                ) : (
-                                  <div className="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
-                                    <Package className="w-4 h-4 text-slate-400" />
-                                  </div>
-                                )}
-                                <div>
-                                  <div className="font-mono font-bold text-blue-600">{p.code}</div>
-                                  <div className="text-[10px] text-slate-400 truncate max-w-[110px]">{p.category}</div>
-                                </div>
-                              </div>
-                            </td>
-
-                            <td>
-                              <RowHoverDetail
-                                title={p.name}
-                                subtitle={`${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}`}
-                                badge={p.brand || p.unit}
-                                fields={[
-                                  { label: 'Código / SKU', value: `${p.code}${p.sku ? ` · ${p.sku}` : ''}` },
-                                  ...(p.barcode ? [{ label: 'EAN / Código Barras', value: p.barcode }] : []),
-                                  ...(p.model ? [{ label: 'Modelo', value: p.model }] : []),
-                                  ...(p.serialNumber ? [{ label: 'Nº de Série', value: p.serialNumber }] : []),
-                                  { label: 'NCM / ICMS', value: `${p.ncm} · ${p.icmsRate}%` },
-                                  {
-                                    label: 'Custo / Margem',
-                                    value: `${formatBRL(p.costPrice)}${p.profitMarginPercent !== undefined ? ` (+${p.profitMarginPercent}%)` : ''}`
-                                  },
-                                  { label: 'Varejo / Atacado', value: `${formatBRL(p.retailPrice)} / ${formatBRL(p.wholesalePrice)}` },
-                                  { label: 'Estoque (Mín)', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` }
-                                ]}
-                                footer={p.tags && p.tags.length > 0 ? `Tags: ${p.tags.join(', ')}` : undefined}
+              <div className="overflow-x-auto">
+                <table className="dense-table text-left text-xs">
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Produto</th>
+                      <th className="text-right">Varejo</th>
+                      <th className="text-right">Atacado</th>
+                      <th className="text-center">Estoque</th>
+                      <th className="text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedProducts.map(p => {
+                      const isLow = p.currentStock <= p.minStock;
+                      return (
+                        <tr key={p.id} className="dense-row">
+                          <td className="font-mono font-bold text-blue-600">{p.code}</td>
+                          <td className="font-semibold text-slate-900">
+                            <span className="inline-block truncate max-w-[260px] align-bottom">{p.name}</span>
+                          </td>
+                          <td className="text-right font-mono font-bold text-slate-900 tabular-nums">
+                            {formatBRL(p.retailPrice)}
+                          </td>
+                          <td className="text-right font-mono font-semibold text-indigo-700 tabular-nums">
+                            {formatBRL(p.wholesalePrice)}
+                          </td>
+                          <td className="text-center font-mono tabular-nums">
+                            <span className={`font-bold ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
+                              {p.currentStock} {p.unit}
+                            </span>
+                          </td>
+                          <td className="text-right">
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setDetailProduct(p)}
+                                className="list-plus-btn"
+                                title="Abrir todos os dados do produto"
+                                aria-label={`Ver detalhes de ${p.name}`}
                               >
-                                <div className="min-w-0">
-                                  <div className="font-semibold text-slate-900 truncate max-w-[260px]">
-                                    {p.name}
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 truncate max-w-[260px]">
-                                    {p.brand ? `${p.brand} · ` : ''}{p.unit} · NCM {p.ncm}
-                                  </div>
-                                </div>
-                              </RowHoverDetail>
-                            </td>
-
-                            <td className="text-right font-mono text-slate-500 whitespace-nowrap tabular-nums">
-                              {formatBRL(p.costPrice)}
-                            </td>
-
-                            <td className="text-right font-mono font-bold text-slate-900 whitespace-nowrap tabular-nums">
-                              {formatBRL(p.retailPrice)}
-                            </td>
-
-                            <td className="text-right font-mono font-semibold text-indigo-700 whitespace-nowrap tabular-nums">
-                              {formatBRL(p.wholesalePrice)}
-                            </td>
-
-                            <td className="text-center font-mono whitespace-nowrap tabular-nums">
-                              <span className={`font-bold ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
-                                {p.currentStock} {p.unit}
-                              </span>
-                            </td>
-
-                            {currentRole !== 'tecnico' && (
-                              <td className="text-right whitespace-nowrap">
-                                <div className="inline-flex items-center justify-end gap-1">
+                                +
+                              </button>
+                              {currentRole !== 'tecnico' && (
+                                <>
                                   <button
-                                    onClick={() => handleOpenHistory(p)}
-                                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
-                                    title="Histórico Total e Kardex do Produto"
-                                  >
-                                    <History className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDuplicateProduct(p)}
-                                    className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
-                                    title="Duplicar produto no estoque"
-                                  >
-                                    <Copy className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
+                                    type="button"
                                     onClick={() => handleOpenEdit(p)}
                                     className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
                                     title="Editar produto"
@@ -997,6 +937,7 @@ export const ProductsAndStockView: React.FC = () => {
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => {
                                       if (confirm(`Excluir produto ${p.name}?`)) {
                                         deleteProduct(p.id);
@@ -1007,52 +948,16 @@ export const ProductsAndStockView: React.FC = () => {
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile Cards Stack */}
-                <div className="md:hidden p-3 space-y-2.5">
-                  {paginatedProducts.map(p => {
-                    const isLow = p.currentStock <= p.minStock;
-                    return (
-                      <div key={p.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2 text-xs">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="font-mono text-[11px] font-bold text-blue-600">
-                              {p.code} · {p.category}
+                                </>
+                              )}
                             </div>
-                            <div className="font-bold text-slate-900 text-sm leading-snug">{p.name}</div>
-                          </div>
-                          <span className={`font-mono font-bold text-xs shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
-                            {p.currentStock} {p.unit}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                          <div className="font-mono text-[11px] tabular-nums">
-                            Varejo: <strong>{formatBRL(p.retailPrice)}</strong> · Atac: <strong className="text-indigo-700">{formatBRL(p.wholesalePrice)}</strong>
-                          </div>
-                          {currentRole !== 'tecnico' && (
-                            <button
-                              onClick={() => handleOpenEdit(p)}
-                              className="p-2 text-slate-700 bg-slate-100 rounded-lg"
-                              title="Editar"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {/* Paginação da Tabela de Produtos */}
@@ -1065,6 +970,129 @@ export const ProductsAndStockView: React.FC = () => {
               itemName="produtos cadastrados"
             />
           </div>
+
+          {/* Modal Completa do Produto (Aberta pelo botão +) */}
+          {(() => {
+            if (!detailProduct) return null;
+            const p = detailProduct;
+            const isLow = p.currentStock <= p.minStock;
+            return (
+              <RecordDetailModal
+                isOpen={true}
+                onClose={() => setDetailProduct(null)}
+                title={p.name}
+                subtitle={`${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}${p.brand ? ` · Marca: ${p.brand}` : ''}`}
+                statusText={isLow ? 'Estoque Baixo' : 'Estoque Normal'}
+                statusClassName={isLow ? 'text-amber-700' : 'text-emerald-700'}
+                sections={[
+                  {
+                    heading: 'Identificação & Classificação',
+                    fields: [
+                      { label: 'Código', value: p.code },
+                      { label: 'SKU', value: p.sku || '—' },
+                      { label: 'EAN-13 / Código de Barras', value: p.barcode || 'Não informado' },
+                      { label: 'Modelo / Nº de Série', value: [p.model, p.serialNumber].filter(Boolean).join(' · S/N ') || '—' },
+                      { label: 'NCM / ICMS', value: `${p.ncm} · ${p.icmsRate}%` },
+                      { label: 'Unidade', value: p.unit }
+                    ]
+                  },
+                  {
+                    heading: 'Preços, Margens & Estoque',
+                    fields: [
+                      { label: 'Preço de Custo', value: formatBRL(p.costPrice) },
+                      { label: 'Margem de Lucro', value: p.profitMarginPercent !== undefined ? `${p.profitMarginPercent}%` : '—' },
+                      { label: 'Preço Varejo', value: formatBRL(p.retailPrice) },
+                      { label: 'Preço Atacado', value: formatBRL(p.wholesalePrice) },
+                      { label: 'Estoque Atual / Mínimo', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` }
+                    ]
+                  },
+                  ...(p.description || (p.tags && p.tags.length > 0)
+                    ? [
+                        {
+                          heading: 'Descrição & Tags',
+                          fields: [
+                            ...(p.description ? [{ label: 'Descrição', value: p.description, fullWidth: true }] : []),
+                            ...(p.tags && p.tags.length > 0 ? [{ label: 'Tags', value: p.tags.join(', '), fullWidth: true }] : [])
+                          ]
+                        }
+                      ]
+                    : [])
+                ]}
+                customContent={
+                  p.photos && p.photos.length > 0 ? (
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                        Fotos do Produto
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {p.photos.map((photo, idx) => (
+                          <img
+                            key={idx}
+                            src={photo}
+                            alt={`${p.name} ${idx + 1}`}
+                            referrerPolicy="no-referrer"
+                            className="w-20 h-20 rounded-lg object-cover border border-slate-200"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : undefined
+                }
+                actions={
+                  currentRole !== 'tecnico' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailProduct(null);
+                          handleOpenHistory(p);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        <span>Histórico / Kardex</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailProduct(null);
+                          handleDuplicateProduct(p);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Duplicar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailProduct(null);
+                          handleOpenEdit(p);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Excluir produto ${p.name}?`)) {
+                            deleteProduct(p.id);
+                            setDetailProduct(null);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Excluir</span>
+                      </button>
+                    </>
+                  ) : undefined
+                }
+              />
+            );
+          })()}
         </div>
       )}
 

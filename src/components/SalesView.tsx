@@ -28,7 +28,7 @@ import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { SaleItem, PaymentMethod, PaymentSplit, CardBrand, DirectSale } from '../types';
 import { WhatsAppModal } from './WhatsAppModal';
 import { LiveSearchInput } from './LiveSearchInput';
-import { RowHoverDetail } from './RowHoverDetail';
+import { RecordDetailModal } from './RecordDetailModal';
 
 export const SalesView: React.FC = () => {
   const { 
@@ -62,6 +62,7 @@ export const SalesView: React.FC = () => {
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [saleError, setSaleError] = useState<string | null>(null);
   const [salesSearch, setSalesSearch] = useState('');
+  const [detailSale, setDetailSale] = useState<DirectSale | null>(null);
 
   const selectedClient = clients.find(c => c.id === clientId) || null;
   const isWholesaleUnlocked = selectedClient?.customerType === 'atacado';
@@ -445,198 +446,218 @@ export const SalesView: React.FC = () => {
             Nenhuma venda encontrada para os critérios informados.
           </div>
         ) : (
-          <>
-            {/* Desktop Dense Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="dense-table text-left text-xs">
-                <thead>
-                  <tr>
-                    <th>Código / Tabela</th>
-                    <th>Cliente & Resumo</th>
-                    <th>Data</th>
-                    <th>Status</th>
-                    <th className="text-right">Total</th>
-                    <th className="text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSales.map(sale => {
-                    const seller = employees.find(e => e.id === sale.employeeId);
-                    const totalQty = sale.items.reduce((a, it) => a + Number(it.quantity || 1), 0);
-                    return (
-                      <tr key={sale.id} className="dense-row">
-                        <td className="font-mono whitespace-nowrap">
-                          <div className="font-bold text-blue-600">{sale.code}</div>
-                          <div className={`text-[10px] font-sans font-semibold ${sale.priceType === 'atacado' ? 'text-purple-700' : 'text-slate-500'}`}>
-                            {sale.priceType === 'atacado' ? 'Atacado' : 'Varejo'}
-                          </div>
-                        </td>
-
-                        <td>
-                          <RowHoverDetail
-                            title={sale.clientName}
-                            subtitle={`Venda ${sale.code} · Vendedor: ${seller?.name || 'N/A'}`}
-                            badge={sale.paymentStatus === 'pago' ? 'Pago' : 'Aguardando PDV'}
-                            fields={[
-                              { label: 'Data', value: formatDateBR(sale.date) },
-                              { label: 'Tabela', value: sale.priceType === 'atacado' ? 'Atacado' : 'Varejo' },
-                              { label: 'Itens', value: sale.items.map(it => `${it.quantity}x ${it.name}`).join(', ') },
-                              ...(sale.calculatedDiscount > 0
-                                ? [{ label: 'Desconto', value: `-${formatBRL(sale.calculatedDiscount)}` }]
-                                : []),
-                              {
-                                label: 'Pagamento',
-                                value:
-                                  sale.payments && sale.payments.length > 0
-                                    ? sale.payments.map(p => `${p.method.replace('_', ' ')}: ${formatBRL(p.amount)}`).join(' | ')
-                                    : sale.paymentMethod.toUpperCase()
-                              }
-                            ]}
-                            footer={sale.pdvTerminal ? `Terminal: ${sale.pdvTerminal}` : undefined}
-                          >
-                            <div className="min-w-0">
-                              <div className="font-bold text-slate-900 truncate max-w-[260px]">
-                                {sale.clientName}
-                              </div>
-                              <div className="text-[11px] text-slate-500 truncate max-w-[260px]">
-                                {totalQty} un. · {seller?.name || 'Balcão'}
-                              </div>
-                            </div>
-                          </RowHoverDetail>
-                        </td>
-
-                        <td className="font-mono text-slate-600 whitespace-nowrap tabular-nums">
-                          {formatDateBR(sale.date)}
-                        </td>
-
-                        <td className={`whitespace-nowrap font-semibold ${sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                          {sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente PDV'}
-                        </td>
-
-                        <td className="text-right font-mono font-bold text-emerald-700 whitespace-nowrap tabular-nums">
-                          {formatBRL(sale.total)}
-                        </td>
-
-                        <td className="text-right whitespace-nowrap">
-                          <div className="inline-flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => {
-                                setChargingSale(sale);
-                                setPdvSuccessMessage(null);
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md text-white bg-[#53383e] hover:bg-[#432c32] cursor-pointer"
-                              title="Cobrar e mandar fatura ao PDV"
-                            >
-                              <CreditCard className="w-3.5 h-3.5" />
-                              <span>PDV</span>
-                            </button>
-
-                            {currentRole !== 'tecnico' && (
-                              <button
-                                onClick={() => {
-                                  const saleClient = sale.clientId ? clients.find(c => c.id === sale.clientId) : undefined;
-                                  setClientId(sale.clientId || '');
-                                  setClientSearch('');
-                                  setEmployeeId(sale.employeeId);
-                                  setPriceType(saleClient?.customerType === 'atacado' ? sale.priceType : 'varejo');
-                                  setDiscountType(sale.discountType || 'fixed');
-                                  setDiscountValue(sale.discountValue || 0);
-                                  setItems(sale.items);
-                                  setPayments(sale.payments || []);
-                                  setSaleError(null);
-                                  setIsModalOpen(true);
-                                }}
-                                className="p-1.5 text-slate-600 hover:text-[#53383e] hover:bg-slate-100 rounded-md cursor-pointer"
-                                title="Editar Venda"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-
-                            <button
-                              onClick={() => handlePrintSale(sale)}
-                              className="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-md cursor-pointer"
-                              title="Imprimir Cupom de Venda"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
-
-                            <button
-                              onClick={() => handleDownloadSale(sale)}
-                              className="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-md cursor-pointer"
-                              title="Baixar Cupom / Fatura"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-
-                            <button
-                              onClick={() => setWhatsAppSale(sale)}
-                              className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-md cursor-pointer"
-                              title="Enviar via WhatsApp"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                            </button>
-
-                            {currentRole === 'admin' && (
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Excluir a venda ${sale.code}?`)) {
-                                    deleteDirectSale(sale.id);
-                                  }
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer"
-                                title="Excluir Venda"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Cards Stack */}
-            <div className="md:hidden p-3 space-y-2.5">
-              {filteredSales.map(sale => (
-                <div key={sale.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2 text-xs">
-                  <div className="flex items-center justify-between gap-2 text-[11px]">
-                    <span className="font-mono font-bold text-blue-600">{sale.code} · {formatDateBR(sale.date)}</span>
-                    <span className={`font-semibold ${sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
+          <div className="overflow-x-auto">
+            <table className="dense-table text-left text-xs">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Cliente</th>
+                  <th>Data</th>
+                  <th>Tabela</th>
+                  <th>Status</th>
+                  <th className="text-right">Total</th>
+                  <th className="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSales.map(sale => (
+                  <tr key={sale.id} className="dense-row">
+                    <td className="font-mono font-bold text-blue-600">{sale.code}</td>
+                    <td className="font-bold text-slate-900">{sale.clientName}</td>
+                    <td className="font-mono text-slate-600 tabular-nums">{formatDateBR(sale.date)}</td>
+                    <td className={sale.priceType === 'atacado' ? 'font-semibold text-purple-700' : 'text-slate-600'}>
+                      {sale.priceType === 'atacado' ? 'Atacado' : 'Varejo'}
+                    </td>
+                    <td className={`font-semibold ${sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
                       {sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente'}
-                    </span>
-                  </div>
-                  <div className="font-bold text-slate-900 text-sm">{sale.clientName}</div>
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                    <span className="font-mono font-bold text-emerald-700">{formatBRL(sale.total)}</span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          setChargingSale(sale);
-                          setPdvSuccessMessage(null);
-                        }}
-                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-[#53383e] text-white"
-                      >
-                        PDV
-                      </button>
-                      <button
-                        onClick={() => handlePrintSale(sale)}
-                        className="p-2 text-slate-700 bg-slate-100 rounded-lg"
-                        title="Imprimir"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+                    </td>
+                    <td className="text-right font-mono font-bold text-emerald-700 tabular-nums">
+                      {formatBRL(sale.total)}
+                    </td>
+                    <td className="text-right">
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChargingSale(sale);
+                            setPdvSuccessMessage(null);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md text-white bg-[#53383e] hover:bg-[#432c32] cursor-pointer"
+                          title="Cobrar no PDV"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          <span>PDV</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDetailSale(sale)}
+                          className="list-plus-btn"
+                          title="Abrir todos os dados da venda"
+                          aria-label={`Ver detalhes da venda ${sale.code}`}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+
+      {/* Modal Completa da Venda (Aberta pelo botão +) */}
+      {(() => {
+        if (!detailSale) return null;
+        const sale = detailSale;
+        const seller = employees.find(e => e.id === sale.employeeId);
+        return (
+          <RecordDetailModal
+            isOpen={true}
+            onClose={() => setDetailSale(null)}
+            title={`Venda Direta ${sale.code}`}
+            subtitle={`Data: ${formatDateBR(sale.date)} · Tabela: ${sale.priceType === 'atacado' ? 'Atacado' : 'Varejo'}`}
+            statusText={sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente no PDV'}
+            statusClassName={sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}
+            sections={[
+              {
+                heading: 'Cliente, Vendedor & Terminal',
+                fields: [
+                  { label: 'Cliente', value: sale.clientName },
+                  { label: 'Vendedor / Consultor', value: seller?.name || 'Balcão' },
+                  { label: 'Terminal PDV', value: sale.pdvTerminal || 'Não enviado' },
+                  { label: 'Forma Principal', value: sale.paymentMethod.replace('_', ' ').toUpperCase() }
+                ]
+              },
+              {
+                heading: 'Totais',
+                fields: [
+                  { label: 'Subtotal', value: formatBRL(sale.items.reduce((acc, it) => acc + it.price * it.quantity, 0)) },
+                  { label: 'Desconto Aplicado', value: `-${formatBRL(sale.calculatedDiscount || 0)}` },
+                  { label: 'Total Líquido', value: formatBRL(sale.total) }
+                ]
+              }
+            ]}
+            customContent={
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                    Itens Vendidos ({sale.items.length})
+                  </h4>
+                  <ul className="space-y-1 text-xs text-slate-700 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    {sale.items.map((it, idx) => (
+                      <li key={it.id || idx} className="flex justify-between gap-2">
+                        <span>{it.quantity}x {it.name}</span>
+                        <span className="font-mono font-semibold tabular-nums">
+                          {formatBRL(it.price * it.quantity)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {sale.payments && sale.payments.length > 0 && (
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                      Composição de Pagamentos
+                    </h4>
+                    <ul className="space-y-1 text-xs font-mono text-slate-700 border border-slate-200 rounded-lg p-3 bg-slate-50 tabular-nums">
+                      {sale.payments.map((p, idx) => (
+                        <li key={p.id || idx} className="flex justify-between gap-2">
+                          <span>{p.method.replace('_', ' ').toUpperCase()}</span>
+                          <span className="font-bold">{formatBRL(p.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            }
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailSale(null);
+                    setChargingSale(sale);
+                    setPdvSuccessMessage(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Cobrar PDV</span>
+                </button>
+                {currentRole !== 'tecnico' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const saleClient = sale.clientId ? clients.find(c => c.id === sale.clientId) : undefined;
+                      setDetailSale(null);
+                      setClientId(sale.clientId || '');
+                      setClientSearch('');
+                      setEmployeeId(sale.employeeId);
+                      setPriceType(saleClient?.customerType === 'atacado' ? sale.priceType : 'varejo');
+                      setDiscountType(sale.discountType || 'fixed');
+                      setDiscountValue(sale.discountValue || 0);
+                      setItems(sale.items);
+                      setPayments(sale.payments || []);
+                      setSaleError(null);
+                      setIsModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Editar</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handlePrintSale(sale)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-slate-300 rounded-lg cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadSale(sale)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-slate-300 rounded-lg cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Baixar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailSale(null);
+                    setWhatsAppSale(sale);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </button>
+                {currentRole === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Excluir a venda ${sale.code}?`)) {
+                        deleteDirectSale(sale.id);
+                        setDetailSale(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Excluir</span>
+                  </button>
+                )}
+              </>
+            }
+          />
+        );
+      })()}
 
       {/* Modal Nova Venda */}
       {isModalOpen && (

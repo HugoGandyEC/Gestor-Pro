@@ -29,7 +29,7 @@ import { useApp } from '../context/AppContext';
 import { Client, ClientAddress } from '../types';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
-import { RowHoverDetail } from './RowHoverDetail';
+import { RecordDetailModal } from './RecordDetailModal';
 
 export const ClientsView: React.FC = () => {
   const { 
@@ -96,8 +96,9 @@ export const ClientsView: React.FC = () => {
   const [isLoadingLookup, setIsLoadingLookup] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
 
-  // Modal to inspect multiple addresses for a client
+  // Modal to inspect multiple addresses or full client record
   const [viewAddressesClient, setViewAddressesClient] = useState<Client | null>(null);
+  const [detailClient, setDetailClient] = useState<Client | null>(null);
 
   // CSV Import Modal State
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -727,234 +728,103 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
         </div>
       </div>
 
-      {/* Clients Table: Compacta no Desktop + Hover Details & Cards no Mobile */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs">
+      {/* Lista Abreviada em Linha Única + Botão (+) para Modal Completa */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredClients.length === 0 ? (
           <div className="text-center py-12 text-xs text-slate-400">
             <UserSquare2 className="w-8 h-8 mx-auto mb-2 text-slate-300" />
             Nenhum cliente encontrado com os filtros selecionados.
           </div>
         ) : (
-          <>
-            {/* Desktop Dense Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="dense-table text-left text-xs">
-                <thead>
-                  <tr>
-                    <th>Perfil / Doc</th>
-                    <th>Cliente / Local</th>
-                    <th>Contato</th>
-                    <th className="text-center">OS</th>
-                    <th className="text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="text-slate-700">
-                  {paginatedClients.map((client) => {
-                    const isPJ = client.personType === 'PJ' || client.document.replace(/\D/g, '').length === 14;
-                    const ordersCount = getClientOrdersCount(client.id);
-                    const cleanPhone = client.phone.replace(/\D/g, '');
-                    const clientAddresses = client.addresses && client.addresses.length > 0
-                      ? client.addresses
-                      : [{
-                          id: 'default',
-                          title: 'Principal',
-                          isDefault: true,
-                          cep: client.cep,
-                          street: client.street,
-                          number: client.number,
-                          complement: client.complement,
-                          neighborhood: client.neighborhood,
-                          city: client.city,
-                          state: client.state,
-                          referencePoint: ''
-                        }];
-                    const primaryAddress = clientAddresses.find(a => a.isDefault) || clientAddresses[0];
+          <div className="overflow-x-auto">
+            <table className="dense-table text-left text-xs">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Cliente</th>
+                  <th>CPF / CNPJ</th>
+                  <th>Telefone</th>
+                  <th>Cidade / UF</th>
+                  <th className="text-center">OS</th>
+                  <th className="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-700">
+                {paginatedClients.map((client) => {
+                  const isPJ = client.personType === 'PJ' || client.document.replace(/\D/g, '').length === 14;
+                  const ordersCount = getClientOrdersCount(client.id);
+                  const clientAddresses = client.addresses && client.addresses.length > 0
+                    ? client.addresses
+                    : [{
+                        id: 'default',
+                        title: 'Principal',
+                        isDefault: true,
+                        cep: client.cep,
+                        street: client.street,
+                        number: client.number,
+                        complement: client.complement,
+                        neighborhood: client.neighborhood,
+                        city: client.city,
+                        state: client.state,
+                        referencePoint: ''
+                      }];
+                  const primaryAddress = clientAddresses.find(a => a.isDefault) || clientAddresses[0];
 
-                    return (
-                      <tr key={client.id} className="dense-row">
-                        {/* Perfil & Documento */}
-                        <td className="whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                            <span className={`font-bold ${isPJ ? 'text-indigo-700' : 'text-emerald-700'}`}>
-                              {isPJ ? 'PJ' : 'PF'}
-                            </span>
-                            <span aria-hidden="true" className="text-slate-300">·</span>
-                            <span className={`font-semibold ${client.customerType === 'atacado' ? 'text-purple-700' : 'text-slate-600'}`}>
-                              {client.customerType === 'atacado' ? 'Atacado' : 'Varejo'}
-                            </span>
-                          </div>
-                          <div className="font-mono text-[11px] text-slate-500">
-                            {client.document || 'Sem doc.'}
-                          </div>
-                        </td>
-
-                        {/* Cliente com Hover Card de Detalhes Completos */}
-                        <td>
-                          <RowHoverDetail
-                            title={client.name}
-                            subtitle={client.tradeName ? `${isPJ ? 'Fantasia:' : 'Ref:'} ${client.tradeName}` : undefined}
-                            badge={client.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
-                            badgeClassName={
-                              client.customerType === 'atacado'
-                                ? 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800'
-                                : 'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700'
-                            }
-                            fields={[
-                              { label: isPJ ? 'CNPJ' : 'CPF', value: client.document || 'Não informado' },
-                              ...(!isPJ && client.rg ? [{ label: 'RG', value: client.rg }] : []),
-                              ...(isPJ && client.stateRegistration ? [{ label: 'IE', value: client.stateRegistration }] : []),
-                              ...(client.contactPerson ? [{ label: 'Responsável', value: client.contactPerson }] : []),
-                              { label: 'Telefone', value: client.phone + (client.secondaryPhone ? ` / ${client.secondaryPhone}` : '') },
-                              ...(client.email ? [{ label: 'E-mail', value: client.email }] : []),
-                              {
-                                label: `Endereço (${primaryAddress.title})`,
-                                value: `${primaryAddress.street}, ${primaryAddress.number} - ${primaryAddress.city}/${primaryAddress.state}`
-                              },
-                              ...(clientAddresses.length > 1
-                                ? [{ label: 'Outros Locais', value: `+${clientAddresses.length - 1} endereço(s)` }]
-                                : [])
-                            ]}
-                            footer={client.notes ? `Obs.: ${client.notes}` : undefined}
+                  return (
+                    <tr key={client.id} className="dense-row">
+                      <td className="font-mono text-[11px]">
+                        <span className={`font-bold ${isPJ ? 'text-indigo-700' : 'text-emerald-700'}`}>
+                          {isPJ ? 'PJ' : 'PF'}
+                        </span>
+                        <span aria-hidden="true" className="text-slate-300 mx-1">·</span>
+                        <span className={client.customerType === 'atacado' ? 'font-bold text-purple-700' : 'text-slate-600'}>
+                          {client.customerType === 'atacado' ? 'Atac.' : 'Var.'}
+                        </span>
+                      </td>
+                      <td className="font-bold text-slate-900">{client.name}</td>
+                      <td className="font-mono text-slate-600 tabular-nums">{client.document || '—'}</td>
+                      <td className="font-mono text-slate-700 tabular-nums">{client.phone || '—'}</td>
+                      <td className="text-slate-600">{primaryAddress.city}/{primaryAddress.state}</td>
+                      <td className="text-center font-mono font-bold text-slate-700 tabular-nums">{ordersCount}</td>
+                      <td className="text-right">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setDetailClient(client)}
+                            className="list-plus-btn"
+                            title="Abrir todos os dados do cliente"
+                            aria-label={`Ver detalhes de ${client.name}`}
                           >
-                            <div className="min-w-0">
-                              <div className="font-bold text-slate-900 truncate max-w-[260px]">
-                                {client.name}
-                              </div>
-                              <div className="text-[11px] text-slate-500 truncate max-w-[260px]">
-                                {primaryAddress.city}/{primaryAddress.state}
-                                {clientAddresses.length > 1 ? ` · +${clientAddresses.length - 1} end.` : ''}
-                              </div>
-                            </div>
-                          </RowHoverDetail>
-                        </td>
-
-                        {/* Contato compacto */}
-                        <td className="whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 text-slate-800 font-mono text-[11px]">
-                            <span>{client.phone}</span>
-                            {cleanPhone && (
-                              <a
-                                href={`https://wa.me/55${cleanPhone}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-emerald-600 hover:text-emerald-700 p-1 rounded hover:bg-emerald-50"
-                                title="Abrir WhatsApp"
-                              >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                              </a>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* OS Count */}
-                        <td className="text-center font-mono font-bold text-slate-700">
-                          {ordersCount}
-                        </td>
-
-                        {/* Ações */}
-                        <td className="text-right whitespace-nowrap">
-                          <div className="inline-flex items-center justify-end gap-1">
-                            {clientAddresses.length > 1 && (
-                              <button
-                                onClick={() => setViewAddressesClient(client)}
-                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
-                                title="Ver Todos os Endereços"
-                              >
-                                <Navigation className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleOpenEdit(client)}
-                              className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                              title="Editar Cadastro"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm(`Deseja realmente remover o cliente "${client.name}"?`)) {
-                                  deleteClient(client.id);
-                                }
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                              title="Excluir Cliente"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Cards Stack */}
-            <div className="md:hidden p-3 space-y-2.5">
-              {paginatedClients.map((client) => {
-                const isPJ = client.personType === 'PJ' || client.document.replace(/\D/g, '').length === 14;
-                const ordersCount = getClientOrdersCount(client.id);
-                const cleanPhone = client.phone.replace(/\D/g, '');
-                const clientAddresses = client.addresses && client.addresses.length > 0
-                  ? client.addresses
-                  : [{
-                      id: 'default',
-                      title: 'Principal',
-                      isDefault: true,
-                      cep: client.cep,
-                      street: client.street,
-                      number: client.number,
-                      complement: client.complement,
-                      neighborhood: client.neighborhood,
-                      city: client.city,
-                      state: client.state,
-                      referencePoint: ''
-                    }];
-                const primaryAddress = clientAddresses.find(a => a.isDefault) || clientAddresses[0];
-
-                return (
-                  <div key={client.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2 text-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-900 text-sm">{client.name}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          {isPJ ? 'PJ' : 'PF'} · {client.customerType === 'atacado' ? 'Atacadista' : 'Varejista'} · {client.document || 'Sem doc.'}
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(client)}
+                            className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                            title="Editar Cadastro"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Deseja realmente remover o cliente "${client.name}"?`)) {
+                                deleteClient(client.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                            title="Excluir Cliente"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      </div>
-                      <span className="font-mono text-[11px] font-bold text-blue-700 shrink-0">
-                        {ordersCount} OS
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] text-slate-600 flex items-center justify-between gap-2">
-                      <span>{client.phone} · {primaryAddress.city}/{primaryAddress.state}</span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {cleanPhone && (
-                          <a
-                            href={`https://wa.me/55${cleanPhone}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"
-                            title="WhatsApp"
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                          </a>
-                        )}
-                        <button
-                          onClick={() => handleOpenEdit(client)}
-                          className="p-2 text-slate-700 bg-slate-100 rounded-lg"
-                          title="Editar"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {/* Paginação da Tabela de Clientes */}
@@ -967,6 +837,140 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
           itemName="clientes cadastrados"
         />
       </div>
+
+      {/* Modal Completa do Cliente (Aberta pelo botão +) */}
+      {(() => {
+        if (!detailClient) return null;
+        const c = detailClient;
+        const isPJ = c.personType === 'PJ' || c.document.replace(/\D/g, '').length === 14;
+        const cleanPhone = c.phone.replace(/\D/g, '');
+        const clientAddresses = c.addresses && c.addresses.length > 0
+          ? c.addresses
+          : [{
+              id: 'default',
+              title: isPJ ? 'Sede Principal' : 'Residência Principal',
+              isDefault: true,
+              cep: c.cep,
+              street: c.street,
+              number: c.number,
+              complement: c.complement,
+              neighborhood: c.neighborhood,
+              city: c.city,
+              state: c.state,
+              referencePoint: ''
+            }];
+
+        return (
+          <RecordDetailModal
+            isOpen={true}
+            onClose={() => setDetailClient(null)}
+            title={c.name}
+            subtitle={c.tradeName ? `${isPJ ? 'Nome Fantasia' : 'Referência'}: ${c.tradeName}` : undefined}
+            statusText={c.customerType === 'atacado' ? 'Cliente Atacadista' : 'Cliente Varejista'}
+            statusClassName={c.customerType === 'atacado' ? 'text-purple-700' : 'text-slate-600'}
+            sections={[
+              {
+                heading: 'Identificação & Perfil',
+                fields: [
+                  { label: 'Tipo de Pessoa', value: isPJ ? 'Pessoa Jurídica (PJ)' : 'Pessoa Física (PF)' },
+                  { label: isPJ ? 'CNPJ' : 'CPF', value: c.document || 'Não informado' },
+                  ...(!isPJ && c.rg ? [{ label: 'RG', value: c.rg }] : []),
+                  ...(!isPJ && c.birthDate ? [{ label: 'Data de Nascimento', value: c.birthDate }] : []),
+                  ...(isPJ && c.stateRegistration ? [{ label: 'Inscrição Estadual', value: c.stateRegistration }] : []),
+                  ...(c.contactPerson ? [{ label: 'Responsável / Contato', value: c.contactPerson }] : []),
+                  { label: 'Ordens de Serviço Vinculadas', value: `${getClientOrdersCount(c.id)} OS(s)` }
+                ]
+              },
+              {
+                heading: 'Contato & Observações',
+                fields: [
+                  { label: 'Telefone Principal', value: c.phone || 'Não informado' },
+                  ...(c.secondaryPhone ? [{ label: 'Telefone Secundário', value: c.secondaryPhone }] : []),
+                  { label: 'E-mail', value: c.email || 'Não informado' },
+                  ...(c.notes ? [{ label: 'Observações', value: c.notes, fullWidth: true }] : [])
+                ]
+              }
+            ]}
+            customContent={
+              <div>
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Endereços Cadastrados ({clientAddresses.length})
+                </h4>
+                <div className="space-y-2">
+                  {clientAddresses.map((addr, idx) => (
+                    <div key={addr.id || idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-xs">
+                      <div className="font-bold text-slate-900">
+                        {addr.title} {addr.isDefault ? '(Principal)' : ''}
+                      </div>
+                      <div className="text-slate-700 mt-0.5">
+                        {addr.street || '—'}, {addr.number || 'S/N'}
+                        {addr.complement ? ` · ${addr.complement}` : ''}
+                        {addr.neighborhood ? ` · ${addr.neighborhood}` : ''}
+                      </div>
+                      <div className="text-slate-500 mt-0.5 font-mono text-[11px]">
+                        {addr.city}/{addr.state} {addr.cep ? `· CEP ${addr.cep}` : ''}
+                        {addr.referencePoint ? ` · Ref.: ${addr.referencePoint}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            }
+            actions={
+              <>
+                {cleanPhone && (
+                  <a
+                    href={`https://wa.me/55${cleanPhone}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
+                {clientAddresses.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDetailClient(null);
+                      setViewAddressesClient(c);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer"
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span>Endereços</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailClient(null);
+                    handleOpenEdit(c);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Editar Cliente</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Deseja realmente remover o cliente "${c.name}"?`)) {
+                      deleteClient(c.id);
+                      setDetailClient(null);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Excluir</span>
+                </button>
+              </>
+            }
+          />
+        );
+      })()}
 
       {/* MODAL CADASTRO / EDIÇÃO DE CLIENTE (COM SELETOR PJ / PF E MÚLTIPLOS ENDEREÇOS) */}
       {isClientModalOpen && (

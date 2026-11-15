@@ -28,7 +28,7 @@ import {
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { UniversalDataImportView } from './UniversalDataImportView';
 import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
-import { RowHoverDetail } from './RowHoverDetail';
+import { RecordDetailModal } from './RecordDetailModal';
 import { 
   Client, 
   Supplier, 
@@ -104,6 +104,15 @@ export const MasterRegistrationsView: React.FC = () => {
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [editingService, setEditingService] = useState<ServiceCatalogItem | null>(null);
   const [editingChecklist, setEditingChecklist] = useState<ChecklistTemplate | null>(null);
+
+  type MasterDetailTarget =
+    | { kind: 'client'; data: Client }
+    | { kind: 'supplier'; data: Supplier }
+    | { kind: 'product'; data: Product }
+    | { kind: 'employee'; data: Employee }
+    | { kind: 'vehicle'; data: Vehicle }
+    | { kind: 'service'; data: ServiceCatalogItem };
+  const [detailTarget, setDetailTarget] = useState<MasterDetailTarget | null>(null);
 
   // Client form state
   const [clientForm, setClientForm] = useState({
@@ -481,12 +490,13 @@ export const MasterRegistrationsView: React.FC = () => {
 
       {/* SUB-TAB 1: CLIENTES */}
       {activeSubTab === 'clients' && (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
-          <div className="hidden md:block overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
             <table className="dense-table text-left text-xs">
               <thead>
                 <tr>
-                  <th>Nome / Perfil</th>
+                  <th>Perfil</th>
+                  <th>Cliente</th>
                   <th>CPF / CNPJ</th>
                   <th>Telefone</th>
                   <th>Cidade / UF</th>
@@ -502,35 +512,26 @@ export const MasterRegistrationsView: React.FC = () => {
                   )
                   .map(client => (
                     <tr key={client.id} className="dense-row">
-                      <td>
-                        <RowHoverDetail
-                          title={client.name}
-                          subtitle={client.tradeName}
-                          badge={client.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
-                          fields={[
-                            { label: 'Documento', value: client.document || 'Não informado' },
-                            { label: 'Telefone', value: client.phone },
-                            ...(client.email ? [{ label: 'E-mail', value: client.email }] : []),
-                            { label: 'Endereço', value: `${client.street || ''}, ${client.number || ''} - ${client.city || ''}/${client.state || ''}` }
-                          ]}
-                          footer={client.notes ? `Obs.: ${client.notes}` : undefined}
-                        >
-                          <div className="min-w-0">
-                            <span className="font-semibold text-slate-900">{client.name}</span>
-                            <span className={`ml-2 text-[11px] font-semibold ${client.customerType === 'atacado' ? 'text-purple-700' : 'text-slate-500'}`}>
-                              · {client.customerType === 'atacado' ? 'Atacado' : 'Varejo'}
-                            </span>
-                          </div>
-                        </RowHoverDetail>
+                      <td className={`font-semibold text-[11px] ${client.customerType === 'atacado' ? 'text-purple-700' : 'text-slate-600'}`}>
+                        {client.customerType === 'atacado' ? 'Atac.' : 'Var.'}
                       </td>
-                      <td className="font-mono text-slate-700 whitespace-nowrap">
-                        {client.document || 'Sem doc.'}
-                      </td>
-                      <td className="font-mono text-slate-600 whitespace-nowrap">{client.phone}</td>
-                      <td className="text-slate-600 whitespace-nowrap">{client.city} - {client.state}</td>
-                      <td className="text-right whitespace-nowrap">
+                      <td className="font-semibold text-slate-900">{client.name}</td>
+                      <td className="font-mono text-slate-700 tabular-nums">{client.document || '—'}</td>
+                      <td className="font-mono text-slate-600 tabular-nums">{client.phone || '—'}</td>
+                      <td className="text-slate-600">{client.city}/{client.state}</td>
+                      <td className="text-right">
                         <div className="inline-flex items-center justify-end gap-1">
                           <button
+                            type="button"
+                            onClick={() => setDetailTarget({ kind: 'client', data: client })}
+                            className="list-plus-btn"
+                            title="Abrir todos os dados do cliente"
+                            aria-label={`Ver detalhes de ${client.name}`}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => {
                               setEditingClient(client);
                               setClientForm({
@@ -556,6 +557,7 @@ export const MasterRegistrationsView: React.FC = () => {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               if (confirm(`Deseja remover o cliente "${client.name}"?`)) {
                                 deleteClient(client.id);
@@ -573,63 +575,13 @@ export const MasterRegistrationsView: React.FC = () => {
               </tbody>
             </table>
           </div>
-          {/* Mobile Cards Stack para Clientes */}
-          <div className="md:hidden p-3 space-y-2.5">
-            {clients
-              .filter(c =>
-                c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                c.document.includes(searchTerm) ||
-                (c.tradeName && c.tradeName.toLowerCase().includes(searchTerm.toLowerCase()))
-              )
-              .map(client => (
-                <div key={client.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5 text-xs">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-bold text-slate-900 text-sm">{client.name}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">{client.document || 'Sem doc.'} · {client.phone}</div>
-                    </div>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${client.customerType === 'atacado' ? 'bg-purple-50 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {client.customerType === 'atacado' ? 'Atacado' : 'Varejo'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px] text-slate-600">
-                    <span>{client.city} - {client.state}</span>
-                    <button
-                      onClick={() => {
-                        setEditingClient(client);
-                        setClientForm({
-                          customerType: client.customerType || 'varejo',
-                          name: client.name,
-                          tradeName: client.tradeName || '',
-                          document: client.document,
-                          email: client.email || '',
-                          phone: client.phone,
-                          cep: client.cep || '',
-                          street: client.street || '',
-                          number: client.number || '',
-                          neighborhood: client.neighborhood || '',
-                          city: client.city || '',
-                          state: client.state || '',
-                          notes: client.notes || ''
-                        });
-                        setIsClientModalOpen(true);
-                      }}
-                      className="p-2 bg-slate-100 text-slate-700 rounded-lg"
-                      title="Editar"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
         </div>
       )}
 
       {/* SUB-TAB 2: FORNECEDORES */}
       {activeSubTab === 'suppliers' && (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
-          <div className="hidden md:block overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
             <table className="dense-table text-left text-xs">
               <thead>
                 <tr>
@@ -649,27 +601,23 @@ export const MasterRegistrationsView: React.FC = () => {
                   )
                   .map(supplier => (
                     <tr key={supplier.id} className="dense-row">
-                      <td>
-                        <RowHoverDetail
-                          title={supplier.name}
-                          subtitle={supplier.tradeName}
-                          fields={[
-                            { label: 'CNPJ', value: supplier.cnpj },
-                            ...(supplier.contactPerson ? [{ label: 'Responsável', value: supplier.contactPerson }] : []),
-                            { label: 'Telefone', value: supplier.phone },
-                            ...(supplier.email ? [{ label: 'E-mail', value: supplier.email }] : []),
-                            { label: 'Cidade/UF', value: `${supplier.city} - ${supplier.state}` }
-                          ]}
-                        >
-                          <span className="font-semibold text-slate-900">{supplier.name}</span>
-                        </RowHoverDetail>
-                      </td>
-                      <td className="font-mono text-slate-700 whitespace-nowrap">{supplier.cnpj}</td>
-                      <td className="font-mono text-slate-600 whitespace-nowrap">{supplier.phone}</td>
-                      <td className="text-slate-600 whitespace-nowrap">{supplier.city} - {supplier.state}</td>
-                      <td className="text-right whitespace-nowrap">
+                      <td className="font-semibold text-slate-900">{supplier.name}</td>
+                      <td className="font-mono text-slate-700 tabular-nums">{supplier.cnpj || '—'}</td>
+                      <td className="font-mono text-slate-600 tabular-nums">{supplier.phone || '—'}</td>
+                      <td className="text-slate-600">{supplier.city}/{supplier.state}</td>
+                      <td className="text-right">
                         <div className="inline-flex items-center justify-end gap-1">
                           <button
+                            type="button"
+                            onClick={() => setDetailTarget({ kind: 'supplier', data: supplier })}
+                            className="list-plus-btn"
+                            title="Abrir todos os dados do fornecedor"
+                            aria-label={`Ver detalhes de ${supplier.name}`}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => {
                               setEditingSupplier(supplier);
                               setSupplierForm({
@@ -693,6 +641,7 @@ export const MasterRegistrationsView: React.FC = () => {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               if (confirm(`Deseja remover o fornecedor "${supplier.name}"?`)) {
                                 deleteSupplier(supplier.id);
@@ -710,62 +659,18 @@ export const MasterRegistrationsView: React.FC = () => {
               </tbody>
             </table>
           </div>
-          {/* Mobile Cards Stack para Fornecedores */}
-          <div className="md:hidden p-3 space-y-2.5">
-            {suppliers
-              .filter(s =>
-                s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                s.cnpj.includes(searchTerm) ||
-                (s.tradeName && s.tradeName.toLowerCase().includes(searchTerm.toLowerCase()))
-              )
-              .map(supplier => (
-                <div key={supplier.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5 text-xs">
-                  <div>
-                    <div className="font-bold text-slate-900 text-sm">{supplier.name}</div>
-                    <div className="text-[11px] text-slate-500 font-mono">{supplier.cnpj} · {supplier.phone}</div>
-                  </div>
-                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px] text-slate-600">
-                    <span>{supplier.city} - {supplier.state}</span>
-                    <button
-                      onClick={() => {
-                        setEditingSupplier(supplier);
-                        setSupplierForm({
-                          name: supplier.name,
-                          tradeName: supplier.tradeName || '',
-                          cnpj: supplier.cnpj,
-                          email: supplier.email || '',
-                          phone: supplier.phone || '',
-                          contactPerson: supplier.contactPerson || '',
-                          cep: supplier.cep || '01001-000',
-                          street: supplier.street || 'Rua Principal',
-                          number: supplier.number || '100',
-                          city: supplier.city || '',
-                          state: supplier.state || ''
-                        });
-                        setIsSupplierModalOpen(true);
-                      }}
-                      className="p-2 bg-slate-100 text-slate-700 rounded-lg"
-                      title="Editar"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
         </div>
       )}
 
       {/* SUB-TAB 3: PRODUTOS & PEÇAS */}
       {activeSubTab === 'products' && (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
-          <div className="hidden md:block overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
             <table className="dense-table text-left text-xs">
               <thead>
                 <tr>
                   <th>Código</th>
                   <th>Produto</th>
-                  <th className="text-right">Custo</th>
                   <th className="text-right">Varejo</th>
                   <th className="text-right">Atacado</th>
                   <th className="text-center">Estoque</th>
@@ -783,54 +688,26 @@ export const MasterRegistrationsView: React.FC = () => {
                     const isLow = product.currentStock <= product.minStock;
                     return (
                       <tr key={product.id} className="dense-row">
-                        <td className="font-mono text-slate-600 whitespace-nowrap">{product.code || product.sku}</td>
-                        <td>
-                          <RowHoverDetail
-                            title={product.name}
-                            subtitle={product.category}
-                            badge={product.unit}
-                            fields={[
-                              { label: 'Código / SKU', value: product.code || product.sku },
-                              { label: 'NCM', value: product.ncm || 'N/A' },
-                              { label: 'Custo Médio', value: formatBRL(product.costPrice) },
-                              { label: 'Varejo / Atacado', value: `${formatBRL(product.retailPrice)} / ${formatBRL(product.wholesalePrice)}` },
-                              { label: 'Estoque (Mín)', value: `${product.currentStock} ${product.unit} (mín. ${product.minStock})` }
-                            ]}
-                          >
-                            <span className="font-semibold text-slate-900 truncate max-w-[260px]">{product.name}</span>
-                          </RowHoverDetail>
-                        </td>
-                        <td className="text-right font-mono text-slate-600 whitespace-nowrap">{formatBRL(product.costPrice)}</td>
-                        <td className="text-right font-mono font-semibold text-emerald-700 whitespace-nowrap">{formatBRL(product.retailPrice)}</td>
-                        <td className="text-right font-mono text-blue-700 whitespace-nowrap">{formatBRL(product.wholesalePrice)}</td>
-                        <td className={`text-center font-mono font-semibold whitespace-nowrap ${isLow ? 'text-amber-700' : 'text-slate-700'}`}>
+                        <td className="font-mono text-slate-600 tabular-nums">{product.code || product.sku}</td>
+                        <td className="font-semibold text-slate-900">{product.name}</td>
+                        <td className="text-right font-mono font-semibold text-emerald-700 tabular-nums">{formatBRL(product.retailPrice)}</td>
+                        <td className="text-right font-mono text-blue-700 tabular-nums">{formatBRL(product.wholesalePrice)}</td>
+                        <td className={`text-center font-mono font-semibold tabular-nums ${isLow ? 'text-amber-700' : 'text-slate-700'}`}>
                           {product.currentStock} {product.unit}
                         </td>
-                        <td className="text-right whitespace-nowrap">
+                        <td className="text-right">
                           <div className="inline-flex items-center justify-end gap-1">
                             <button
-                              onClick={() => {
-                                setEditingProduct(null);
-                                setProductForm({
-                                  name: `${product.name} (Cópia)`,
-                                  sku: `${product.sku || product.code}-COP`,
-                                  category: product.category,
-                                  ncm: product.ncm || '',
-                                  costPrice: product.costPrice,
-                                  retailPrice: product.retailPrice,
-                                  wholesalePrice: product.wholesalePrice,
-                                  currentStock: 0,
-                                  minStock: product.minStock,
-                                  unit: product.unit
-                                });
-                                setIsProductModalOpen(true);
-                              }}
-                              className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
-                              title="Duplicar Produto"
+                              type="button"
+                              onClick={() => setDetailTarget({ kind: 'product', data: product })}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados do produto"
+                              aria-label={`Ver detalhes de ${product.name}`}
                             >
-                              <Copy className="w-3.5 h-3.5" />
+                              +
                             </button>
                             <button
+                              type="button"
                               onClick={() => {
                                 setEditingProduct(product);
                                 setProductForm({
@@ -853,12 +730,14 @@ export const MasterRegistrationsView: React.FC = () => {
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              type="button"
                               onClick={() => {
                                 if (confirm(`Deseja remover o produto "${product.name}"?`)) {
                                   deleteProduct(product.id);
                                 }
                               }}
                               className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                              title="Excluir Produto"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -870,72 +749,20 @@ export const MasterRegistrationsView: React.FC = () => {
               </tbody>
             </table>
           </div>
-          {/* Mobile Cards Stack para Produtos */}
-          <div className="md:hidden p-3 space-y-2.5">
-            {products
-              .filter(p =>
-                p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
-              )
-              .map(product => {
-                const isLow = product.currentStock <= product.minStock;
-                return (
-                  <div key={product.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5 text-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-bold text-slate-900 text-sm leading-snug">{product.name}</div>
-                        <div className="text-[11px] font-mono text-slate-500">{product.code || product.sku} · {product.category}</div>
-                      </div>
-                      <span className={`font-mono font-bold text-xs shrink-0 ${isLow ? 'text-amber-700' : 'text-slate-700'}`}>
-                        {product.currentStock} {product.unit}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px]">
-                      <span className="font-mono text-emerald-700 font-bold">
-                        Varejo {formatBRL(product.retailPrice)} · Atac. {formatBRL(product.wholesalePrice)}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setEditingProduct(product);
-                          setProductForm({
-                            name: product.name,
-                            sku: product.sku || product.code,
-                            category: product.category,
-                            ncm: product.ncm || '',
-                            costPrice: product.costPrice,
-                            retailPrice: product.retailPrice,
-                            wholesalePrice: product.wholesalePrice,
-                            currentStock: product.currentStock,
-                            minStock: product.minStock,
-                            unit: product.unit
-                          });
-                          setIsProductModalOpen(true);
-                        }}
-                        className="p-2 bg-slate-100 text-slate-700 rounded-lg"
-                        title="Editar Produto"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
         </div>
       )}
 
-      {/* SUB-TAB 4: EQUIPE & TÉCNICOS (Compacta + Hover Details + Mobile Cards) */}
+      {/* SUB-TAB 4: EQUIPE & TÉCNICOS */}
       {activeSubTab === 'employees' && (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
-          {/* Desktop Dense Table */}
-          <div className="hidden md:block overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
             <table className="dense-table text-left text-xs">
               <thead>
                 <tr>
-                  <th>Colaborador / Cargo</th>
+                  <th>Colaborador</th>
+                  <th>Cargo</th>
                   <th>Telefone</th>
-                  <th className="text-right">Salário Base</th>
+                  <th className="text-right">Salário</th>
                   <th className="text-center">Comissão</th>
                   <th>Veículo</th>
                   <th className="text-right">Ações</th>
@@ -949,47 +776,33 @@ export const MasterRegistrationsView: React.FC = () => {
                   )
                   .map(employee => {
                     const assignedVeh = vehicles.find(v => v.id === employee.assignedVehicleId);
-                    const totalMonthlyCost = Number(employee.baseSalary || 0) + Number(employee.benefitsCharges || 0);
                     return (
                       <tr key={employee.id} className="dense-row">
-                        <td>
-                          <RowHoverDetail
-                            title={employee.name}
-                            subtitle={employee.role}
-                            badge={employee.status}
-                            fields={[
-                              { label: 'Telefone', value: employee.phone },
-                              ...(employee.email ? [{ label: 'E-mail', value: employee.email }] : []),
-                              { label: 'Admissão', value: employee.admissionDate ? formatDateBR(employee.admissionDate) : 'N/A' },
-                              { label: 'Salário Base', value: formatBRL(employee.baseSalary) },
-                              { label: 'Encargos Sociais', value: formatBRL(employee.benefitsCharges) },
-                              { label: 'Custo Total / Mês', value: formatBRL(totalMonthlyCost) },
-                              { label: 'Comissão', value: `${employee.commissionRate}%` },
-                              {
-                                label: 'Veículo Vinculado',
-                                value: assignedVeh ? `${assignedVeh.model} (${assignedVeh.plate})` : 'Nenhum'
-                              }
-                            ]}
-                          >
-                            <div className="min-w-0">
-                              <span className="font-semibold text-slate-900">{employee.name}</span>
-                              <span className="ml-1.5 text-[11px] text-blue-700 font-medium">· {employee.role}</span>
-                            </div>
-                          </RowHoverDetail>
-                        </td>
-                        <td className="font-mono text-slate-600 whitespace-nowrap">{employee.phone}</td>
-                        <td className="text-right font-mono font-medium text-slate-700 whitespace-nowrap">
+                        <td className="font-semibold text-slate-900">{employee.name}</td>
+                        <td className="text-blue-700 font-medium">{employee.role}</td>
+                        <td className="font-mono text-slate-600 tabular-nums">{employee.phone || '—'}</td>
+                        <td className="text-right font-mono font-medium text-slate-700 tabular-nums">
                           {formatBRL(employee.baseSalary)}
                         </td>
-                        <td className="text-center font-mono font-semibold text-emerald-700 whitespace-nowrap">
+                        <td className="text-center font-mono font-semibold text-emerald-700 tabular-nums">
                           {employee.commissionRate}%
                         </td>
-                        <td className="font-mono text-slate-600 whitespace-nowrap">
+                        <td className="font-mono text-slate-600">
                           {assignedVeh ? assignedVeh.plate : '—'}
                         </td>
-                        <td className="text-right whitespace-nowrap">
+                        <td className="text-right">
                           <div className="inline-flex items-center justify-end gap-1">
                             <button
+                              type="button"
+                              onClick={() => setDetailTarget({ kind: 'employee', data: employee })}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados do colaborador"
+                              aria-label={`Ver detalhes de ${employee.name}`}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => {
                                 setEditingEmployee(employee);
                                 setEmployeeForm({
@@ -1011,6 +824,7 @@ export const MasterRegistrationsView: React.FC = () => {
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              type="button"
                               onClick={() => {
                                 if (confirm(`Deseja remover o funcionário "${employee.name}"?`)) {
                                   deleteEmployee(employee.id);
@@ -1029,55 +843,6 @@ export const MasterRegistrationsView: React.FC = () => {
               </tbody>
             </table>
           </div>
-
-          {/* Mobile Cards Stack para Equipe & Técnicos */}
-          <div className="md:hidden p-3 space-y-2.5">
-            {employees
-              .filter(e =>
-                e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                e.role.toLowerCase().includes(searchTerm.toLowerCase())
-              )
-              .map(employee => {
-                const assignedVeh = vehicles.find(v => v.id === employee.assignedVehicleId);
-                return (
-                  <div key={employee.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5 text-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-bold text-slate-900 text-sm">{employee.name}</div>
-                        <div className="text-[11px] text-blue-700 font-medium">{employee.role} · {employee.phone}</div>
-                      </div>
-                      <span className="font-mono font-bold text-emerald-700 shrink-0">{employee.commissionRate}%</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px] text-slate-600">
-                      <span className="font-mono">
-                        Base: <strong>{formatBRL(employee.baseSalary)}</strong>{assignedVeh ? ` · ${assignedVeh.plate}` : ''}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setEditingEmployee(employee);
-                          setEmployeeForm({
-                            name: employee.name,
-                            role: employee.role,
-                            baseSalary: employee.baseSalary,
-                            benefitsAndCharges: employee.benefitsCharges,
-                            commissionRate: employee.commissionRate,
-                            assignedVehicleId: employee.assignedVehicleId || '',
-                            phone: employee.phone,
-                            email: employee.email,
-                            admissionDate: employee.admissionDate
-                          });
-                          setIsEmployeeModalOpen(true);
-                        }}
-                        className="p-2 bg-slate-100 text-slate-700 rounded-lg"
-                        title="Editar"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
         </div>
       )}
 
@@ -1085,19 +850,17 @@ export const MasterRegistrationsView: React.FC = () => {
       {activeSubTab === 'fleet' && (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+            <table className="dense-table text-left text-xs">
+              <thead>
                 <tr>
-                  <th className="p-3">Placa & Modelo</th>
-                  <th className="p-3">Ano / Marca</th>
-                  <th className="p-3 text-center">KM Atual</th>
-                  <th className="p-3 text-right">IPVA Anual</th>
-                  <th className="p-3 text-right">Seguro Anual</th>
-                  <th className="p-3">Motorista Vinculado</th>
-                  <th className="p-3 text-right">Ações</th>
+                  <th>Placa</th>
+                  <th>Modelo</th>
+                  <th className="text-center">KM Atual</th>
+                  <th>Motorista</th>
+                  <th className="text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {vehicles
                   .filter(v => 
                     v.plate.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -1106,25 +869,30 @@ export const MasterRegistrationsView: React.FC = () => {
                   .map(vehicle => {
                     const assignedEmp = employees.find(e => e.id === vehicle.assignedEmployeeId);
                     return (
-                      <tr key={vehicle.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-3">
-                          <div className="font-bold text-slate-900 font-mono tracking-wide">{vehicle.plate}</div>
-                          <div className="text-[11px] text-slate-600">{vehicle.model}</div>
-                        </td>
-                        <td className="p-3 text-slate-600">{vehicle.brand} ({vehicle.year})</td>
-                        <td className="p-3 text-center font-mono font-semibold text-slate-700">{vehicle.currentKm.toLocaleString()} km</td>
-                        <td className="p-3 text-right font-mono text-slate-600">{formatBRL(vehicle.annualIpvaValue)}</td>
-                        <td className="p-3 text-right font-mono text-slate-600">{formatBRL(vehicle.annualInsuranceValue)}</td>
-                        <td className="p-3 text-slate-600">
+                      <tr key={vehicle.id} className="dense-row">
+                        <td className="font-bold text-slate-900 font-mono tracking-wide">{vehicle.plate}</td>
+                        <td className="text-slate-700 font-medium">{vehicle.model}</td>
+                        <td className="text-center font-mono font-semibold text-slate-700 tabular-nums">{vehicle.currentKm.toLocaleString()} km</td>
+                        <td className="text-slate-600">
                           {assignedEmp ? (
                             <span className="font-medium text-slate-800">{assignedEmp.name}</span>
                           ) : (
-                            <span className="text-slate-400 italic">Disponível no pátio</span>
+                            <span className="text-slate-400">Disponível</span>
                           )}
                         </td>
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <td className="text-right">
+                          <div className="inline-flex items-center justify-end gap-1">
                             <button
+                              type="button"
+                              onClick={() => setDetailTarget({ kind: 'vehicle', data: vehicle })}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados do veículo"
+                              aria-label={`Ver detalhes de ${vehicle.plate}`}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => {
                                 setEditingVehicle(vehicle);
                                 setVehicleForm({
@@ -1139,17 +907,20 @@ export const MasterRegistrationsView: React.FC = () => {
                                 });
                                 setIsVehicleModalOpen(true);
                               }}
-                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                              title="Editar"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              type="button"
                               onClick={() => {
                                 if (confirm(`Deseja remover o veículo "${vehicle.plate}"?`)) {
                                   deleteVehicle(vehicle.id);
                                 }
                               }}
-                              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                              title="Excluir"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1168,36 +939,41 @@ export const MasterRegistrationsView: React.FC = () => {
       {activeSubTab === 'services' && (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold">
+            <table className="dense-table text-left text-xs">
+              <thead>
                 <tr>
-                  <th className="p-3">Código & Descrição do Serviço</th>
-                  <th className="p-3">Categoria</th>
-                  <th className="p-3 text-center">Tempo Estimado</th>
-                  <th className="p-3 text-right">Preço Padrão</th>
-                  <th className="p-3 text-right">Preço Mínimo</th>
-                  <th className="p-3 text-right">Ações</th>
+                  <th>Código</th>
+                  <th>Serviço</th>
+                  <th className="text-center">Tempo</th>
+                  <th className="text-right">Preço Padrão</th>
+                  <th className="text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {serviceCatalog
                   .filter(s => 
                     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                     s.code.toLowerCase().includes(searchTerm.toLowerCase())
                   )
                   .map(service => (
-                    <tr key={service.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="p-3">
-                        <div className="font-semibold text-slate-900">{service.name}</div>
-                        <div className="text-[10px] font-mono text-slate-500">{service.code}</div>
-                      </td>
-                      <td className="p-3 text-slate-600">{service.category}</td>
-                      <td className="p-3 text-center font-mono text-slate-700">{service.defaultHours} h</td>
-                      <td className="p-3 text-right font-mono font-bold text-blue-700">{formatBRL(service.standardPrice)}</td>
-                      <td className="p-3 text-right font-mono text-slate-500">{formatBRL(service.minPrice)}</td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                    <tr key={service.id} className="dense-row">
+                      <td className="font-mono text-slate-600 tabular-nums">{service.code}</td>
+                      <td className="font-semibold text-slate-900">{service.name}</td>
+                      <td className="text-center font-mono text-slate-700 tabular-nums">{service.defaultHours} h</td>
+                      <td className="text-right font-mono font-bold text-blue-700 tabular-nums">{formatBRL(service.standardPrice)}</td>
+                      <td className="text-right">
+                        <div className="inline-flex items-center justify-end gap-1">
                           <button
+                            type="button"
+                            onClick={() => setDetailTarget({ kind: 'service', data: service })}
+                            className="list-plus-btn"
+                            title="Abrir todos os dados do serviço"
+                            aria-label={`Ver detalhes de ${service.name}`}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => {
                               setEditingService(service);
                               setServiceForm({
@@ -1210,17 +986,20 @@ export const MasterRegistrationsView: React.FC = () => {
                               });
                               setIsServiceModalOpen(true);
                             }}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                            title="Editar"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               if (confirm(`Deseja remover o serviço "${service.name}"?`)) {
                                 deleteServiceCatalogItem(service.id);
                               }
                             }}
-                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                            title="Excluir"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -2391,6 +2170,458 @@ export const MasterRegistrationsView: React.FC = () => {
           </div>
         </div>
       )}
+      {/* MODAL COMPLETA DE DETALHES DO CADASTRO GERAL (ABERTA PELO BOTÃO +) */}
+      {(() => {
+        if (!detailTarget) return null;
+
+        if (detailTarget.kind === 'client') {
+          const c = detailTarget.data;
+          return (
+            <RecordDetailModal
+              isOpen={true}
+              onClose={() => setDetailTarget(null)}
+              title={c.name}
+              subtitle={c.tradeName ? `Fantasia: ${c.tradeName}` : 'Cliente Cadastrado'}
+              statusText={c.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
+              statusClassName={c.customerType === 'atacado' ? 'text-purple-700' : 'text-slate-600'}
+              sections={[
+                {
+                  heading: 'Identificação & Contato',
+                  fields: [
+                    { label: 'CPF / CNPJ', value: c.document || 'Não informado' },
+                    { label: 'Telefone / WhatsApp', value: c.phone || '—' },
+                    { label: 'E-mail', value: c.email || '—' },
+                    { label: 'Perfil Comercial', value: c.customerType === 'atacado' ? 'Atacado (Libera Preço Atacado)' : 'Varejo' }
+                  ]
+                },
+                {
+                  heading: 'Endereço Principal',
+                  fields: [
+                    { label: 'CEP', value: c.cep || '—' },
+                    { label: 'Logradouro', value: `${c.street || ''}${c.number ? `, ${c.number}` : ''}` || '—' },
+                    { label: 'Bairro', value: c.neighborhood || '—' },
+                    { label: 'Cidade / UF', value: `${c.city || ''}${c.state ? ` / ${c.state}` : ''}` || '—' },
+                    ...(c.notes ? [{ label: 'Observações', value: c.notes, fullWidth: true }] : [])
+                  ]
+                }
+              ]}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingClient(c);
+                      setClientForm({
+                        customerType: c.customerType || 'varejo',
+                        name: c.name,
+                        tradeName: c.tradeName || '',
+                        document: c.document,
+                        email: c.email || '',
+                        phone: c.phone,
+                        cep: c.cep || '',
+                        street: c.street || '',
+                        number: c.number || '',
+                        neighborhood: c.neighborhood || '',
+                        city: c.city || '',
+                        state: c.state || '',
+                        notes: c.notes || ''
+                      });
+                      setDetailTarget(null);
+                      setIsClientModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Editar Cliente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o cliente "${c.name}"?`)) {
+                        deleteClient(c.id);
+                        setDetailTarget(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Excluir
+                  </button>
+                </>
+              }
+            />
+          );
+        }
+
+        if (detailTarget.kind === 'supplier') {
+          const s = detailTarget.data;
+          return (
+            <RecordDetailModal
+              isOpen={true}
+              onClose={() => setDetailTarget(null)}
+              title={s.name}
+              subtitle={s.tradeName ? `Fantasia: ${s.tradeName}` : 'Fornecedor Cadastrado'}
+              sections={[
+                {
+                  heading: 'Dados Fiscais & Contato',
+                  fields: [
+                    { label: 'CNPJ', value: s.cnpj || '—' },
+                    { label: 'Pessoa de Contato', value: s.contactPerson || '—' },
+                    { label: 'Telefone', value: s.phone || '—' },
+                    { label: 'E-mail Comercial', value: s.email || '—' }
+                  ]
+                },
+                {
+                  heading: 'Endereço',
+                  fields: [
+                    { label: 'CEP', value: s.cep || '—' },
+                    { label: 'Logradouro', value: `${s.street || ''}${s.number ? `, ${s.number}` : ''}` || '—' },
+                    { label: 'Cidade / UF', value: `${s.city || ''}${s.state ? ` / ${s.state}` : ''}` || '—' }
+                  ]
+                }
+              ]}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSupplier(s);
+                      setSupplierForm({
+                        name: s.name,
+                        tradeName: s.tradeName || '',
+                        cnpj: s.cnpj,
+                        email: s.email || '',
+                        phone: s.phone || '',
+                        contactPerson: s.contactPerson || '',
+                        cep: s.cep || '01001-000',
+                        street: s.street || 'Rua Principal',
+                        number: s.number || '100',
+                        city: s.city || '',
+                        state: s.state || ''
+                      });
+                      setDetailTarget(null);
+                      setIsSupplierModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Editar Fornecedor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o fornecedor "${s.name}"?`)) {
+                        deleteSupplier(s.id);
+                        setDetailTarget(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Excluir
+                  </button>
+                </>
+              }
+            />
+          );
+        }
+
+        if (detailTarget.kind === 'product') {
+          const p = detailTarget.data;
+          return (
+            <RecordDetailModal
+              isOpen={true}
+              onClose={() => setDetailTarget(null)}
+              title={p.name}
+              subtitle={`Categoria: ${p.category} · Código ${p.code || p.sku}`}
+              statusText={p.currentStock <= p.minStock ? 'Estoque Baixo' : 'Em Estoque'}
+              statusClassName={p.currentStock <= p.minStock ? 'text-amber-700' : 'text-emerald-700'}
+              sections={[
+                {
+                  heading: 'Codificação & Fiscal',
+                  fields: [
+                    { label: 'Código / SKU', value: p.code || p.sku || '—' },
+                    { label: 'NCM', value: p.ncm || 'N/A' },
+                    { label: 'Unidade', value: p.unit },
+                    { label: 'Categoria', value: p.category }
+                  ]
+                },
+                {
+                  heading: 'Preços & Estoque',
+                  fields: [
+                    { label: 'Custo Compra', value: formatBRL(p.costPrice) },
+                    { label: 'Preço Varejo', value: formatBRL(p.retailPrice) },
+                    { label: 'Preço Atacado', value: formatBRL(p.wholesalePrice) },
+                    { label: 'Estoque Atual / Mínimo', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` }
+                  ]
+                }
+              ]}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingProduct(null);
+                      setProductForm({
+                        name: `${p.name} (Cópia)`,
+                        sku: `${p.sku || p.code}-COP`,
+                        category: p.category,
+                        ncm: p.ncm || '',
+                        costPrice: p.costPrice,
+                        retailPrice: p.retailPrice,
+                        wholesalePrice: p.wholesalePrice,
+                        currentStock: 0,
+                        minStock: p.minStock,
+                        unit: p.unit
+                      });
+                      setDetailTarget(null);
+                      setIsProductModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> Duplicar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingProduct(p);
+                      setProductForm({
+                        name: p.name,
+                        sku: p.sku || p.code,
+                        category: p.category,
+                        ncm: p.ncm || '',
+                        costPrice: p.costPrice,
+                        retailPrice: p.retailPrice,
+                        wholesalePrice: p.wholesalePrice,
+                        currentStock: p.currentStock,
+                        minStock: p.minStock,
+                        unit: p.unit
+                      });
+                      setDetailTarget(null);
+                      setIsProductModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Editar Produto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o produto "${p.name}"?`)) {
+                        deleteProduct(p.id);
+                        setDetailTarget(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Excluir
+                  </button>
+                </>
+              }
+            />
+          );
+        }
+
+        if (detailTarget.kind === 'employee') {
+          const e = detailTarget.data;
+          const assignedVeh = vehicles.find(v => v.id === e.assignedVehicleId);
+          const totalMonthlyCost = Number(e.baseSalary || 0) + Number(e.benefitsCharges || 0);
+          return (
+            <RecordDetailModal
+              isOpen={true}
+              onClose={() => setDetailTarget(null)}
+              title={e.name}
+              subtitle={e.role}
+              statusText={e.status}
+              statusClassName={e.status === 'Ativo' ? 'text-emerald-700' : 'text-slate-600'}
+              sections={[
+                {
+                  heading: 'Contato & Admissão',
+                  fields: [
+                    { label: 'Cargo / Função', value: e.role },
+                    { label: 'Telefone', value: e.phone || '—' },
+                    { label: 'E-mail', value: e.email || '—' },
+                    { label: 'Data de Admissão', value: e.admissionDate ? formatDateBR(e.admissionDate) : 'N/A' },
+                    { label: 'Veículo Vinculado', value: assignedVeh ? `${assignedVeh.model} (${assignedVeh.plate})` : 'Nenhum' }
+                  ]
+                },
+                {
+                  heading: 'Remuneração & Custos',
+                  fields: [
+                    { label: 'Salário Base', value: formatBRL(e.baseSalary) },
+                    { label: 'Encargos & Benefícios', value: formatBRL(e.benefitsCharges) },
+                    { label: 'Custo Total Mensal', value: formatBRL(totalMonthlyCost) },
+                    { label: 'Taxa de Comissão', value: `${e.commissionRate}%` }
+                  ]
+                }
+              ]}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingEmployee(e);
+                      setEmployeeForm({
+                        name: e.name,
+                        role: e.role,
+                        baseSalary: e.baseSalary,
+                        benefitsAndCharges: e.benefitsCharges,
+                        commissionRate: e.commissionRate,
+                        assignedVehicleId: e.assignedVehicleId || '',
+                        phone: e.phone,
+                        email: e.email,
+                        admissionDate: e.admissionDate
+                      });
+                      setDetailTarget(null);
+                      setIsEmployeeModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Editar Colaborador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o funcionário "${e.name}"?`)) {
+                        deleteEmployee(e.id);
+                        setDetailTarget(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Excluir
+                  </button>
+                </>
+              }
+            />
+          );
+        }
+
+        if (detailTarget.kind === 'vehicle') {
+          const v = detailTarget.data;
+          const assignedEmp = employees.find(emp => emp.id === v.assignedEmployeeId);
+          return (
+            <RecordDetailModal
+              isOpen={true}
+              onClose={() => setDetailTarget(null)}
+              title={`${v.plate} — ${v.model}`}
+              subtitle={`${v.brand || 'Veículo da Frota'} (${v.year})`}
+              statusText={v.status}
+              statusClassName="text-emerald-700"
+              sections={[
+                {
+                  heading: 'Especificações & Rodagem',
+                  fields: [
+                    { label: 'Placa', value: v.plate },
+                    { label: 'Modelo / Marca', value: `${v.model} ${v.brand ? `· ${v.brand}` : ''}` },
+                    { label: 'Ano', value: String(v.year) },
+                    { label: 'KM Atual', value: `${v.currentKm.toLocaleString()} km` },
+                    { label: 'Próxima Troca de Óleo', value: v.nextOilChangeKm ? `${v.nextOilChangeKm.toLocaleString()} km` : '—' },
+                    { label: 'Motorista Vinculado', value: assignedEmp ? assignedEmp.name : 'Disponível no pátio' }
+                  ]
+                },
+                {
+                  heading: 'Custos Fixos Anuais',
+                  fields: [
+                    { label: 'IPVA Anual', value: formatBRL(v.annualIpvaValue) },
+                    { label: 'Seguro Anual', value: formatBRL(v.annualInsuranceValue) }
+                  ]
+                }
+              ]}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingVehicle(v);
+                      setVehicleForm({
+                        plate: v.plate,
+                        model: v.model,
+                        brand: v.brand || '',
+                        year: v.year,
+                        currentKm: v.currentKm,
+                        annualIpvaValue: v.annualIpvaValue,
+                        annualInsuranceValue: v.annualInsuranceValue,
+                        assignedEmployeeId: v.assignedEmployeeId || ''
+                      });
+                      setDetailTarget(null);
+                      setIsVehicleModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Editar Veículo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o veículo "${v.plate}"?`)) {
+                        deleteVehicle(v.id);
+                        setDetailTarget(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Excluir
+                  </button>
+                </>
+              }
+            />
+          );
+        }
+
+        const sv = detailTarget.data;
+        return (
+          <RecordDetailModal
+            isOpen={true}
+            onClose={() => setDetailTarget(null)}
+            title={sv.name}
+            subtitle={`Código ${sv.code} · ${sv.category}`}
+            sections={[
+              {
+                heading: 'Detalhes do Serviço Tabelado',
+                fields: [
+                  { label: 'Código Interno', value: sv.code },
+                  { label: 'Categoria', value: sv.category },
+                  { label: 'Tempo Padrão Estimado', value: `${sv.defaultHours} h` },
+                  { label: 'Preço Padrão', value: formatBRL(sv.standardPrice) },
+                  { label: 'Preço Mínimo Permitido', value: formatBRL(sv.minPrice) }
+                ]
+              }
+            ]}
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingService(sv);
+                    setServiceForm({
+                      code: sv.code,
+                      name: sv.name,
+                      category: sv.category,
+                      defaultHours: sv.defaultHours,
+                      standardPrice: sv.standardPrice,
+                      minPrice: sv.minPrice
+                    });
+                    setDetailTarget(null);
+                    setIsServiceModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer"
+                >
+                  <Edit2 className="w-3.5 h-3.5" /> Editar Serviço
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Deseja remover o serviço "${sv.name}"?`)) {
+                      deleteServiceCatalogItem(sv.id);
+                      setDetailTarget(null);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Excluir
+                </button>
+              </>
+            }
+          />
+        );
+      })()}
     </div>
   );
 };

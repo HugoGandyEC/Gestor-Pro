@@ -22,7 +22,7 @@ import { useApp, formatBRL } from '../context/AppContext';
 import { Supplier, GeneralExpense } from '../types';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
-import { RowHoverDetail } from './RowHoverDetail';
+import { RecordDetailModal } from './RecordDetailModal';
 
 export const SuppliersView: React.FC = () => {
   const { 
@@ -58,6 +58,7 @@ export const SuppliersView: React.FC = () => {
   const [sNotes, setSNotes] = useState('');
   const [isLoadingLookup, setIsLoadingLookup] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+  const [detailSupplier, setDetailSupplier] = useState<Supplier | null>(null);
 
   // Quick stats
   const totalSuppliers = suppliers.length;
@@ -389,163 +390,70 @@ export const SuppliersView: React.FC = () => {
         </div>
       </div>
 
-      {/* Suppliers Table: Compacta no Desktop + Hover Details & Cards no Mobile */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs">
+      {/* Lista Abreviada em Linha Única + Botão (+) para Modal Completa */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredSuppliers.length === 0 ? (
           <div className="text-center py-12 text-xs text-slate-400">
             <Building className="w-8 h-8 mx-auto mb-2 text-slate-300" />
             Nenhum fornecedor encontrado para a busca realizada.
           </div>
         ) : (
-          <>
-            <div className="hidden md:block overflow-x-auto">
-              <table className="dense-table text-left text-xs">
-                <thead>
-                  <tr>
-                    <th>Fornecedor</th>
-                    <th>CNPJ</th>
-                    <th>Telefone</th>
-                    <th>Cidade / UF</th>
-                    <th className="text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="text-slate-700">
-                  {paginatedSuppliers.map((supplier) => {
-                    const payables = getSupplierPayables(supplier.id);
-                    const cleanPhone = supplier.phone.replace(/\D/g, '');
-
-                    return (
-                      <tr key={supplier.id} className="dense-row">
-                        <td>
-                          <RowHoverDetail
-                            title={supplier.name}
-                            subtitle={supplier.tradeName ? `Fantasia: ${supplier.tradeName}` : undefined}
-                            badge={payables.length > 0 ? `${payables.length} pend.` : undefined}
-                            badgeClassName="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800"
-                            fields={[
-                              { label: 'CNPJ', value: supplier.cnpj },
-                              ...(supplier.contactPerson ? [{ label: 'Representante', value: supplier.contactPerson }] : []),
-                              { label: 'Telefone', value: supplier.phone },
-                              ...(supplier.email ? [{ label: 'E-mail', value: supplier.email }] : []),
-                              {
-                                label: 'Endereço',
-                                value: `${supplier.street || 'N/A'}, ${supplier.number || 'S/N'} · ${supplier.city}/${supplier.state}${supplier.cep ? ` · CEP ${supplier.cep}` : ''}`
-                              }
-                            ]}
-                            footer={supplier.notes ? `Obs.: ${supplier.notes}` : undefined}
-                          >
-                            <div className="min-w-0">
-                              <div className="font-bold text-slate-900 truncate max-w-[260px]">
-                                {supplier.name}
-                              </div>
-                              <div className="text-[11px] text-slate-500 truncate max-w-[260px]">
-                                {supplier.tradeName || supplier.contactPerson || 'Comercial'}
-                                {payables.length > 0 ? ` · ${payables.length} conta(s)` : ''}
-                              </div>
-                            </div>
-                          </RowHoverDetail>
-                        </td>
-
-                        <td className="font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap tabular-nums">
-                          {supplier.cnpj}
-                        </td>
-
-                        <td className="whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5 font-mono text-[11px] text-slate-800">
-                            <span>{supplier.phone}</span>
-                            {cleanPhone && (
-                              <a
-                                href={`https://wa.me/55${cleanPhone}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-emerald-600 hover:text-emerald-700 p-1 rounded hover:bg-emerald-50"
-                                title="Abrir WhatsApp Comercial"
-                              >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                              </a>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="text-slate-600 whitespace-nowrap">
-                          {supplier.city} - {supplier.state}
-                        </td>
-
-                        <td className="text-right whitespace-nowrap">
-                          <div className="inline-flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => handleOpenEdit(supplier)}
-                              className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
-                              title="Editar Cadastro"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm(`Deseja realmente remover o fornecedor "${supplier.name}"?`)) {
-                                  deleteSupplier(supplier.id);
-                                }
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                              title="Excluir Fornecedor"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Cards Stack */}
-            <div className="md:hidden p-3 space-y-2.5">
-              {paginatedSuppliers.map((supplier) => {
-                const payables = getSupplierPayables(supplier.id);
-                const cleanPhone = supplier.phone.replace(/\D/g, '');
-                return (
-                  <div key={supplier.id} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2 text-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-900 text-sm">{supplier.name}</div>
-                        <div className="font-mono text-[11px] text-slate-500">{supplier.cnpj}</div>
-                      </div>
-                      {payables.length > 0 && (
-                        <span className="text-[11px] font-semibold text-amber-700 shrink-0">
-                          {payables.length} pend.
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
-                      <span>{supplier.phone} · {supplier.city}/{supplier.state}</span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {cleanPhone && (
-                          <a
-                            href={`https://wa.me/55${cleanPhone}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 text-emerald-600 bg-emerald-50 rounded-lg"
-                            title="WhatsApp"
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                          </a>
-                        )}
+          <div className="overflow-x-auto">
+            <table className="dense-table text-left text-xs">
+              <thead>
+                <tr>
+                  <th>Fornecedor</th>
+                  <th>CNPJ</th>
+                  <th>Telefone</th>
+                  <th>Cidade / UF</th>
+                  <th className="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-700">
+                {paginatedSuppliers.map((supplier) => (
+                  <tr key={supplier.id} className="dense-row">
+                    <td className="font-bold text-slate-900">{supplier.tradeName || supplier.name}</td>
+                    <td className="font-mono text-slate-600 tabular-nums">{supplier.cnpj}</td>
+                    <td className="font-mono text-slate-700 tabular-nums">{supplier.phone}</td>
+                    <td className="text-slate-600">{supplier.city}/{supplier.state}</td>
+                    <td className="text-right">
+                      <div className="inline-flex items-center justify-end gap-1">
                         <button
-                          onClick={() => handleOpenEdit(supplier)}
-                          className="p-2 text-slate-700 bg-slate-100 rounded-lg"
-                          title="Editar"
+                          type="button"
+                          onClick={() => setDetailSupplier(supplier)}
+                          className="list-plus-btn"
+                          title="Abrir todos os dados do fornecedor"
+                          aria-label={`Ver detalhes de ${supplier.name}`}
                         >
-                          <Edit3 className="w-4 h-4" />
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(supplier)}
+                          className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                          title="Editar Cadastro"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Deseja realmente remover o fornecedor "${supplier.name}"?`)) {
+                              deleteSupplier(supplier.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                          title="Excluir Fornecedor"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {/* Paginação da Tabela de Fornecedores */}
@@ -558,6 +466,87 @@ export const SuppliersView: React.FC = () => {
           itemName="fornecedores cadastrados"
         />
       </div>
+
+      {/* Modal Completa do Fornecedor (Aberta pelo botão +) */}
+      {(() => {
+        if (!detailSupplier) return null;
+        const sup = detailSupplier;
+        const payables = getSupplierPayables(sup.id);
+        const cleanPhone = sup.phone.replace(/\D/g, '');
+        return (
+          <RecordDetailModal
+            isOpen={true}
+            onClose={() => setDetailSupplier(null)}
+            title={sup.name}
+            subtitle={sup.tradeName ? `Nome Fantasia: ${sup.tradeName}` : undefined}
+            statusText={payables.length > 0 ? `${payables.length} conta(s) a pagar` : 'Sem pendências'}
+            statusClassName={payables.length > 0 ? 'text-amber-700' : 'text-emerald-700'}
+            sections={[
+              {
+                heading: 'Dados Cadastrais & Fiscais',
+                fields: [
+                  { label: 'Razão Social', value: sup.name },
+                  { label: 'Nome Fantasia', value: sup.tradeName || '—' },
+                  { label: 'CNPJ', value: sup.cnpj },
+                  { label: 'Representante / Contato', value: sup.contactPerson || 'Não informado' }
+                ]
+              },
+              {
+                heading: 'Contato & Localização',
+                fields: [
+                  { label: 'Telefone', value: sup.phone || 'Não informado' },
+                  { label: 'E-mail', value: sup.email || 'Não informado' },
+                  {
+                    label: 'Endereço Completo',
+                    value: `${sup.street || '—'}, ${sup.number || 'S/N'} · ${sup.city}/${sup.state}${sup.cep ? ` · CEP ${sup.cep}` : ''}`,
+                    fullWidth: true
+                  },
+                  ...(sup.notes ? [{ label: 'Observações', value: sup.notes, fullWidth: true }] : [])
+                ]
+              }
+            ]}
+            actions={
+              <>
+                {cleanPhone && (
+                  <a
+                    href={`https://wa.me/55${cleanPhone}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailSupplier(null);
+                    handleOpenEdit(sup);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Editar Fornecedor</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Deseja realmente remover o fornecedor "${sup.name}"?`)) {
+                      deleteSupplier(sup.id);
+                      setDetailSupplier(null);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Excluir</span>
+                </button>
+              </>
+            }
+          />
+        );
+      })()}
 
       {/* Modal Cadastro/Edição de Fornecedor */}
       {isSupplierModalOpen && (

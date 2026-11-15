@@ -1,6 +1,20 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.5`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.6`).
+
+---
+
+## [v2.7.6] — 14/11/2026
+**Listas Abreviadas em Linha Única com Botão (+) para Modal Completa de Dados**
+
+### Removido
+- Removido o card flutuante de detalhes ao passar o mouse (`RowHoverDetail`), removidas as gavetas expansíveis abaixo da linha em Ordens de Serviço e removidos os cards empilhados no mobile (`md:hidden`) e células de duas linhas.
+
+### Adicionado
+- **Modal Global de Detalhes (`<RecordDetailModal />` / `setupListDetailModals` / `.list-plus-btn`)**: clicar no botão **`+`** de qualquer linha abre uma janela modal com **todos os dados completos** e botões de ação do registro (Editar, Imprimir, Baixar, WhatsApp, PDV, Duplicar, Excluir).
+
+### Alterado
+- **Ordens de Serviço, Clientes, Produtos & Estoque, Vendas, Fornecedores, Equipe, Frota e Serviços**: todas as listagens passaram a usar estritamente o formato lista em **linha única abreviada** (`.dense-table` + `white-space: nowrap`), garantindo que nenhum cadastro utilize a linha abaixo.
 
 ---
 
