@@ -30,6 +30,8 @@ import { Client, ClientAddress } from '../types';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const ClientsView: React.FC = () => {
   const { 
@@ -46,6 +48,8 @@ export const ClientsView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'pj' | 'pf'>('all');
   const [commercialFilter, setCommercialFilter] = useState<'all' | 'varejo' | 'atacado'>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -596,53 +600,6 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total de Clientes</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-1">{totalClients}</h3>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">Base ativa cadastrada</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <UserSquare2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pessoa Jurídica (PJ)</p>
-            <h3 className="text-2xl font-bold text-indigo-900 mt-1">{pjCount}</h3>
-            <span className="text-[11px] text-indigo-600 font-medium mt-0.5 block">CNPJ / Múltiplas sedes e filiais</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Building2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pessoa Física (PF)</p>
-            <h3 className="text-2xl font-bold text-emerald-800 mt-1">{pfCount}</h3>
-            <span className="text-[11px] text-emerald-600 font-medium mt-0.5 block">CPF & RG / Residências e chácaras</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <User className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Com OS em Aberto</p>
-            <h3 className="text-2xl font-bold text-amber-700 mt-1">{clientsWithActiveOSCount}</h3>
-            <span className="text-[11px] text-amber-600 font-medium mt-0.5 block">Em atendimento técnico</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <Wrench className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
       {/* Filters and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
         <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
@@ -724,18 +681,20 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                 Atacado ({atacadoCount})
               </button>
             </div>
+
+            <ViewModeToggle viewMode={viewMode} onChange={setViewMode} className="ml-auto sm:ml-1" />
           </div>
         </div>
       </div>
 
-      {/* Lista Abreviada em Linha Única + Botão (+) para Modal Completa */}
+      {/* Listagem em Linha Única (com Hover de Descrição) ou Grade em Cards */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredClients.length === 0 ? (
           <div className="text-center py-12 text-xs text-slate-400">
             <UserSquare2 className="w-8 h-8 mx-auto mb-2 text-slate-300" />
             Nenhum cliente encontrado com os filtros selecionados.
           </div>
-        ) : (
+        ) : viewMode === 'list' ? (
           <div className="overflow-x-auto">
             <table className="dense-table text-left text-xs">
               <thead>
@@ -771,7 +730,32 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
                   const primaryAddress = clientAddresses.find(a => a.isDefault) || clientAddresses[0];
 
                   return (
-                    <tr key={client.id} className="dense-row">
+                    <tr
+                      key={client.id}
+                      className="dense-row"
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: client.name,
+                          subtitle: `${isPJ ? 'Pessoa Jurídica (PJ)' : 'Pessoa Física (PF)'} · ${client.customerType === 'atacado' ? 'Cliente Atacadista' : 'Cliente Varejista'}${client.tradeName ? ` · Fantasia: ${client.tradeName}` : ''}`,
+                          description: client.notes,
+                          fields: [
+                            { label: isPJ ? 'CNPJ' : 'CPF', value: client.document || 'Não informado' },
+                            ...(isPJ && client.stateRegistration ? [{ label: 'Inscrição Estadual', value: client.stateRegistration }] : []),
+                            ...(!isPJ && client.rg ? [{ label: 'RG', value: client.rg }] : []),
+                            { label: 'Telefone', value: client.phone || 'Não informado' },
+                            { label: 'E-mail', value: client.email || 'Não informado' },
+                            ...(client.contactPerson ? [{ label: 'Responsável', value: client.contactPerson }] : []),
+                            { label: 'OS Vinculadas', value: `${ordersCount} ordem(ns)` },
+                            {
+                              label: `Endereço Principal (${clientAddresses.length} cad.)`,
+                              value: `${primaryAddress.street || '—'}, ${primaryAddress.number || 'S/N'} · ${primaryAddress.neighborhood ? `${primaryAddress.neighborhood} · ` : ''}${primaryAddress.city}/${primaryAddress.state}${primaryAddress.cep ? ` · CEP ${primaryAddress.cep}` : ''}`,
+                              fullWidth: true
+                            }
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
+                    >
                       <td className="font-mono text-[11px]">
                         <span className={`font-bold ${isPJ ? 'text-indigo-700' : 'text-emerald-700'}`}>
                           {isPJ ? 'PJ' : 'PF'}
@@ -825,6 +809,134 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
               </tbody>
             </table>
           </div>
+        ) : (
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 bg-slate-50/40">
+            {paginatedClients.map((client) => {
+              const isPJ = client.personType === 'PJ' || client.document.replace(/\D/g, '').length === 14;
+              const ordersCount = getClientOrdersCount(client.id);
+              const cleanPhone = client.phone.replace(/\D/g, '');
+              const clientAddresses = client.addresses && client.addresses.length > 0
+                ? client.addresses
+                : [{
+                    id: 'default',
+                    title: 'Principal',
+                    isDefault: true,
+                    cep: client.cep,
+                    street: client.street,
+                    number: client.number,
+                    complement: client.complement,
+                    neighborhood: client.neighborhood,
+                    city: client.city,
+                    state: client.state,
+                    referencePoint: ''
+                  }];
+              const primaryAddress = clientAddresses.find(a => a.isDefault) || clientAddresses[0];
+
+              return (
+                <div
+                  key={client.id}
+                  className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between gap-3 hover:border-slate-300 transition-colors"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-sm text-slate-900 leading-snug break-words">
+                          {client.name}
+                        </h3>
+                        {client.tradeName && (
+                          <p className="text-xs text-slate-500 truncate">{client.tradeName}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDetailClient(client)}
+                        className="list-plus-btn shrink-0"
+                        title="Abrir todos os dados do cliente"
+                        aria-label={`Ver detalhes de ${client.name}`}
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-slate-500">
+                      <span className={`font-bold ${isPJ ? 'text-indigo-700' : 'text-emerald-700'}`}>
+                        {isPJ ? 'Pessoa Jurídica' : 'Pessoa Física'}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span className={client.customerType === 'atacado' ? 'font-bold text-purple-700' : 'font-medium text-slate-600'}>
+                        {client.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span className="font-mono tabular-nums">{ordersCount} OS</span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-xs text-slate-700">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-500">{isPJ ? 'CNPJ' : 'CPF'}:</span>
+                        <span className="font-mono font-semibold tabular-nums">{client.document || '—'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-500">Telefone:</span>
+                        <span className="font-mono tabular-nums">{client.phone || '—'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-500">E-mail:</span>
+                        <span className="truncate max-w-[200px]">{client.email || '—'}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 pt-1 truncate">
+                        {primaryAddress.street || '—'}, {primaryAddress.number || 'S/N'} · {primaryAddress.city}/{primaryAddress.state}
+                      </div>
+                    </div>
+
+                    {client.notes && (
+                      <p className="text-[11px] text-slate-500 bg-slate-50 rounded-lg px-2.5 py-1.5 line-clamp-2">
+                        {client.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      {clientAddresses.length} endereço(s)
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {cleanPhone && (
+                        <a
+                          href={`https://wa.me/55${cleanPhone}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors"
+                          title="Chamar no WhatsApp"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(client)}
+                        className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                        title="Editar Cadastro"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Deseja realmente remover o cliente "${client.name}"?`)) {
+                            deleteClient(client.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                        title="Excluir Cliente"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {/* Paginação da Tabela de Clientes */}
@@ -837,6 +949,8 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
           itemName="clientes cadastrados"
         />
       </div>
+
+      {tooltipElement}
 
       {/* Modal Completa do Cliente (Aberta pelo botão +) */}
       {(() => {

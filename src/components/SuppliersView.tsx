@@ -23,6 +23,8 @@ import { Supplier, GeneralExpense } from '../types';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const SuppliersView: React.FC = () => {
   const { 
@@ -36,6 +38,8 @@ export const SuppliersView: React.FC = () => {
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -358,7 +362,7 @@ export const SuppliersView: React.FC = () => {
       </div>
 
       {/* Filters and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="w-full md:w-96">
           <LiveSearchInput
             value={searchTerm}
@@ -388,16 +392,17 @@ export const SuppliersView: React.FC = () => {
             onSelect={(opt) => setSearchTerm(opt.data.name)}
           />
         </div>
+        <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
       </div>
 
-      {/* Lista Abreviada em Linha Única + Botão (+) para Modal Completa */}
+      {/* Listagem em Linha Única (com Hover de Descrição) ou Grade em Cards */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredSuppliers.length === 0 ? (
           <div className="text-center py-12 text-xs text-slate-400">
             <Building className="w-8 h-8 mx-auto mb-2 text-slate-300" />
             Nenhum fornecedor encontrado para a busca realizada.
           </div>
-        ) : (
+        ) : viewMode === 'list' ? (
           <div className="overflow-x-auto">
             <table className="dense-table text-left text-xs">
               <thead>
@@ -410,49 +415,182 @@ export const SuppliersView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="text-slate-700">
-                {paginatedSuppliers.map((supplier) => (
-                  <tr key={supplier.id} className="dense-row">
-                    <td className="font-bold text-slate-900">{supplier.tradeName || supplier.name}</td>
-                    <td className="font-mono text-slate-600 tabular-nums">{supplier.cnpj}</td>
-                    <td className="font-mono text-slate-700 tabular-nums">{supplier.phone}</td>
-                    <td className="text-slate-600">{supplier.city}/{supplier.state}</td>
-                    <td className="text-right">
-                      <div className="inline-flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setDetailSupplier(supplier)}
-                          className="list-plus-btn"
-                          title="Abrir todos os dados do fornecedor"
-                          aria-label={`Ver detalhes de ${supplier.name}`}
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(supplier)}
-                          className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
-                          title="Editar Cadastro"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm(`Deseja realmente remover o fornecedor "${supplier.name}"?`)) {
-                              deleteSupplier(supplier.id);
+                {paginatedSuppliers.map((supplier) => {
+                  const payables = getSupplierPayables(supplier.id);
+                  return (
+                    <tr
+                      key={supplier.id}
+                      className="dense-row"
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: supplier.name,
+                          subtitle: `${supplier.tradeName ? `Fantasia: ${supplier.tradeName} · ` : ''}${payables.length > 0 ? `${payables.length} conta(s) a pagar` : 'Sem pendências'}`,
+                          description: supplier.notes,
+                          fields: [
+                            { label: 'CNPJ', value: supplier.cnpj || '—' },
+                            { label: 'Representante / Contato', value: supplier.contactPerson || 'Não informado' },
+                            { label: 'Telefone', value: supplier.phone || '—' },
+                            { label: 'E-mail', value: supplier.email || '—' },
+                            {
+                              label: 'Endereço Completo',
+                              value: `${supplier.street || '—'}, ${supplier.number || 'S/N'} · ${supplier.city}/${supplier.state}${supplier.cep ? ` · CEP ${supplier.cep}` : ''}`,
+                              fullWidth: true
                             }
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                          title="Excluir Fornecedor"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
+                    >
+                      <td className="font-bold text-slate-900">{supplier.tradeName || supplier.name}</td>
+                      <td className="font-mono text-slate-600 tabular-nums">{supplier.cnpj}</td>
+                      <td className="font-mono text-slate-700 tabular-nums">{supplier.phone}</td>
+                      <td className="text-slate-600">{supplier.city}/{supplier.state}</td>
+                      <td className="text-right">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setDetailSupplier(supplier)}
+                            className="list-plus-btn"
+                            title="Abrir todos os dados do fornecedor"
+                            aria-label={`Ver detalhes de ${supplier.name}`}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(supplier)}
+                            className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                            title="Editar Cadastro"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Deseja realmente remover o fornecedor "${supplier.name}"?`)) {
+                                deleteSupplier(supplier.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                            title="Excluir Fornecedor"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+        ) : (
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 bg-slate-50/40">
+            {paginatedSuppliers.map((supplier) => {
+              const payables = getSupplierPayables(supplier.id);
+              const cleanPhone = supplier.phone.replace(/\D/g, '');
+              return (
+                <div
+                  key={supplier.id}
+                  className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between gap-3 hover:border-slate-300 transition-colors"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-sm text-slate-900 leading-snug break-words">
+                          {supplier.tradeName || supplier.name}
+                        </h3>
+                        {supplier.tradeName && (
+                          <p className="text-xs text-slate-500 truncate">{supplier.name}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDetailSupplier(supplier)}
+                        className="list-plus-btn shrink-0"
+                        title="Abrir todos os dados do fornecedor"
+                        aria-label={`Ver detalhes de ${supplier.name}`}
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-slate-500">
+                      <span className="font-mono tabular-nums">{supplier.cnpj}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className={payables.length > 0 ? 'font-semibold text-amber-700' : 'text-emerald-700 font-medium'}>
+                        {payables.length > 0 ? `${payables.length} título(s) em aberto` : 'Sem pendências'}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-xs text-slate-700">
+                      {supplier.contactPerson && (
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-500">Contato:</span>
+                          <span className="font-medium truncate">{supplier.contactPerson}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-500">Telefone:</span>
+                        <span className="font-mono tabular-nums">{supplier.phone || '—'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-slate-500">E-mail:</span>
+                        <span className="truncate max-w-[200px]">{supplier.email || '—'}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 pt-1 truncate">
+                        {supplier.street || '—'}, {supplier.number || 'S/N'} · {supplier.city}/{supplier.state}
+                      </div>
+                    </div>
+
+                    {supplier.notes && (
+                      <p className="text-[11px] text-slate-500 bg-slate-50 rounded-lg px-2.5 py-1.5 line-clamp-2">
+                        {supplier.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-400">
+                      {supplier.city}/{supplier.state}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {cleanPhone && (
+                        <a
+                          href={`https://wa.me/55${cleanPhone}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors"
+                          title="WhatsApp"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(supplier)}
+                        className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                        title="Editar Cadastro"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Deseja realmente remover o fornecedor "${supplier.name}"?`)) {
+                            deleteSupplier(supplier.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                        title="Excluir Fornecedor"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -466,6 +604,8 @@ export const SuppliersView: React.FC = () => {
           itemName="fornecedores cadastrados"
         />
       </div>
+
+      {tooltipElement}
 
       {/* Modal Completa do Fornecedor (Aberta pelo botão +) */}
       {(() => {

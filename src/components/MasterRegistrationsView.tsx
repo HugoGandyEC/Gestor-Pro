@@ -29,6 +29,8 @@ import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { UniversalDataImportView } from './UniversalDataImportView';
 import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 import { 
   Client, 
   Supplier, 
@@ -86,6 +88,8 @@ export const MasterRegistrationsView: React.FC = () => {
 
   const [activeSubTab, setActiveSubTab] = useState<RegistrationTab>('clients');
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Modal states
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -111,7 +115,8 @@ export const MasterRegistrationsView: React.FC = () => {
     | { kind: 'product'; data: Product }
     | { kind: 'employee'; data: Employee }
     | { kind: 'vehicle'; data: Vehicle }
-    | { kind: 'service'; data: ServiceCatalogItem };
+    | { kind: 'service'; data: ServiceCatalogItem }
+    | { kind: 'checklist'; data: ChecklistTemplate };
   const [detailTarget, setDetailTarget] = useState<MasterDetailTarget | null>(null);
 
   // Client form state
@@ -482,125 +487,236 @@ export const MasterRegistrationsView: React.FC = () => {
               onSelect={(opt) => setSearchTerm(opt.data)}
             />
           </div>
-          <div className="text-xs text-slate-500 hidden sm:block">
-            Mostrando registros atualizados do banco de dados
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-xs text-slate-500 hidden lg:block">
+              Mostrando registros atualizados do banco de dados
+            </span>
+            <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
           </div>
         </div>
       )}
 
       {/* SUB-TAB 1: CLIENTES */}
-      {activeSubTab === 'clients' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="dense-table text-left text-xs">
-              <thead>
-                <tr>
-                  <th>Perfil</th>
-                  <th>Cliente</th>
-                  <th>CPF / CNPJ</th>
-                  <th>Telefone</th>
-                  <th>Cidade / UF</th>
-                  <th className="text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients
-                  .filter(c =>
-                    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    c.document.includes(searchTerm) ||
-                    (c.tradeName && c.tradeName.toLowerCase().includes(searchTerm.toLowerCase()))
-                  )
-                  .map(client => (
-                    <tr key={client.id} className="dense-row">
-                      <td className={`font-semibold text-[11px] ${client.customerType === 'atacado' ? 'text-purple-700' : 'text-slate-600'}`}>
-                        {client.customerType === 'atacado' ? 'Atac.' : 'Var.'}
-                      </td>
-                      <td className="font-semibold text-slate-900">{client.name}</td>
-                      <td className="font-mono text-slate-700 tabular-nums">{client.document || '—'}</td>
-                      <td className="font-mono text-slate-600 tabular-nums">{client.phone || '—'}</td>
-                      <td className="text-slate-600">{client.city}/{client.state}</td>
-                      <td className="text-right">
-                        <div className="inline-flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setDetailTarget({ kind: 'client', data: client })}
-                            className="list-plus-btn"
-                            title="Abrir todos os dados do cliente"
-                            aria-label={`Ver detalhes de ${client.name}`}
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingClient(client);
-                              setClientForm({
-                                customerType: client.customerType || 'varejo',
-                                name: client.name,
-                                tradeName: client.tradeName || '',
-                                document: client.document,
-                                email: client.email || '',
-                                phone: client.phone,
-                                cep: client.cep || '',
-                                street: client.street || '',
-                                number: client.number || '',
-                                neighborhood: client.neighborhood || '',
-                                city: client.city || '',
-                                state: client.state || '',
-                                notes: client.notes || ''
-                              });
-                              setIsClientModalOpen(true);
-                            }}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (confirm(`Deseja remover o cliente "${client.name}"?`)) {
-                                deleteClient(client.id);
-                              }
-                            }}
-                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+      {activeSubTab === 'clients' && (() => {
+        const filteredClients = clients.filter(c =>
+          c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c.document.includes(searchTerm) ||
+          (c.tradeName && c.tradeName.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+        return viewMode === 'list' ? (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Perfil</th>
+                    <th>Cliente</th>
+                    <th>CPF / CNPJ</th>
+                    <th>Telefone</th>
+                    <th>Cidade / UF</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredClients.map(client => {
+                    const addressSummary = [client.street, client.number, client.neighborhood, client.city && client.state ? `${client.city}/${client.state}` : client.city].filter(Boolean).join(', ');
+                    return (
+                      <tr
+                        key={client.id}
+                        className="dense-row"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: client.name,
+                            subtitle: `${client.customerType === 'atacado' ? 'Atacadista (Atacado Liberado)' : 'Varejista (Varejo)'}${client.tradeName ? ` · Fantasia: ${client.tradeName}` : ''}`,
+                            description: client.notes || 'Cliente cadastrado no banco de dados geral do sistema.',
+                            fields: [
+                              { label: 'CPF / CNPJ', value: client.document || 'Não informado' },
+                              { label: 'Telefone', value: client.phone || '—' },
+                              { label: 'E-mail', value: client.email || '—' },
+                              { label: 'Endereço', value: addressSummary || '—', fullWidth: true }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
+                        <td className={`font-semibold text-[11px] ${client.customerType === 'atacado' ? 'text-purple-700' : 'text-slate-600'}`}>
+                          {client.customerType === 'atacado' ? 'Atac.' : 'Var.'}
+                        </td>
+                        <td className="font-semibold text-slate-900">{client.name}</td>
+                        <td className="font-mono text-slate-700 tabular-nums">{client.document || '—'}</td>
+                        <td className="font-mono text-slate-600 tabular-nums">{client.phone || '—'}</td>
+                        <td className="text-slate-600">{client.city}/{client.state}</td>
+                        <td className="text-right">
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setDetailTarget({ kind: 'client', data: client })}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados do cliente"
+                              aria-label={`Ver detalhes de ${client.name}`}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingClient(client);
+                                setClientForm({
+                                  customerType: client.customerType || 'varejo',
+                                  name: client.name,
+                                  tradeName: client.tradeName || '',
+                                  document: client.document,
+                                  email: client.email || '',
+                                  phone: client.phone,
+                                  cep: client.cep || '',
+                                  street: client.street || '',
+                                  number: client.number || '',
+                                  neighborhood: client.neighborhood || '',
+                                  city: client.city || '',
+                                  state: client.state || '',
+                                  notes: client.notes || ''
+                                });
+                                setIsClientModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                              title="Editar"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Deseja remover o cliente "${client.name}"?`)) {
+                                  deleteClient(client.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredClients.map(client => (
+              <div key={client.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={`text-[11px] font-bold uppercase ${client.customerType === 'atacado' ? 'text-purple-700' : 'text-slate-600'}`}>
+                      {client.customerType === 'atacado' ? 'Atacadista' : 'Varejista'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDetailTarget({ kind: 'client', data: client })}
+                      className="list-plus-btn"
+                      title="Abrir todos os dados do cliente"
+                      aria-label={`Ver detalhes de ${client.name}`}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-900 line-clamp-1">{client.name}</h3>
+                  {client.tradeName && <p className="text-xs text-slate-500 truncate">{client.tradeName}</p>}
+                  <div className="text-xs text-slate-600 space-y-1 pt-1">
+                    <div className="font-mono tabular-nums">{client.document || 'Sem documento'} · {client.phone || 'Sem telefone'}</div>
+                    <div className="truncate text-slate-500">{[client.city, client.state].filter(Boolean).join(' / ') || 'Endereço não informado'}</div>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingClient(client);
+                      setClientForm({
+                        customerType: client.customerType || 'varejo',
+                        name: client.name,
+                        tradeName: client.tradeName || '',
+                        document: client.document,
+                        email: client.email || '',
+                        phone: client.phone,
+                        cep: client.cep || '',
+                        street: client.street || '',
+                        number: client.number || '',
+                        neighborhood: client.neighborhood || '',
+                        city: client.city || '',
+                        state: client.state || '',
+                        notes: client.notes || ''
+                      });
+                      setIsClientModalOpen(true);
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                    title="Editar"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o cliente "${client.name}"?`)) {
+                        deleteClient(client.id);
+                      }
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* SUB-TAB 2: FORNECEDORES */}
-      {activeSubTab === 'suppliers' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="dense-table text-left text-xs">
-              <thead>
-                <tr>
-                  <th>Razão Social</th>
-                  <th>CNPJ</th>
-                  <th>Telefone</th>
-                  <th>Cidade / UF</th>
-                  <th className="text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {suppliers
-                  .filter(s =>
-                    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    s.cnpj.includes(searchTerm) ||
-                    (s.tradeName && s.tradeName.toLowerCase().includes(searchTerm.toLowerCase()))
-                  )
-                  .map(supplier => (
-                    <tr key={supplier.id} className="dense-row">
+      {activeSubTab === 'suppliers' && (() => {
+        const filteredSuppliers = suppliers.filter(s =>
+          s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          s.cnpj.includes(searchTerm) ||
+          (s.tradeName && s.tradeName.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+        return viewMode === 'list' ? (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Razão Social</th>
+                    <th>CNPJ</th>
+                    <th>Telefone</th>
+                    <th>Cidade / UF</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSuppliers.map(supplier => (
+                    <tr
+                      key={supplier.id}
+                      className="dense-row"
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: supplier.name,
+                          subtitle: supplier.tradeName ? `Fantasia: ${supplier.tradeName}` : `CNPJ: ${supplier.cnpj || 'Não informado'}`,
+                          description: supplier.notes || 'Fornecedor homologado no cadastro geral.',
+                          fields: [
+                            { label: 'CNPJ', value: supplier.cnpj || '—' },
+                            { label: 'Contato', value: supplier.contactPerson || '—' },
+                            { label: 'Telefone', value: supplier.phone || '—' },
+                            { label: 'E-mail', value: supplier.email || '—' },
+                            { label: 'Localização', value: `${supplier.street || ''} ${supplier.number || ''}, ${supplier.city || ''}/${supplier.state || ''}`.trim() || '—', fullWidth: true }
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
+                    >
                       <td className="font-semibold text-slate-900">{supplier.name}</td>
                       <td className="font-mono text-slate-700 tabular-nums">{supplier.cnpj || '—'}</td>
                       <td className="font-mono text-slate-600 tabular-nums">{supplier.phone || '—'}</td>
@@ -656,38 +772,120 @@ export const MasterRegistrationsView: React.FC = () => {
                       </td>
                     </tr>
                   ))}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredSuppliers.map(supplier => (
+              <div key={supplier.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-mono text-[11px] font-semibold text-slate-500 tabular-nums">{supplier.cnpj || 'Sem CNPJ'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDetailTarget({ kind: 'supplier', data: supplier })}
+                      className="list-plus-btn"
+                      title="Abrir todos os dados do fornecedor"
+                      aria-label={`Ver detalhes de ${supplier.name}`}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-900 line-clamp-1">{supplier.name}</h3>
+                  <div className="text-xs text-slate-600 space-y-1">
+                    <div>Contato: {supplier.contactPerson || 'Comercial'} · {supplier.phone || '—'}</div>
+                    <div className="text-slate-500 truncate">{[supplier.city, supplier.state].filter(Boolean).join(' / ') || '—'}</div>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSupplier(supplier);
+                      setSupplierForm({
+                        name: supplier.name,
+                        tradeName: supplier.tradeName || '',
+                        cnpj: supplier.cnpj,
+                        email: supplier.email || '',
+                        phone: supplier.phone || '',
+                        contactPerson: supplier.contactPerson || '',
+                        cep: supplier.cep || '01001-000',
+                        street: supplier.street || 'Rua Principal',
+                        number: supplier.number || '100',
+                        city: supplier.city || '',
+                        state: supplier.state || ''
+                      });
+                      setIsSupplierModalOpen(true);
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                    title="Editar"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o fornecedor "${supplier.name}"?`)) {
+                        deleteSupplier(supplier.id);
+                      }
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* SUB-TAB 3: PRODUTOS & PEÇAS */}
-      {activeSubTab === 'products' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="dense-table text-left text-xs">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Produto</th>
-                  <th className="text-right">Varejo</th>
-                  <th className="text-right">Atacado</th>
-                  <th className="text-center">Estoque</th>
-                  <th className="text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products
-                  .filter(p =>
-                    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
-                  )
-                  .map(product => {
+      {activeSubTab === 'products' && (() => {
+        const filteredProducts = products.filter(p =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+        return viewMode === 'list' ? (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Produto</th>
+                    <th className="text-right">Varejo</th>
+                    <th className="text-right">Atacado</th>
+                    <th className="text-center">Estoque</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.map(product => {
                     const isLow = product.currentStock <= product.minStock;
                     return (
-                      <tr key={product.id} className="dense-row">
+                      <tr
+                        key={product.id}
+                        className="dense-row"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: product.name,
+                            subtitle: `${product.category}${product.brand ? ` · Marca: ${product.brand}` : ''}`,
+                            description: product.description || 'Produto cadastrado no catálogo mestre de peças e itens.',
+                            fields: [
+                              { label: 'Código / SKU', value: `${product.code}${product.sku ? ` · ${product.sku}` : ''}` },
+                              { label: 'NCM', value: product.ncm || '—' },
+                              { label: 'Custo / Varejo', value: `${formatBRL(product.costPrice)} · ${formatBRL(product.retailPrice)}` },
+                              { label: 'Atacado / Estoque', value: `${formatBRL(product.wholesalePrice)} · ${product.currentStock} ${product.unit}` }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
                         <td className="font-mono text-slate-600 tabular-nums">{product.code || product.sku}</td>
                         <td className="font-semibold text-slate-900">{product.name}</td>
                         <td className="text-right font-mono font-semibold text-emerald-700 tabular-nums">{formatBRL(product.retailPrice)}</td>
@@ -746,38 +944,139 @@ export const MasterRegistrationsView: React.FC = () => {
                       </tr>
                     );
                   })}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredProducts.map(product => {
+              const isLow = product.currentStock <= product.minStock;
+              const thumb = product.photos?.[0];
+              return (
+                <div key={product.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-11 h-11 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                      {thumb ? (
+                        <img src={thumb} alt={product.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] text-blue-600 font-bold truncate">{product.code || product.sku}</span>
+                        <span className={`text-[11px] font-mono font-bold tabular-nums shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
+                          {product.currentStock} {product.unit}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-sm text-slate-900 line-clamp-2 leading-snug mt-0.5">{product.name}</h3>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">{product.category}</p>
+                    </div>
+                  </div>
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div className="text-xs font-mono tabular-nums">
+                      <span className="font-bold text-emerald-700">{formatBRL(product.retailPrice)}</span>
+                      <span className="text-slate-400 mx-1">·</span>
+                      <span className="text-blue-700">{formatBRL(product.wholesalePrice)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setDetailTarget({ kind: 'product', data: product })}
+                        className="list-plus-btn"
+                        title="Abrir todos os dados do produto"
+                        aria-label={`Ver detalhes de ${product.name}`}
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingProduct(product);
+                          setProductForm({
+                            name: product.name,
+                            sku: product.sku || product.code,
+                            category: product.category,
+                            ncm: product.ncm || '',
+                            costPrice: product.costPrice,
+                            retailPrice: product.retailPrice,
+                            wholesalePrice: product.wholesalePrice,
+                            currentStock: product.currentStock,
+                            minStock: product.minStock,
+                            unit: product.unit
+                          });
+                          setIsProductModalOpen(true);
+                        }}
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                        title="Editar Produto"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Deseja remover o produto "${product.name}"?`)) {
+                            deleteProduct(product.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                        title="Excluir Produto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* SUB-TAB 4: EQUIPE & TÉCNICOS */}
-      {activeSubTab === 'employees' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="dense-table text-left text-xs">
-              <thead>
-                <tr>
-                  <th>Colaborador</th>
-                  <th>Cargo</th>
-                  <th>Telefone</th>
-                  <th className="text-right">Salário</th>
-                  <th className="text-center">Comissão</th>
-                  <th>Veículo</th>
-                  <th className="text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees
-                  .filter(e =>
-                    e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    e.role.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map(employee => {
+      {activeSubTab === 'employees' && (() => {
+        const filteredEmployees = employees.filter(e =>
+          e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          e.role.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        return viewMode === 'list' ? (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Colaborador</th>
+                    <th>Cargo</th>
+                    <th>Telefone</th>
+                    <th className="text-right">Salário</th>
+                    <th className="text-center">Comissão</th>
+                    <th>Veículo</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEmployees.map(employee => {
                     const assignedVeh = vehicles.find(v => v.id === employee.assignedVehicleId);
                     return (
-                      <tr key={employee.id} className="dense-row">
+                      <tr
+                        key={employee.id}
+                        className="dense-row"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: employee.name,
+                            subtitle: `${employee.role} · Status: ${employee.status}`,
+                            description: `Admissão: ${formatDateBR(employee.admissionDate)} · Custo mensal total de ${formatBRL(employee.baseSalary + employee.benefitsCharges)}.`,
+                            fields: [
+                              { label: 'Telefone', value: employee.phone || '—' },
+                              { label: 'E-mail', value: employee.email || '—' },
+                              { label: 'Salário / Encargos', value: `${formatBRL(employee.baseSalary)} + ${formatBRL(employee.benefitsCharges)}` },
+                              { label: 'Comissão / Veículo', value: `${employee.commissionRate}% · ${assignedVeh ? `${assignedVeh.model} (${assignedVeh.plate})` : 'Nenhum'}` }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
                         <td className="font-semibold text-slate-900">{employee.name}</td>
                         <td className="text-blue-700 font-medium">{employee.role}</td>
                         <td className="font-mono text-slate-600 tabular-nums">{employee.phone || '—'}</td>
@@ -840,36 +1139,119 @@ export const MasterRegistrationsView: React.FC = () => {
                       </tr>
                     );
                   })}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredEmployees.map(employee => {
+              const assignedVeh = vehicles.find(v => v.id === employee.assignedVehicleId);
+              return (
+                <div key={employee.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-blue-700">{employee.role}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDetailTarget({ kind: 'employee', data: employee })}
+                        className="list-plus-btn"
+                        title="Abrir todos os dados do colaborador"
+                        aria-label={`Ver detalhes de ${employee.name}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <h3 className="font-bold text-sm text-slate-900">{employee.name}</h3>
+                    <div className="text-xs text-slate-600 space-y-1 font-mono tabular-nums">
+                      <div>Salário Base: {formatBRL(employee.baseSalary)} · Comissão: {employee.commissionRate}%</div>
+                      <div className="text-slate-500">{employee.phone || '—'} · Veículo: {assignedVeh ? assignedVeh.plate : 'Nenhum'}</div>
+                    </div>
+                  </div>
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingEmployee(employee);
+                        setEmployeeForm({
+                          name: employee.name,
+                          role: employee.role,
+                          baseSalary: employee.baseSalary,
+                          benefitsAndCharges: employee.benefitsCharges,
+                          commissionRate: employee.commissionRate,
+                          assignedVehicleId: employee.assignedVehicleId || '',
+                          phone: employee.phone,
+                          email: employee.email,
+                          admissionDate: employee.admissionDate
+                        });
+                        setIsEmployeeModalOpen(true);
+                      }}
+                      className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                      title="Editar"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Deseja remover o funcionário "${employee.name}"?`)) {
+                          deleteEmployee(employee.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* SUB-TAB 5: FROTA DE VEÍCULOS */}
-      {activeSubTab === 'fleet' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="dense-table text-left text-xs">
-              <thead>
-                <tr>
-                  <th>Placa</th>
-                  <th>Modelo</th>
-                  <th className="text-center">KM Atual</th>
-                  <th>Motorista</th>
-                  <th className="text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vehicles
-                  .filter(v => 
-                    v.plate.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                    v.model.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map(vehicle => {
+      {activeSubTab === 'fleet' && (() => {
+        const filteredVehicles = vehicles.filter(v =>
+          v.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          v.model.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        return viewMode === 'list' ? (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Placa</th>
+                    <th>Modelo</th>
+                    <th className="text-center">KM Atual</th>
+                    <th>Motorista</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredVehicles.map(vehicle => {
                     const assignedEmp = employees.find(e => e.id === vehicle.assignedEmployeeId);
                     return (
-                      <tr key={vehicle.id} className="dense-row">
+                      <tr
+                        key={vehicle.id}
+                        className="dense-row"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: `${vehicle.plate} — ${vehicle.model}`,
+                            subtitle: `${vehicle.brand || 'Frota Própria'} · Ano ${vehicle.year} · ${vehicle.status}`,
+                            description: `Motorista vinculado: ${assignedEmp ? assignedEmp.name : 'Disponível no pátio'}.`,
+                            fields: [
+                              { label: 'Odômetro', value: `${vehicle.currentKm.toLocaleString()} km` },
+                              { label: 'Próx. Troca de Óleo', value: vehicle.nextOilChangeKm ? `${vehicle.nextOilChangeKm.toLocaleString()} km` : '—' },
+                              { label: 'IPVA Anual', value: formatBRL(vehicle.annualIpvaValue) },
+                              { label: 'Seguro Anual', value: formatBRL(vehicle.annualInsuranceValue) }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
                         <td className="font-bold text-slate-900 font-mono tracking-wide">{vehicle.plate}</td>
                         <td className="text-slate-700 font-medium">{vehicle.model}</td>
                         <td className="text-center font-mono font-semibold text-slate-700 tabular-nums">{vehicle.currentKm.toLocaleString()} km</td>
@@ -929,34 +1311,115 @@ export const MasterRegistrationsView: React.FC = () => {
                       </tr>
                     );
                   })}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredVehicles.map(vehicle => {
+              const assignedEmp = employees.find(e => e.id === vehicle.assignedEmployeeId);
+              return (
+                <div key={vehicle.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">{vehicle.plate}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDetailTarget({ kind: 'vehicle', data: vehicle })}
+                        className="list-plus-btn"
+                        title="Abrir todos os dados do veículo"
+                        aria-label={`Ver detalhes de ${vehicle.plate}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <h3 className="font-bold text-sm text-slate-900">{vehicle.model}</h3>
+                    <div className="text-xs text-slate-600 space-y-1">
+                      <div className="font-mono tabular-nums">Ano {vehicle.year} · {vehicle.currentKm.toLocaleString()} km</div>
+                      <div>Motorista: {assignedEmp ? assignedEmp.name : 'Disponível no pátio'}</div>
+                    </div>
+                  </div>
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingVehicle(vehicle);
+                        setVehicleForm({
+                          plate: vehicle.plate,
+                          model: vehicle.model,
+                          brand: vehicle.brand || '',
+                          year: vehicle.year,
+                          currentKm: vehicle.currentKm,
+                          annualIpvaValue: vehicle.annualIpvaValue,
+                          annualInsuranceValue: vehicle.annualInsuranceValue,
+                          assignedEmployeeId: vehicle.assignedEmployeeId || ''
+                        });
+                        setIsVehicleModalOpen(true);
+                      }}
+                      className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                      title="Editar"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Deseja remover o veículo "${vehicle.plate}"?`)) {
+                          deleteVehicle(vehicle.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* SUB-TAB 6: SERVIÇOS TABELADOS */}
-      {activeSubTab === 'services' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="dense-table text-left text-xs">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Serviço</th>
-                  <th className="text-center">Tempo</th>
-                  <th className="text-right">Preço Padrão</th>
-                  <th className="text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {serviceCatalog
-                  .filter(s => 
-                    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                    s.code.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map(service => (
-                    <tr key={service.id} className="dense-row">
+      {activeSubTab === 'services' && (() => {
+        const filteredServices = serviceCatalog.filter(s =>
+          s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          s.code.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        return viewMode === 'list' ? (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Serviço</th>
+                    <th className="text-center">Tempo</th>
+                    <th className="text-right">Preço Padrão</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredServices.map(service => (
+                    <tr
+                      key={service.id}
+                      className="dense-row"
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: service.name,
+                          subtitle: `Código ${service.code} · Categoria: ${service.category}`,
+                          description: 'Serviço tabelado disponível para seleção rápida em Ordens de Serviço e orçamentos.',
+                          fields: [
+                            { label: 'Tempo Padrão', value: `${service.defaultHours} h` },
+                            { label: 'Preço Padrão', value: formatBRL(service.standardPrice) },
+                            { label: 'Preço Mínimo', value: formatBRL(service.minPrice) }
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
+                    >
                       <td className="font-mono text-slate-600 tabular-nums">{service.code}</td>
                       <td className="font-semibold text-slate-900">{service.name}</td>
                       <td className="text-center font-mono text-slate-700 tabular-nums">{service.defaultHours} h</td>
@@ -1007,21 +1470,168 @@ export const MasterRegistrationsView: React.FC = () => {
                       </td>
                     </tr>
                   ))}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredServices.map(service => (
+              <div key={service.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-mono text-[11px] font-bold text-slate-500">{service.code} · {service.category}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDetailTarget({ kind: 'service', data: service })}
+                      className="list-plus-btn"
+                      title="Abrir todos os dados do serviço"
+                      aria-label={`Ver detalhes de ${service.name}`}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-900">{service.name}</h3>
+                  <div className="text-xs text-slate-600 font-mono tabular-nums">
+                    Tempo: {service.defaultHours}h · Padrão: <strong className="text-blue-700">{formatBRL(service.standardPrice)}</strong> · Mín.: {formatBRL(service.minPrice)}
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingService(service);
+                      setServiceForm({
+                        code: service.code,
+                        name: service.name,
+                        category: service.category,
+                        defaultHours: service.defaultHours,
+                        standardPrice: service.standardPrice,
+                        minPrice: service.minPrice
+                      });
+                      setIsServiceModalOpen(true);
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                    title="Editar"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o serviço "${service.name}"?`)) {
+                        deleteServiceCatalogItem(service.id);
+                      }
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* SUB-TAB 7: MODELOS DE CHECKLIST */}
-      {activeSubTab === 'checklists' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {checklistTemplates
-            .filter(t => 
-              t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-              t.equipmentType.toLowerCase().includes(searchTerm.toLowerCase())
-            )
-            .map(template => (
+      {activeSubTab === 'checklists' && (() => {
+        const filteredChecklists = checklistTemplates.filter(t =>
+          t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.equipmentType.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        return viewMode === 'list' ? (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Equipamento</th>
+                    <th>Modelo de Checklist</th>
+                    <th className="text-center">Itens</th>
+                    <th className="text-center">Serviços</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredChecklists.map(template => {
+                    const linkedSrvNames = (template.serviceIds || [])
+                      .map(id => serviceCatalog.find(s => s.id === id)?.name)
+                      .filter(Boolean);
+                    return (
+                      <tr
+                        key={template.id}
+                        className="dense-row"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: template.title,
+                            subtitle: `Equipamento: ${template.equipmentType} · ${template.items.length} itens de inspeção`,
+                            description: template.items.map(it => it.label).slice(0, 4).join(' · ') + (template.items.length > 4 ? '...' : ''),
+                            fields: [
+                              { label: 'Total de Itens', value: `${template.items.length} etapas` },
+                              { label: 'Serviços Vinculados', value: linkedSrvNames.length > 0 ? linkedSrvNames.join(', ') : 'Nenhum' }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
+                        <td className="text-blue-700 font-semibold">{template.equipmentType}</td>
+                        <td className="font-semibold text-slate-900">{template.title}</td>
+                        <td className="text-center font-mono text-slate-700 tabular-nums">{template.items.length}</td>
+                        <td className="text-center font-mono text-slate-600 tabular-nums">{template.serviceIds?.length || 0}</td>
+                        <td className="text-right">
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setDetailTarget({ kind: 'checklist', data: template })}
+                              className="list-plus-btn"
+                              title="Abrir todos os itens do checklist"
+                              aria-label={`Ver detalhes de ${template.title}`}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingChecklist(template);
+                                setChecklistForm({
+                                  title: template.title,
+                                  equipmentType: template.equipmentType,
+                                  serviceIds: template.serviceIds || [],
+                                  items: [...template.items]
+                                });
+                                setIsChecklistModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                              title="Editar"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Deseja remover o modelo "${template.title}"?`)) {
+                                  deleteChecklistTemplate(template.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredChecklists.map(template => (
               <div key={template.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -1030,6 +1640,16 @@ export const MasterRegistrationsView: React.FC = () => {
                     </span>
                     <div className="flex items-center gap-1">
                       <button
+                        type="button"
+                        onClick={() => setDetailTarget({ kind: 'checklist', data: template })}
+                        className="list-plus-btn"
+                        title="Abrir todos os itens do checklist"
+                        aria-label={`Ver detalhes de ${template.title}`}
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => {
                           setEditingChecklist(template);
                           setChecklistForm({
@@ -1040,17 +1660,18 @@ export const MasterRegistrationsView: React.FC = () => {
                           });
                           setIsChecklistModalOpen(true);
                         }}
-                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           if (confirm(`Deseja remover o modelo "${template.title}"?`)) {
                             deleteChecklistTemplate(template.id);
                           }
                         }}
-                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1102,8 +1723,9 @@ export const MasterRegistrationsView: React.FC = () => {
                 </div>
               </div>
             ))}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* SUB-TAB 8: IMPORTAÇÃO GERAL & BACKUPS MULTI-FORMATO */}
       {activeSubTab === 'import' && (
@@ -2565,6 +3187,76 @@ export const MasterRegistrationsView: React.FC = () => {
           );
         }
 
+        if (detailTarget.kind === 'checklist') {
+          const tpl = detailTarget.data;
+          const linkedServices = (tpl.serviceIds || [])
+            .map(id => serviceCatalog.find(s => s.id === id)?.name)
+            .filter(Boolean) as string[];
+          return (
+            <RecordDetailModal
+              isOpen={true}
+              onClose={() => setDetailTarget(null)}
+              title={tpl.title}
+              subtitle={`Equipamento: ${tpl.equipmentType} · ${tpl.items.length} itens de inspeção`}
+              statusText="Ativo"
+              statusClassName="text-emerald-700"
+              sections={[
+                {
+                  heading: 'Configuração do Checklist',
+                  fields: [
+                    { label: 'Tipo de Equipamento', value: tpl.equipmentType },
+                    { label: 'Total de Etapas', value: `${tpl.items.length} itens` },
+                    ...(linkedServices.length > 0
+                      ? [{ label: 'Serviços Vinculados', value: linkedServices.join(', '), fullWidth: true }]
+                      : [])
+                  ]
+                },
+                {
+                  heading: 'Itens de Inspeção',
+                  fields: tpl.items.map((it, idx) => ({
+                    label: `${idx + 1}. ${it.category}${it.required ? ' (Obrigatório)' : ''}`,
+                    value: it.label,
+                    fullWidth: true
+                  }))
+                }
+              ]}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingChecklist(tpl);
+                      setChecklistForm({
+                        title: tpl.title,
+                        equipmentType: tpl.equipmentType,
+                        serviceIds: tpl.serviceIds || [],
+                        items: [...tpl.items]
+                      });
+                      setDetailTarget(null);
+                      setIsChecklistModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Editar Checklist
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja remover o modelo "${tpl.title}"?`)) {
+                        deleteChecklistTemplate(tpl.id);
+                        setDetailTarget(null);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Excluir
+                  </button>
+                </>
+              }
+            />
+          );
+        }
+
         const sv = detailTarget.data;
         return (
           <RecordDetailModal
@@ -2622,6 +3314,8 @@ export const MasterRegistrationsView: React.FC = () => {
           />
         );
       })()}
+
+      {tooltipElement}
     </div>
   );
 };

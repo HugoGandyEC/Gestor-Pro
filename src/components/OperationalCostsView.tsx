@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { GeneralExpense, ExpenseCategory } from '../types';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const OperationalCostsView: React.FC = () => {
   const { 
@@ -28,6 +30,8 @@ export const OperationalCostsView: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('todos');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Form State
   const [category, setCategory] = useState<ExpenseCategory>('aluguel');
@@ -163,119 +167,191 @@ export const OperationalCostsView: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-            {[
-              { id: 'todos', label: 'Todas' },
-              { id: 'aluguel', label: 'Aluguel' },
-              { id: 'internet', label: 'Internet' },
-              { id: 'celular', label: 'Celulares' },
-              { id: 'alimentacao', label: 'Alimentação' },
-              { id: 'energia_agua', label: 'Energia / Água' },
-              { id: 'software_contabilidade', label: 'Contabilidade' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setFilterCategory(tab.id)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${
-                  filterCategory === tab.id
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+              {[
+                { id: 'todos', label: 'Todas' },
+                { id: 'aluguel', label: 'Aluguel' },
+                { id: 'internet', label: 'Internet' },
+                { id: 'celular', label: 'Celulares' },
+                { id: 'alimentacao', label: 'Alimentação' },
+                { id: 'energia_agua', label: 'Energia / Água' },
+                { id: 'software_contabilidade', label: 'Contabilidade' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilterCategory(tab.id)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-colors cursor-pointer ${
+                    filterCategory === tab.id
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
-              <tr>
-                <th className="py-3 px-4">Vencimento</th>
-                <th className="py-3 px-3">Categoria</th>
-                <th className="py-3 px-4">Descrição da Conta</th>
-                <th className="py-3 px-3">Fornecedor / Credor</th>
-                <th className="py-3 px-3">Atribuído ao Técnico</th>
-                <th className="py-3 px-3">Recorrência</th>
-                <th className="py-3 px-3">Status</th>
-                <th className="py-3 px-4 text-right">Valor</th>
-                <th className="py-3 px-3 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-sans">
-              {filteredList.map(exp => {
-                const assignedEmp = employees.find(e => e.id === exp.employeeId);
-                return (
-                  <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono text-slate-600">
-                      {formatDateBR(exp.dueDate)}
-                    </td>
+        {viewMode === 'list' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                <tr>
+                  <th className="py-3 px-4">Vencimento</th>
+                  <th className="py-3 px-3">Categoria</th>
+                  <th className="py-3 px-4">Descrição da Conta</th>
+                  <th className="py-3 px-3">Fornecedor / Credor</th>
+                  <th className="py-3 px-3">Atribuído ao Técnico</th>
+                  <th className="py-3 px-3">Recorrência</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-4 text-right">Valor</th>
+                  <th className="py-3 px-3 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {filteredList.map(exp => {
+                  const assignedEmp = employees.find(e => e.id === exp.employeeId);
+                  return (
+                    <tr
+                      key={exp.id}
+                      className="hover:bg-slate-50 transition-colors"
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: exp.description,
+                          subtitle: `Categoria: ${exp.category.replace(/_/g, ' ').toUpperCase()} · Vencimento: ${formatDateBR(exp.dueDate)}`,
+                          description: `Fornecedor / Credor: ${exp.supplier || 'Não informado'} (${exp.isRecurring ? 'Despesa Mensal Recorrente' : 'Despesa Pontual'}).`,
+                          fields: [
+                            { label: 'Atribuído a', value: assignedEmp ? assignedEmp.name : 'Geral / Empresa' },
+                            { label: 'Status', value: exp.isPaid ? 'Pago / Quitado' : 'A Pagar (Pendente)' },
+                            { label: 'Valor', value: formatBRL(exp.cost) }
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
+                    >
+                      <td className="py-3 px-4 font-mono text-slate-600">
+                        {formatDateBR(exp.dueDate)}
+                      </td>
 
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5 font-medium text-slate-700 capitalize">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1.5 font-medium text-slate-700 capitalize">
+                          {getCategoryIcon(exp.category)}
+                          <span>{exp.category.replace('_', ' ')}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-4 font-medium text-slate-900">
+                        {exp.description}
+                      </td>
+
+                      <td className="py-3 px-3 text-slate-500">
+                        {exp.supplier}
+                      </td>
+
+                      <td className="py-3 px-3">
+                        {assignedEmp ? (
+                          <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[11px]">
+                            {assignedEmp.name}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Geral / Empresa</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-3 text-slate-600">
+                        {exp.isRecurring ? 'Mensal' : 'Pontual'}
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <button
+                          onClick={() => updateGeneralExpense(exp.id, { isPaid: !exp.isPaid })}
+                          className={`text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer ${
+                            exp.isPaid 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {exp.isPaid ? 'Pago' : 'A Pagar'}
+                        </button>
+                      </td>
+
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        {formatBRL(exp.cost)}
+                      </td>
+
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          onClick={() => {
+                            if (confirm('Deseja excluir esta conta?')) {
+                              deleteGeneralExpense(exp.id);
+                            }
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-600"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-slate-50/40">
+            {filteredList.map(exp => {
+              const assignedEmp = employees.find(e => e.id === exp.employeeId);
+              return (
+                <div key={exp.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 capitalize">
                         {getCategoryIcon(exp.category)}
                         <span>{exp.category.replace('_', ' ')}</span>
                       </div>
-                    </td>
-
-                    <td className="py-3 px-4 font-medium text-slate-900">
-                      {exp.description}
-                    </td>
-
-                    <td className="py-3 px-3 text-slate-500">
-                      {exp.supplier}
-                    </td>
-
-                    <td className="py-3 px-3">
-                      {assignedEmp ? (
-                        <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[11px]">
-                          {assignedEmp.name}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">Geral / Empresa</span>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-3 text-slate-600">
-                      {exp.isRecurring ? 'Mensal' : 'Pontual'}
-                    </td>
-
-                    <td className="py-3 px-3">
+                      <span className="font-mono text-[11px] text-slate-500 tabular-nums">{formatDateBR(exp.dueDate)}</span>
+                    </div>
+                    <h3 className="font-bold text-sm text-slate-900">{exp.description}</h3>
+                    <div className="text-xs text-slate-500">
+                      Credor: {exp.supplier || 'Fornecedor'} · {assignedEmp ? assignedEmp.name : 'Geral / Empresa'}
+                    </div>
+                  </div>
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <span className="font-mono font-bold text-sm text-slate-900 tabular-nums">{formatBRL(exp.cost)}</span>
+                    <div className="flex items-center gap-1.5">
                       <button
+                        type="button"
                         onClick={() => updateGeneralExpense(exp.id, { isPaid: !exp.isPaid })}
-                        className={`text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer ${
-                          exp.isPaid 
-                            ? 'bg-emerald-100 text-emerald-800' 
+                        className={`text-[11px] px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
+                          exp.isPaid
+                            ? 'bg-emerald-100 text-emerald-800'
                             : 'bg-amber-100 text-amber-800'
                         }`}
                       >
                         {exp.isPaid ? 'Pago' : 'A Pagar'}
                       </button>
-                    </td>
-
-                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                      {formatBRL(exp.cost)}
-                    </td>
-
-                    <td className="py-3 px-3 text-center">
                       <button
+                        type="button"
                         onClick={() => {
                           if (confirm('Deseja excluir esta conta?')) {
                             deleteGeneralExpense(exp.id);
                           }
                         }}
-                        className="p-1 text-slate-400 hover:text-rose-600"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 cursor-pointer"
+                        title="Excluir conta"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Modal Nova Despesa */}
@@ -409,6 +485,8 @@ export const OperationalCostsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {tooltipElement}
     </div>
   );
 };

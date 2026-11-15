@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { LiveSearchInput } from './LiveSearchInput';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const FinancialView: React.FC = () => {
   const { 
@@ -41,6 +43,8 @@ export const FinancialView: React.FC = () => {
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'dre' | 'receber' | 'pagar'>('dre');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
   
   // Filters for Receivables and Payables
   const [receivableFilter, setReceivableFilter] = useState<'todos' | 'pendente' | 'pago'>('todos');
@@ -620,108 +624,175 @@ export const FinancialView: React.FC = () => {
                 <option value="pendente">Apenas Pendentes ({unifiedReceivables.filter(i => i.paymentStatus === 'pendente').length})</option>
                 <option value="pago">Apenas Recebidos ({unifiedReceivables.filter(i => i.paymentStatus === 'pago').length})</option>
               </select>
+
+              <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
-                <tr>
-                  <th className="py-3 px-4">Código / Tipo</th>
-                  <th className="py-3 px-4">Cliente & Descrição</th>
-                  <th className="py-3 px-3">Data</th>
-                  <th className="py-3 px-3">Forma de Pagto</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-4 text-right">Valor</th>
-                  <th className="py-3 px-4 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-sans">
-                {filteredReceivables.length === 0 ? (
+          {viewMode === 'list' ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
-                      Nenhum recebível encontrado para este filtro ou competência.
-                    </td>
+                    <th className="py-3 px-4">Código / Tipo</th>
+                    <th className="py-3 px-4">Cliente & Descrição</th>
+                    <th className="py-3 px-3">Data</th>
+                    <th className="py-3 px-3">Forma de Pagto</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-4 text-right">Valor</th>
+                    <th className="py-3 px-4 text-center">Ações</th>
                   </tr>
-                ) : (
-                  filteredReceivables.map(item => (
-                    <tr key={`${item.type}-${item.id}`} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 font-mono font-bold text-slate-900">
-                          {item.type === 'os' ? (
-                            <ClipboardList className="w-3.5 h-3.5 text-blue-600" />
-                          ) : (
-                            <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-                          )}
-                          <span>{item.code}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500 uppercase font-semibold">
-                          {item.type === 'os' ? 'Ordem de Serviço' : 'Venda Direta'}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900">{item.clientName}</div>
-                        <div className="text-[11px] text-slate-500 truncate max-w-xs">{item.description}</div>
-                      </td>
-
-                      <td className="py-3 px-3 font-mono text-slate-600">
-                        {formatDateBR(item.date)}
-                      </td>
-
-                      <td className="py-3 px-3 uppercase font-medium text-slate-600">
-                        {item.paymentMethod.replace('_', ' ')}
-                      </td>
-
-                      <td className="py-3 px-3">
-                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
-                          item.paymentStatus === 'pago' 
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                            : 'bg-amber-50 text-amber-800 border-amber-200'
-                        }`}>
-                          {item.paymentStatus === 'pago' ? 'RECEBIDO / PAGO' : 'A RECEBER / PENDENTE'}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                        {formatBRL(item.total)}
-                      </td>
-
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => {
-                            if (item.type === 'os') {
-                              toggleServiceOrderPayment(item.id);
-                            } else {
-                              toggleDirectSalePayment(item.id);
-                            }
-                          }}
-                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors border shadow-xs ${
-                            item.paymentStatus === 'pago'
-                              ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                              : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
-                          }`}
-                        >
-                          {item.paymentStatus === 'pago' ? 'Reabrir / Pendente' : 'Dar Baixa (Receber)'}
-                        </button>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-sans">
+                  {filteredReceivables.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        Nenhum recebível encontrado para este filtro ou competência.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-100 font-mono font-bold text-slate-900 border-t-2 border-slate-300">
-                  <td colSpan={5} className="py-3 px-4 font-sans font-bold">
-                    TOTALIZADOR DE CONTAS A RECEBER
-                  </td>
-                  <td className="py-3 px-4 text-right text-emerald-700 font-black">
-                    {formatBRL(filteredReceivables.reduce((a, b) => a + b.total, 0))}
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                  ) : (
+                    filteredReceivables.map(item => (
+                      <tr
+                        key={`${item.type}-${item.id}`}
+                        className="hover:bg-slate-50/80 transition-colors"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: `${item.code} — ${item.clientName}`,
+                            subtitle: `${item.type === 'os' ? 'Ordem de Serviço' : 'Venda Direta'} · ${formatDateBR(item.date)}`,
+                            description: item.description,
+                            fields: [
+                              { label: 'Forma de Pagamento', value: item.paymentMethod.replace(/_/g, ' ').toUpperCase() },
+                              { label: 'Previsão / Vencimento', value: formatDateBR(item.dueDate) },
+                              { label: 'Status', value: item.paymentStatus === 'pago' ? 'Recebido / Pago' : 'A Receber / Pendente' },
+                              { label: 'Valor', value: formatBRL(item.total) }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5 font-mono font-bold text-slate-900">
+                            {item.type === 'os' ? (
+                              <ClipboardList className="w-3.5 h-3.5 text-blue-600" />
+                            ) : (
+                              <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+                            )}
+                            <span>{item.code}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold">
+                            {item.type === 'os' ? 'Ordem de Serviço' : 'Venda Direta'}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900">{item.clientName}</div>
+                          <div className="text-[11px] text-slate-500 truncate max-w-xs">{item.description}</div>
+                        </td>
+
+                        <td className="py-3 px-3 font-mono text-slate-600">
+                          {formatDateBR(item.date)}
+                        </td>
+
+                        <td className="py-3 px-3 uppercase font-medium text-slate-600">
+                          {item.paymentMethod.replace('_', ' ')}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                            item.paymentStatus === 'pago' 
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                              : 'bg-amber-50 text-amber-800 border-amber-200'
+                          }`}>
+                            {item.paymentStatus === 'pago' ? 'RECEBIDO / PAGO' : 'A RECEBER / PENDENTE'}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">
+                          {formatBRL(item.total)}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => {
+                              if (item.type === 'os') {
+                                toggleServiceOrderPayment(item.id);
+                              } else {
+                                toggleDirectSalePayment(item.id);
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors border shadow-xs cursor-pointer ${
+                              item.paymentStatus === 'pago'
+                                ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                                : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                            }`}
+                          >
+                            {item.paymentStatus === 'pago' ? 'Reabrir / Pendente' : 'Dar Baixa (Receber)'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-100 font-mono font-bold text-slate-900 border-t-2 border-slate-300">
+                    <td colSpan={5} className="py-3 px-4 font-sans font-bold">
+                      TOTALIZADOR DE CONTAS A RECEBER
+                    </td>
+                    <td className="py-3 px-4 text-right text-emerald-700 font-black tabular-nums">
+                      {formatBRL(filteredReceivables.reduce((a, b) => a + b.total, 0))}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-slate-50/40">
+              {filteredReceivables.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-xs text-slate-400">
+                  Nenhum recebível encontrado para este filtro ou competência.
+                </div>
+              ) : (
+                filteredReceivables.map(item => (
+                  <div key={`${item.type}-${item.id}`} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-slate-900">{item.code}</span>
+                        <span className={`text-[11px] font-bold ${item.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {item.paymentStatus === 'pago' ? 'Recebido' : 'Pendente'}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-sm text-slate-900 truncate">{item.clientName}</h3>
+                      <p className="text-xs text-slate-500 line-clamp-2">{item.description}</p>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        {formatDateBR(item.date)} · {item.paymentMethod.replace(/_/g, ' ').toUpperCase()}
+                      </div>
+                    </div>
+                    <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <span className="font-mono font-bold text-sm text-slate-900 tabular-nums">{formatBRL(item.total)}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (item.type === 'os') {
+                            toggleServiceOrderPayment(item.id);
+                          } else {
+                            toggleDirectSalePayment(item.id);
+                          }
+                        }}
+                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border cursor-pointer ${
+                          item.paymentStatus === 'pago'
+                            ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                            : 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                        }`}
+                      >
+                        {item.paymentStatus === 'pago' ? 'Reabrir' : 'Dar Baixa'}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -778,102 +849,163 @@ export const FinancialView: React.FC = () => {
                 <option value="pendente">A Pagar / Pendentes ({unifiedPayables.filter(i => !i.isPaid).length})</option>
                 <option value="pago">Quitados / Pagos ({unifiedPayables.filter(i => i.isPaid).length})</option>
               </select>
+
+              <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
-                <tr>
-                  <th className="py-3 px-4">Vencimento</th>
-                  <th className="py-3 px-3">Origem / Categoria</th>
-                  <th className="py-3 px-4">Descrição da Conta / Dívida</th>
-                  <th className="py-3 px-3">Credor / Fornecedor</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-4 text-right">Valor</th>
-                  <th className="py-3 px-4 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-sans">
-                {filteredPayables.length === 0 ? (
+          {viewMode === 'list' ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
-                      Nenhuma conta a pagar encontrada para este filtro ou competência.
-                    </td>
+                    <th className="py-3 px-4">Vencimento</th>
+                    <th className="py-3 px-3">Origem / Categoria</th>
+                    <th className="py-3 px-4">Descrição da Conta / Dívida</th>
+                    <th className="py-3 px-3">Credor / Fornecedor</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-4 text-right">Valor</th>
+                    <th className="py-3 px-4 text-center">Ações</th>
                   </tr>
-                ) : (
-                  filteredPayables.map(item => (
-                    <tr key={`${item.source}-${item.id}`} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-4 font-mono font-semibold text-slate-800">
-                        {formatDateBR(item.dueDate)}
-                      </td>
-
-                      <td className="py-3 px-3">
-                        <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                          {item.category.replace('_', ' ')}
-                        </span>
-                        {item.isRecurring && (
-                          <span className="ml-1 text-[9px] text-blue-600 font-semibold">Recorrente</span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-4 font-semibold text-slate-900">
-                        {item.description}
-                      </td>
-
-                      <td className="py-3 px-3 text-slate-600 font-medium">
-                        {item.supplier}
-                      </td>
-
-                      <td className="py-3 px-3">
-                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
-                          item.isPaid 
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                            : 'bg-rose-50 text-rose-800 border-rose-200'
-                        }`}>
-                          {item.isPaid ? 'QUITADO / PAGO' : 'A PAGAR'}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4 text-right font-mono font-bold text-rose-700">
-                        {formatBRL(item.cost)}
-                      </td>
-
-                      <td className="py-3 px-4 text-center">
-                        {item.source === 'geral' ? (
-                          <button
-                            onClick={() => toggleGeneralExpensePayment(item.id)}
-                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors border shadow-xs ${
-                              item.isPaid
-                                ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                                : 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
-                            }`}
-                          >
-                            {item.isPaid ? 'Reabrir Conta' : 'Dar Baixa (Pagar)'}
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 italic">Liquidado na origem</span>
-                        )}
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-sans">
+                  {filteredPayables.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        Nenhuma conta a pagar encontrada para este filtro ou competência.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-100 font-mono font-bold text-slate-900 border-t-2 border-slate-300">
-                  <td colSpan={5} className="py-3 px-4 font-sans font-bold">
-                    TOTALIZADOR DE CONTAS A PAGAR
-                  </td>
-                  <td className="py-3 px-4 text-right text-rose-700 font-black">
-                    {formatBRL(filteredPayables.reduce((a, b) => a + b.cost, 0))}
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                  ) : (
+                    filteredPayables.map(item => (
+                      <tr
+                        key={`${item.source}-${item.id}`}
+                        className="hover:bg-slate-50/80 transition-colors"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: item.description,
+                            subtitle: `${item.category.replace(/_/g, ' ').toUpperCase()} · Vencimento: ${formatDateBR(item.dueDate)}`,
+                            description: `Credor / Fornecedor: ${item.supplier}${item.isRecurring ? ' · Lançamento mensal recorrente' : ''}.`,
+                            fields: [
+                              { label: 'Origem', value: item.source.toUpperCase() },
+                              { label: 'Status', value: item.isPaid ? 'Quitado / Pago' : 'A Pagar' },
+                              { label: 'Valor', value: formatBRL(item.cost) }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
+                        <td className="py-3 px-4 font-mono font-semibold text-slate-800">
+                          {formatDateBR(item.dueDate)}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                            {item.category.replace('_', ' ')}
+                          </span>
+                          {item.isRecurring && (
+                            <span className="ml-1 text-[9px] text-blue-600 font-semibold">Recorrente</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 font-semibold text-slate-900">
+                          {item.description}
+                        </td>
+
+                        <td className="py-3 px-3 text-slate-600 font-medium">
+                          {item.supplier}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                            item.isPaid 
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                              : 'bg-rose-50 text-rose-800 border-rose-200'
+                          }`}>
+                            {item.isPaid ? 'QUITADO / PAGO' : 'A PAGAR'}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4 text-right font-mono font-bold text-rose-700 tabular-nums">
+                          {formatBRL(item.cost)}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          {item.source === 'geral' ? (
+                            <button
+                              onClick={() => toggleGeneralExpensePayment(item.id)}
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors border shadow-xs cursor-pointer ${
+                                item.isPaid
+                                  ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                                  : 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
+                              }`}
+                            >
+                              {item.isPaid ? 'Reabrir Conta' : 'Dar Baixa (Pagar)'}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">Liquidado na origem</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-100 font-mono font-bold text-slate-900 border-t-2 border-slate-300">
+                    <td colSpan={5} className="py-3 px-4 font-sans font-bold">
+                      TOTALIZADOR DE CONTAS A PAGAR
+                    </td>
+                    <td className="py-3 px-4 text-right text-rose-700 font-black tabular-nums">
+                      {formatBRL(filteredPayables.reduce((a, b) => a + b.cost, 0))}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-slate-50/40">
+              {filteredPayables.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-xs text-slate-400">
+                  Nenhuma conta a pagar encontrada para este filtro ou competência.
+                </div>
+              ) : (
+                filteredPayables.map(item => (
+                  <div key={`${item.source}-${item.id}`} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold uppercase text-slate-500">{item.category.replace('_', ' ')}</span>
+                        <span className="font-mono text-[11px] text-slate-500 tabular-nums">{formatDateBR(item.dueDate)}</span>
+                      </div>
+                      <h3 className="font-bold text-sm text-slate-900">{item.description}</h3>
+                      <p className="text-xs text-slate-500 truncate">Credor: {item.supplier}</p>
+                    </div>
+                    <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <span className="font-mono font-bold text-sm text-rose-700 tabular-nums">{formatBRL(item.cost)}</span>
+                      {item.source === 'geral' ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleGeneralExpensePayment(item.id)}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border cursor-pointer ${
+                            item.isPaid
+                              ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                              : 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700'
+                          }`}
+                        >
+                          {item.isPaid ? 'Reabrir' : 'Dar Baixa'}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">Liquidado na origem</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
+
+      {tooltipElement}
     </div>
   );
 };

@@ -32,6 +32,9 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { CardOperator, PagBankTransaction, OperatorInstallmentRate, FeeAbsorptionMode } from '../types';
+import { RecordDetailModal } from './RecordDetailModal';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const CardOperatorsView: React.FC = () => {
   const { 
@@ -48,6 +51,9 @@ export const CardOperatorsView: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'operadoras' | 'pagbank' | 'calculadora'>('operadoras');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [detailOperator, setDetailOperator] = useState<CardOperator | null>(null);
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showToken, setShowToken] = useState(false);
 
@@ -618,9 +624,119 @@ export const CardOperatorsView: React.FC = () => {
       {/* TAB 1: OPERADORAS CADASTRADAS & TABELA DE TAXAS */}
       {activeTab === 'operadoras' && (
         <div className="space-y-6">
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cardOperators.map((op) => {
+          {/* Toolbar Listagem / Grade */}
+          <div className="bg-white p-3.5 border border-[#d8d8d8] rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-[#363739]">
+                Adquirentes & Operadoras Cadastradas ({cardOperators.length})
+              </h2>
+              <p className="text-xs text-[#707174]">
+                Alterne entre Listagem em linha única (passe o mouse para ver detalhes) e Grade (cards completos).
+              </p>
+            </div>
+            <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+          </div>
+
+          {viewMode === 'list' ? (
+            <div className="bg-white border border-[#d8d8d8] rounded-xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="dense-table text-left text-xs">
+                  <thead>
+                    <tr>
+                      <th>Operadora</th>
+                      <th className="text-center">Repasse</th>
+                      <th className="text-right">Pix</th>
+                      <th className="text-right">Débito</th>
+                      <th className="text-right">Créd. 1x</th>
+                      <th className="text-center">Status</th>
+                      <th className="text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cardOperators.map((op) => (
+                      <tr
+                        key={op.id}
+                        className="dense-row"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: op.name,
+                            subtitle: `Código: ${op.code.toUpperCase()} · Repasse D+${op.settlementTermDays} · ${op.active ? 'Ativa' : 'Inativa'}`,
+                            description: op.notes || `Bandeiras homologadas: ${op.acceptedBrands.join(', ')}.`,
+                            fields: [
+                              { label: 'CNPJ', value: op.cnpj || 'Não informado' },
+                              { label: 'Pix / Débito / 1x', value: `${op.pixRate.toFixed(2)}% · ${op.debitRate.toFixed(2)}% · ${op.creditSightRate.toFixed(2)}%` },
+                              { label: 'Parcelado 2x-6x / 7x-12x', value: `${op.creditInstallments2to6Rate.toFixed(2)}% · ${op.creditInstallments7to12Rate.toFixed(2)}%` },
+                              { label: 'Integração API / Webhook', value: op.integration?.autoReconcile ? 'Ligada (Webhook)' : 'Manual' }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
+                        <td className="font-bold text-[#363739]">{op.name}</td>
+                        <td className="text-center font-mono text-[#707174] tabular-nums">D+{op.settlementTermDays}</td>
+                        <td className="text-right font-mono font-semibold text-emerald-700 tabular-nums">{op.pixRate.toFixed(2)}%</td>
+                        <td className="text-right font-mono text-[#363739] tabular-nums">{op.debitRate.toFixed(2)}%</td>
+                        <td className="text-right font-mono text-[#363739] tabular-nums">{op.creditSightRate.toFixed(2)}%</td>
+                        <td className="text-center">
+                          <span className={`font-bold text-[11px] ${op.active ? 'text-emerald-700' : 'text-slate-500'}`}>
+                            {op.active ? 'Ativa' : 'Inativa'}
+                          </span>
+                        </td>
+                        <td className="text-right">
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setDetailOperator(op)}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados da operadora"
+                              aria-label={`Ver detalhes de ${op.name}`}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedIntegrationOpId(op.id);
+                                setActiveTab('pagbank');
+                              }}
+                              className="p-1.5 text-[#707174] hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                              title="Configurar Integração API & Webhooks"
+                            >
+                              <Settings className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(op)}
+                              className="p-1.5 text-[#707174] hover:text-[#53383e] hover:bg-[#f4f5f6] rounded-md transition-colors cursor-pointer"
+                              title="Editar taxas da operadora"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            {cardOperators.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Excluir cadastro da operadora ${op.name}?`)) {
+                                    deleteCardOperator(op.id);
+                                  }
+                                }}
+                                className="p-1.5 text-[#707174] hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                title="Remover operadora"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {cardOperators.map((op) => {
               const isPagBank = op.code === 'pagbank';
               const isInfinitePay = op.code === 'infinitepay';
               return (
@@ -818,6 +934,15 @@ export const CardOperatorsView: React.FC = () => {
                     </span>
                     <div className="flex items-center gap-1">
                       <button
+                        type="button"
+                        onClick={() => setDetailOperator(op)}
+                        className="list-plus-btn"
+                        title="Abrir todos os dados da operadora"
+                        aria-label={`Ver detalhes de ${op.name}`}
+                      >
+                        +
+                      </button>
+                      <button
                         onClick={() => handleOpenEdit(op)}
                         className="p-1.5 text-[#707174] hover:text-[#53383e] hover:bg-[#f4f5f6] rounded-md transition-colors cursor-pointer"
                         title="Editar taxas da operadora"
@@ -842,7 +967,8 @@ export const CardOperatorsView: React.FC = () => {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
 
           {/* Comparativo de Taxas em Tabela */}
           <div className="bg-white border border-[#d8d8d8] rounded-xl overflow-hidden shadow-xs">
@@ -874,7 +1000,24 @@ export const CardOperatorsView: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-[#f4f5f6] font-sans">
                   {cardOperators.map(op => (
-                    <tr key={op.id} className="hover:bg-[#f4f5f6]/50 transition-colors">
+                    <tr
+                      key={op.id}
+                      className="hover:bg-[#f4f5f6]/50 transition-colors"
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: op.name,
+                          subtitle: `CNPJ: ${op.cnpj || 'Não informado'} · Repasse D+${op.settlementTermDays}`,
+                          description: op.notes || `Bandeiras aceitas: ${op.acceptedBrands.join(', ')}.`,
+                          fields: [
+                            { label: 'Pix / Débito / 1x', value: `${op.pixRate.toFixed(2)}% · ${op.debitRate.toFixed(2)}% · ${op.creditSightRate.toFixed(2)}%` },
+                            { label: '2x-6x / 7x-12x', value: `${op.creditInstallments2to6Rate.toFixed(2)}% · ${op.creditInstallments7to12Rate.toFixed(2)}%` },
+                            { label: 'Antecipação', value: op.anticipationRate ? `${op.anticipationRate.toFixed(2)}%` : 'Não informada' },
+                            { label: 'Baixa Automática', value: op.integration?.autoReconcile ? 'Webhook ativo' : 'Manual' }
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
+                    >
                       <td className="py-3 px-4 font-bold text-[#363739] flex items-center gap-2">
                         <CreditCard className="w-3.5 h-3.5 text-[#53383e]" />
                         {op.name}
@@ -2064,6 +2207,73 @@ export const CardOperatorsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {detailOperator && (
+        <RecordDetailModal
+          isOpen={true}
+          onClose={() => setDetailOperator(null)}
+          title={detailOperator.name}
+          subtitle={`Código: ${detailOperator.code.toUpperCase()} · Repasse D+${detailOperator.settlementTermDays}`}
+          statusText={detailOperator.active ? 'Ativa' : 'Inativa'}
+          statusClassName={detailOperator.active ? 'text-emerald-700' : 'text-slate-500'}
+          sections={[
+            {
+              heading: 'Cadastro & Integração',
+              fields: [
+                { label: 'CNPJ', value: detailOperator.cnpj || 'Não informado' },
+                { label: 'Prazo de Repasse', value: `D+${detailOperator.settlementTermDays}` },
+                { label: 'Bandeiras Homologadas', value: detailOperator.acceptedBrands.join(', '), fullWidth: true },
+                { label: 'Baixa Automática', value: detailOperator.integration?.autoReconcile ? 'Ligada (Webhook)' : 'Manual' },
+                ...(detailOperator.notes ? [{ label: 'Observações', value: detailOperator.notes, fullWidth: true }] : [])
+              ]
+            },
+            {
+              heading: 'Taxas Cadastradas',
+              fields: [
+                { label: 'Pix', value: `${detailOperator.pixRate.toFixed(2)}%` },
+                { label: 'Débito', value: `${detailOperator.debitRate.toFixed(2)}%` },
+                { label: 'Crédito à Vista (1x)', value: `${detailOperator.creditSightRate.toFixed(2)}%` },
+                { label: 'Crédito 2x a 6x', value: `${detailOperator.creditInstallments2to6Rate.toFixed(2)}%` },
+                { label: 'Crédito 7x a 12x', value: `${detailOperator.creditInstallments7to12Rate.toFixed(2)}%` },
+                { label: 'Antecipação', value: detailOperator.anticipationRate ? `${detailOperator.anticipationRate.toFixed(2)}%` : '—' }
+              ]
+            }
+          ]}
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = detailOperator;
+                  setDetailOperator(null);
+                  handleOpenEdit(target);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Editar Operadora</span>
+              </button>
+              {cardOperators.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Excluir cadastro da operadora ${detailOperator.name}?`)) {
+                      deleteCardOperator(detailOperator.id);
+                      setDetailOperator(null);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Excluir</span>
+                </button>
+              )}
+            </>
+          }
+        />
+      )}
+
+      {tooltipElement}
     </div>
   );
 };

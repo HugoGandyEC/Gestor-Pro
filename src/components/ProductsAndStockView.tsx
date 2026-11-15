@@ -52,6 +52,8 @@ import { DuplicateUploadModal } from './DuplicateUploadModal';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -99,6 +101,8 @@ export const ProductsAndStockView: React.FC = () => {
   const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
   const [isGmailModalOpen, setIsGmailModalOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Duplicate Upload Alert Modal State
   const [duplicateUploadState, setDuplicateUploadState] = useState<{
@@ -842,6 +846,8 @@ export const ProductsAndStockView: React.FC = () => {
                     Limpar Filtros
                   </button>
                 )}
+
+                <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
               </div>
             </div>
 
@@ -875,14 +881,14 @@ export const ProductsAndStockView: React.FC = () => {
             </div>
           </div>
 
-          {/* Lista Abreviada em Linha Única + Botão (+) para Modal Completa */}
+          {/* Lista Abreviada em Linha Única ou Grade (Cards) + Botão (+) para Modal Completa */}
           <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
             {filteredProducts.length === 0 ? (
               <div className="py-12 text-center text-xs text-slate-400">
                 <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                 Nenhum produto encontrado com os filtros selecionados.
               </div>
-            ) : (
+            ) : viewMode === 'list' ? (
               <div className="overflow-x-auto">
                 <table className="dense-table text-left text-xs">
                   <thead>
@@ -899,7 +905,26 @@ export const ProductsAndStockView: React.FC = () => {
                     {paginatedProducts.map(p => {
                       const isLow = p.currentStock <= p.minStock;
                       return (
-                        <tr key={p.id} className="dense-row">
+                        <tr
+                          key={p.id}
+                          className="dense-row"
+                          onMouseEnter={(e) =>
+                            showTooltip(e, {
+                              title: p.name,
+                              subtitle: `${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}${p.brand ? ` · Marca: ${p.brand}` : ''}`,
+                              description: p.description || 'Produto cadastrado no catálogo de estoque e vendas.',
+                              fields: [
+                                { label: 'Código / SKU', value: `${p.code}${p.sku ? ` · ${p.sku}` : ''}` },
+                                { label: 'EAN / NCM', value: `${p.barcode || '—'} · ${p.ncm}` },
+                                { label: 'Custo / Margem', value: `${formatBRL(p.costPrice)}${p.profitMarginPercent !== undefined ? ` (${p.profitMarginPercent}%)` : ''}` },
+                                { label: 'Varejo / Atacado', value: `${formatBRL(p.retailPrice)} · ${formatBRL(p.wholesalePrice)}` },
+                                { label: 'Estoque Atual', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` },
+                                { label: 'Modelo / Série', value: [p.model, p.serialNumber].filter(Boolean).join(' · ') || '—' }
+                              ]
+                            })
+                          }
+                          onMouseLeave={hideTooltip}
+                        >
                           <td className="font-mono font-bold text-blue-600">{p.code}</td>
                           <td className="font-semibold text-slate-900">
                             <span className="inline-block truncate max-w-[260px] align-bottom">{p.name}</span>
@@ -957,6 +982,128 @@ export const ProductsAndStockView: React.FC = () => {
                     })}
                   </tbody>
                 </table>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 bg-slate-50/40">
+                {paginatedProducts.map(p => {
+                  const isLow = p.currentStock <= p.minStock;
+                  const thumb = p.photos?.[0];
+                  return (
+                    <div
+                      key={p.id}
+                      className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3 hover:border-slate-300 transition-colors"
+                    >
+                      <div className="space-y-2.5">
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                            {thumb ? (
+                              <img
+                                src={thumb}
+                                alt={p.name}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Package className="w-5 h-5 text-slate-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono text-[11px] font-bold text-blue-600 truncate">
+                                {p.code}
+                              </span>
+                              <span className={`text-[11px] font-bold tabular-nums shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                {p.currentStock} {p.unit}
+                              </span>
+                            </div>
+                            <h3 className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug mt-0.5">
+                              {p.name}
+                            </h3>
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {p.category}{p.brand ? ` · ${p.brand}` : ''}
+                            </p>
+                          </div>
+                        </div>
+
+                        {p.description && (
+                          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                            {p.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-2.5 border-t border-slate-100 space-y-2.5">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                            <span className="block text-[10px] font-semibold uppercase text-slate-400">Varejo</span>
+                            <span className="font-mono font-bold text-slate-900 tabular-nums">{formatBRL(p.retailPrice)}</span>
+                          </div>
+                          <div className="p-2 rounded-lg bg-indigo-50/50 border border-indigo-100">
+                            <span className="block text-[10px] font-semibold uppercase text-indigo-500">Atacado</span>
+                            <span className="font-mono font-bold text-indigo-700 tabular-nums">{formatBRL(p.wholesalePrice)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="text-[11px] text-slate-500 font-mono tabular-nums truncate">
+                            Custo: {formatBRL(p.costPrice)}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setDetailProduct(p)}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados do produto"
+                              aria-label={`Ver detalhes de ${p.name}`}
+                            >
+                              +
+                            </button>
+                            {currentRole !== 'tecnico' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenHistory(p)}
+                                  className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                                  title="Histórico / Kardex"
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplicateProduct(p)}
+                                  className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                                  title="Duplicar produto"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEdit(p)}
+                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                  title="Editar produto"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm(`Excluir produto ${p.name}?`)) {
+                                      deleteProduct(p.id);
+                                    }
+                                  }}
+                                  className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                  title="Excluir produto"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -1124,7 +1271,23 @@ export const ProductsAndStockView: React.FC = () => {
               {stockMovements.map(m => {
                 const isEntry = m.type.startsWith('entrada');
                 return (
-                  <tr key={m.id} className="hover:bg-slate-50">
+                  <tr
+                    key={m.id}
+                    className="hover:bg-slate-50 transition-colors"
+                    onMouseEnter={(e) =>
+                      showTooltip(e, {
+                        title: m.productName,
+                        subtitle: `${m.date} · ${m.type.replace('_', ' ').toUpperCase()}`,
+                        description: m.notes || 'Movimentação registrada no Kardex de estoque.',
+                        fields: [
+                          { label: 'Documento Ref.', value: m.referenceDoc || '—' },
+                          { label: 'Quantidade', value: isEntry ? `+${m.quantity}` : `-${m.quantity}` },
+                          { label: 'Custo Unitário', value: formatBRL(m.unitCost) }
+                        ]
+                      })
+                    }
+                    onMouseLeave={hideTooltip}
+                  >
                     <td className="py-3 px-4 font-mono text-slate-600">{m.date}</td>
                     <td className="py-3 px-3">
                       <span className={`text-[10px] px-2 py-0.5 rounded font-semibold uppercase ${
@@ -2639,6 +2802,8 @@ export const ProductsAndStockView: React.FC = () => {
           currentFileSize={duplicateUploadState.fileSize}
         />
       )}
+
+      {tooltipElement}
     </div>
   );
 };

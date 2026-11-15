@@ -16,6 +16,35 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.8',
+    date: '14/11/2026',
+    title: 'Alternância Listagem/Grade (Cards), Tooltip de Descrição no Hover e Remoção dos Cards de Clientes',
+    summary:
+      'Removidos os cards superiores da tela de Cadastro de Clientes, adicionada a alternância padronizada entre Listagem e Grade (Cards) nas telas de cadastros/listagens do sistema e implementado card flutuante ao passar o mouse sobre qualquer linha de cadastro exibindo a descrição completa dos dados.',
+    highlights: [
+      'Remoção dos 4 cards de resumo superiores na tela de Cadastro de Clientes (ClientsView)',
+      'Seletor global Listagem | Grade (<ViewModeToggle />) com layout em cards em Clientes, O.S., Vendas, Fornecedores, Produtos, Funcionários, Frota, Operadoras, Custos, Financeiro e Cadastro Geral',
+      'Tooltip flutuante via Portal (<RowHoverTooltip />) exibindo a descrição completa dos dados ao passar o mouse sobre qualquer linha de cadastro'
+    ],
+    changes: [
+      {
+        category: 'Removido',
+        description:
+          'Removidos os cards superiores de métricas da tela de Cadastro de Clientes (Total de Clientes, Pessoa Jurídica, Pessoa Física e Com OS em Aberto).'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Criados os componentes globais <ViewModeToggle /> (Listagem | Grade) e useRowHoverTooltip / RowHoverTooltipPortal via Portal para exibir descrição e campos completos ao passar o mouse sobre as linhas sem corte por overflow.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Atualizadas as telas de Clientes, Ordens de Serviço, Vendas, Fornecedores, Produtos & Estoque, Funcionários, Frota, Operadoras de Cartão, Custos Operacionais, Financeiro e Cadastro Geral (todas as 7 abas) com alternância Listagem/Grade, cards responsivos e tooltip de descrição ao passar o mouse.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.7',
     date: '14/11/2026',
     title: 'Alteração de Status e Data de Entrega dos Serviços na Tela de Ordens de Serviço',

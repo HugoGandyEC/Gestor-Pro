@@ -1,6 +1,18 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.7`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.8`).
+
+---
+
+## [v2.7.8] — 14/11/2026
+**Alternância Listagem/Grade (Cards), Tooltip de Descrição no Hover e Remoção dos Cards de Clientes**
+
+### Removido
+- **Tela de Clientes (`ClientsView`)**: removidos os 4 cards superiores de indicadores (Total de Clientes, Pessoa Jurídica, Pessoa Física e Com OS em Aberto).
+
+### Adicionado
+- **Seletor Global `Listagem | Grade` (`ViewModeToggle`)**: implementado controle nas telas de listagem e cadastros (**Clientes, Ordens de Serviço, Vendas, Fornecedores, Produtos & Estoque, Funcionários, Frota, Operadoras, Custos Operacionais, Financeiro e Cadastro Geral**) para alternar entre lista compacta em linha única e exibição em cards responsivos.
+- **Descrição no Hover das Linhas (`RowHoverTooltip`)**: ao passar o mouse sobre qualquer linha de cadastro/listagem, um card flutuante via Portal exibe automaticamente a descrição e os dados completos cadastrados no registro, mantendo o botão `+` para abrir a modal completa.
 
 ---
 

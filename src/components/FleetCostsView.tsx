@@ -13,7 +13,10 @@ import {
   Car
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
-import { VehicleMaintenance, PaymentMethod } from '../types';
+import { Vehicle, VehicleMaintenance, PaymentMethod } from '../types';
+import { RecordDetailModal } from './RecordDetailModal';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const FleetCostsView: React.FC = () => {
   const { 
@@ -29,6 +32,9 @@ export const FleetCostsView: React.FC = () => {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('todos');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [detailVehicle, setDetailVehicle] = useState<Vehicle | null>(null);
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // New Expense Form State
   const [vehicleId, setVehicleId] = useState(vehicles[0]?.id || '');
@@ -144,84 +150,185 @@ export const FleetCostsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Vehicle Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {vehicles.map(veh => {
-          const driver = employees.find(e => e.id === veh.assignedEmployeeId);
-          const kmRemainingOil = veh.nextOilChangeKm - veh.currentKm;
-          const isOilNear = kmRemainingOil <= 1500;
+      {/* Vehicles Section Bar + Listagem / Grade Toggle */}
+      <div className="space-y-3">
+        <div className="bg-white p-3.5 border border-slate-200 rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">
+              Veículos Cadastrados ({vehicles.length})
+            </h2>
+            <p className="text-xs text-slate-500">
+              Passe o mouse sobre a linha na listagem para ver custos e manutenções, ou alterne para Grade.
+            </p>
+          </div>
+          <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+        </div>
 
-          // Month fuel spent on this vehicle
-          const vehicleMonthFuel = vehicleExpenses
-            .filter(e => e.vehicleId === veh.id && e.category === 'combustivel' && e.date.startsWith(selectedMonthYear))
-            .reduce((a, b) => a + b.cost, 0);
+        {viewMode === 'list' ? (
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Placa</th>
+                    <th>Modelo</th>
+                    <th className="text-center">Ano</th>
+                    <th className="text-right">KM Atual</th>
+                    <th>Condutor</th>
+                    <th className="text-right">Próx. Troca Óleo</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vehicles.map(veh => {
+                    const driver = employees.find(e => e.id === veh.assignedEmployeeId);
+                    const kmRemainingOil = veh.nextOilChangeKm - veh.currentKm;
+                    const isOilNear = kmRemainingOil <= 1500;
+                    const vehicleMonthFuel = vehicleExpenses
+                      .filter(e => e.vehicleId === veh.id && e.category === 'combustivel' && e.date.startsWith(selectedMonthYear))
+                      .reduce((a, b) => a + b.cost, 0);
+                    const vehicleMonthMnt = vehicleExpenses
+                      .filter(e => e.vehicleId === veh.id && e.category !== 'combustivel' && e.date.startsWith(selectedMonthYear))
+                      .reduce((a, b) => a + b.cost, 0);
 
-          // Month maintenance spent on this vehicle
-          const vehicleMonthMnt = vehicleExpenses
-            .filter(e => e.vehicleId === veh.id && e.category !== 'combustivel' && e.date.startsWith(selectedMonthYear))
-            .reduce((a, b) => a + b.cost, 0);
-
-          const monthlyFixedAmortization = (veh.annualIpvaValue + veh.annualInsuranceValue) / 12;
-
-          return (
-            <div key={veh.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-white font-bold">
-                    {veh.plate}
-                  </span>
-                  <h3 className="font-bold text-sm text-slate-900 mt-1">{veh.model}</h3>
-                  <div className="text-xs text-slate-500">Ano: {veh.year} · Odômetro: <span className="font-mono font-semibold text-slate-700">{veh.currentKm.toLocaleString('pt-BR')} km</span></div>
-                </div>
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {veh.status}
-                </span>
-              </div>
-
-              {/* Driver */}
-              <div className="p-2.5 bg-slate-50 rounded-lg text-xs flex items-center justify-between">
-                <span className="text-slate-500">Condutor Responsável:</span>
-                <span className="font-semibold text-slate-800">{driver ? driver.name : 'Frota Compartilhada'}</span>
-              </div>
-
-              {/* Maintenance Metrics */}
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-600 flex items-center gap-1">
-                    <Fuel className="w-3.5 h-3.5 text-amber-500" />
-                    Gasolina no Mês:
-                  </span>
-                  <span className="font-mono font-bold text-amber-800">{formatBRL(vehicleMonthFuel)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-600 flex items-center gap-1">
-                    <Wrench className="w-3.5 h-3.5 text-blue-500" />
-                    Manutenção Mecânica:
-                  </span>
-                  <span className="font-mono font-bold text-slate-700">{formatBRL(vehicleMonthMnt)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-600">IPVA Anual:</span>
-                  <span className="font-mono text-slate-700">{formatBRL(veh.annualIpvaValue)} <span className="text-[10px] text-slate-400">({formatBRL(veh.annualIpvaValue / 12)}/mês)</span></span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-600">Seguro Anual:</span>
-                  <span className="font-mono text-slate-700">{formatBRL(veh.annualInsuranceValue)} <span className="text-[10px] text-slate-400">({formatBRL(veh.annualInsuranceValue / 12)}/mês)</span></span>
-                </div>
-              </div>
-
-              {/* Oil Status Callout */}
-              <div className={`p-2.5 rounded-lg text-xs flex items-center justify-between ${
-                isOilNear ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-slate-50 text-slate-600'
-              }`}>
-                <span>Próxima Troca de Óleo:</span>
-                <span className="font-mono font-bold">
-                  {veh.nextOilChangeKm.toLocaleString('pt-BR')} km ({kmRemainingOil} km restantes)
-                </span>
-              </div>
+                    return (
+                      <tr
+                        key={veh.id}
+                        className="dense-row"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: `${veh.plate} — ${veh.model}`,
+                            subtitle: `Ano ${veh.year} · Status: ${veh.status}`,
+                            description: `Condutor responsável: ${driver ? driver.name : 'Frota Compartilhada'}. Próxima troca de óleo em ${veh.nextOilChangeKm.toLocaleString('pt-BR')} km (${kmRemainingOil.toLocaleString('pt-BR')} km restantes).`,
+                            fields: [
+                              { label: 'Odômetro Atual', value: `${veh.currentKm.toLocaleString('pt-BR')} km` },
+                              { label: 'Gasolina no Mês', value: formatBRL(vehicleMonthFuel) },
+                              { label: 'Manutenção no Mês', value: formatBRL(vehicleMonthMnt) },
+                              { label: 'IPVA / Seguro Anual', value: `${formatBRL(veh.annualIpvaValue)} · ${formatBRL(veh.annualInsuranceValue)}` }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
+                        <td className="font-mono font-bold text-slate-900">{veh.plate}</td>
+                        <td className="font-semibold text-slate-800">{veh.model}</td>
+                        <td className="text-center font-mono text-slate-600 tabular-nums">{veh.year}</td>
+                        <td className="text-right font-mono font-semibold text-slate-700 tabular-nums">
+                          {veh.currentKm.toLocaleString('pt-BR')} km
+                        </td>
+                        <td className="text-slate-700">{driver ? driver.name : 'Compartilhado'}</td>
+                        <td className={`text-right font-mono font-semibold tabular-nums ${isOilNear ? 'text-amber-700' : 'text-slate-600'}`}>
+                          {veh.nextOilChangeKm.toLocaleString('pt-BR')} km
+                        </td>
+                        <td className="text-right">
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setDetailVehicle(veh)}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados do veículo"
+                              aria-label={`Ver detalhes de ${veh.plate}`}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          );
-        })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {vehicles.map(veh => {
+              const driver = employees.find(e => e.id === veh.assignedEmployeeId);
+              const kmRemainingOil = veh.nextOilChangeKm - veh.currentKm;
+              const isOilNear = kmRemainingOil <= 1500;
+
+              const vehicleMonthFuel = vehicleExpenses
+                .filter(e => e.vehicleId === veh.id && e.category === 'combustivel' && e.date.startsWith(selectedMonthYear))
+                .reduce((a, b) => a + b.cost, 0);
+
+              const vehicleMonthMnt = vehicleExpenses
+                .filter(e => e.vehicleId === veh.id && e.category !== 'combustivel' && e.date.startsWith(selectedMonthYear))
+                .reduce((a, b) => a + b.cost, 0);
+
+              return (
+                <div key={veh.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-white font-bold">
+                        {veh.plate}
+                      </span>
+                      <h3 className="font-bold text-sm text-slate-900 mt-1">{veh.model}</h3>
+                      <div className="text-xs text-slate-500">
+                        Ano: {veh.year} · Odômetro: <span className="font-mono font-semibold text-slate-700 tabular-nums">{veh.currentKm.toLocaleString('pt-BR')} km</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {veh.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDetailVehicle(veh)}
+                        className="list-plus-btn"
+                        title="Abrir todos os dados do veículo"
+                        aria-label={`Ver detalhes de ${veh.plate}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Driver */}
+                  <div className="p-2.5 bg-slate-50 rounded-lg text-xs flex items-center justify-between">
+                    <span className="text-slate-500">Condutor Responsável:</span>
+                    <span className="font-semibold text-slate-800">{driver ? driver.name : 'Frota Compartilhada'}</span>
+                  </div>
+
+                  {/* Maintenance Metrics */}
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-600 flex items-center gap-1">
+                        <Fuel className="w-3.5 h-3.5 text-amber-500" />
+                        Gasolina no Mês:
+                      </span>
+                      <span className="font-mono font-bold text-amber-800 tabular-nums">{formatBRL(vehicleMonthFuel)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-600 flex items-center gap-1">
+                        <Wrench className="w-3.5 h-3.5 text-blue-500" />
+                        Manutenção Mecânica:
+                      </span>
+                      <span className="font-mono font-bold text-slate-700 tabular-nums">{formatBRL(vehicleMonthMnt)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-600">IPVA Anual:</span>
+                      <span className="font-mono text-slate-700 tabular-nums">{formatBRL(veh.annualIpvaValue)} <span className="text-[10px] text-slate-400">({formatBRL(veh.annualIpvaValue / 12)}/mês)</span></span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-600">Seguro Anual:</span>
+                      <span className="font-mono text-slate-700 tabular-nums">{formatBRL(veh.annualInsuranceValue)} <span className="text-[10px] text-slate-400">({formatBRL(veh.annualInsuranceValue / 12)}/mês)</span></span>
+                    </div>
+                  </div>
+
+                  {/* Oil Status Callout */}
+                  <div className={`p-2.5 rounded-lg text-xs flex items-center justify-between ${
+                    isOilNear ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-slate-50 text-slate-600'
+                  }`}>
+                    <span>Próxima Troca de Óleo:</span>
+                    <span className="font-mono font-bold tabular-nums">
+                      {veh.nextOilChangeKm.toLocaleString('pt-BR')} km ({kmRemainingOil} km restantes)
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Expenses History Table */}
@@ -281,7 +388,23 @@ export const FleetCostsView: React.FC = () => {
                 const tech = employees.find(e => e.id === exp.employeeId);
 
                 return (
-                  <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
+                  <tr
+                    key={exp.id}
+                    className="hover:bg-slate-50 transition-colors"
+                    onMouseEnter={(e) =>
+                      showTooltip(e, {
+                        title: exp.description,
+                        subtitle: `${veh ? `${veh.plate} (${veh.model})` : 'Veículo não informado'} · ${formatDateBR(exp.date)}`,
+                        description: `Despesa lançada na categoria ${exp.category.replace('_', ' ').toUpperCase()} junto ao fornecedor/posto ${exp.workshopOrSupplier || 'padrão'}.`,
+                        fields: [
+                          { label: 'Condutor / Técnico', value: tech?.name || 'Não vinculado' },
+                          { label: 'Odômetro / Litros', value: `${exp.kmAtService ? `${exp.kmAtService.toLocaleString('pt-BR')} km` : '—'}${exp.litersFuel ? ` (${exp.litersFuel} L)` : ''}` },
+                          { label: 'Valor da Despesa', value: formatBRL(exp.cost) }
+                        ]
+                      })
+                    }
+                    onMouseLeave={hideTooltip}
+                  >
                     <td className="py-3 px-4 font-mono text-slate-600">
                       {formatDateBR(exp.date)}
                     </td>
@@ -638,6 +761,50 @@ export const FleetCostsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {detailVehicle && (() => {
+        const driver = employees.find(e => e.id === detailVehicle.assignedEmployeeId);
+        const kmRemainingOil = detailVehicle.nextOilChangeKm - detailVehicle.currentKm;
+        const vehicleMonthFuel = vehicleExpenses
+          .filter(e => e.vehicleId === detailVehicle.id && e.category === 'combustivel' && e.date.startsWith(selectedMonthYear))
+          .reduce((a, b) => a + b.cost, 0);
+        const vehicleMonthMnt = vehicleExpenses
+          .filter(e => e.vehicleId === detailVehicle.id && e.category !== 'combustivel' && e.date.startsWith(selectedMonthYear))
+          .reduce((a, b) => a + b.cost, 0);
+
+        return (
+          <RecordDetailModal
+            isOpen={true}
+            onClose={() => setDetailVehicle(null)}
+            title={`${detailVehicle.plate} — ${detailVehicle.model}`}
+            subtitle={`Ano ${detailVehicle.year}${detailVehicle.brand ? ` · ${detailVehicle.brand}` : ''}`}
+            statusText={detailVehicle.status}
+            statusClassName="text-emerald-700"
+            sections={[
+              {
+                heading: 'Identificação & Manutenção',
+                fields: [
+                  { label: 'Placa', value: detailVehicle.plate },
+                  { label: 'Condutor', value: driver ? driver.name : 'Frota Compartilhada' },
+                  { label: 'Odômetro Atual', value: `${detailVehicle.currentKm.toLocaleString('pt-BR')} km` },
+                  { label: 'Próxima Troca Óleo', value: `${detailVehicle.nextOilChangeKm.toLocaleString('pt-BR')} km (${kmRemainingOil.toLocaleString('pt-BR')} km restantes)` }
+                ]
+              },
+              {
+                heading: 'Custos do Mês & Amortização Anual',
+                fields: [
+                  { label: 'Gasolina no Mês', value: formatBRL(vehicleMonthFuel) },
+                  { label: 'Manutenção no Mês', value: formatBRL(vehicleMonthMnt) },
+                  { label: 'IPVA Anual', value: `${formatBRL(detailVehicle.annualIpvaValue)} (${formatBRL(detailVehicle.annualIpvaValue / 12)}/mês)` },
+                  { label: 'Seguro Anual', value: `${formatBRL(detailVehicle.annualInsuranceValue)} (${formatBRL(detailVehicle.annualInsuranceValue / 12)}/mês)` }
+                ]
+              }
+            ]}
+          />
+        );
+      })()}
+
+      {tooltipElement}
     </div>
   );
 };

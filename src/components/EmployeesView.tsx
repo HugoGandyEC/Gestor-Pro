@@ -14,12 +14,20 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { Employee } from '../types';
+import { LiveSearchInput } from './LiveSearchInput';
+import { RecordDetailModal } from './RecordDetailModal';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const EmployeesView: React.FC = () => {
   const { employees, vehicles, addEmployee, updateEmployee, deleteEmployee } = useApp();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Form State
   const [name, setName] = useState('');
@@ -104,6 +112,16 @@ export const EmployeesView: React.FC = () => {
   const totalCharges = employees.reduce((a, b) => a + b.benefitsCharges, 0);
   const totalPayroll = totalBaseSalaries + totalCharges;
 
+  const filteredEmployees = employees.filter(emp => {
+    const q = searchTerm.toLowerCase();
+    return (
+      emp.name.toLowerCase().includes(q) ||
+      emp.role.toLowerCase().includes(q) ||
+      (emp.phone || '').toLowerCase().includes(q) ||
+      (emp.email || '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -164,93 +182,231 @@ export const EmployeesView: React.FC = () => {
         </div>
       </div>
 
-      {/* Employees Grid Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {employees.map(emp => {
-          const assignedVeh = vehicles.find(v => v.id === emp.assignedVehicleId);
-          const totalStaffCost = emp.baseSalary + emp.benefitsCharges;
-
-          return (
-            <div key={emp.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-800 font-bold flex items-center justify-center text-base border border-blue-200">
-                    {emp.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900">{emp.name}</h3>
-                    <div className="text-xs text-slate-500">{emp.role}</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">Admissão: {formatDateBR(emp.admissionDate)}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-                    emp.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                  }`}>
-                    {emp.status}
-                  </span>
-                  <button
-                    onClick={() => handleOpenEdit(emp)}
-                    className="p-1 text-slate-400 hover:text-blue-600 rounded"
-                    title="Editar funcionário"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm(`Excluir o funcionário ${emp.name}?`)) {
-                        deleteEmployee(emp.id);
-                      }
-                    }}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                    title="Excluir funcionário"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Remuneration details */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-xs space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Salário Base:</span>
-                  <span className="font-mono font-medium text-slate-800">{formatBRL(emp.baseSalary)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Encargos Trabalhistas / Provisões:</span>
-                  <span className="font-mono font-medium text-slate-800">{formatBRL(emp.benefitsCharges)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Comissão sobre Serviços / Vendas:</span>
-                  <span className="font-mono font-bold text-blue-600">{emp.commissionRate}%</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-slate-200 font-bold text-slate-900">
-                  <span>Custo Fixo Mensal do Colaborador:</span>
-                  <span className="font-mono text-rose-700">{formatBRL(totalStaffCost)}</span>
-                </div>
-              </div>
-
-              {/* Assigned Vehicle */}
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="text-slate-500 flex items-center gap-1.5">
-                  <Car className="w-3.5 h-3.5 text-slate-400" />
-                  Veículo Atribuído:
-                </span>
-                <span className="font-medium text-slate-800">
-                  {assignedVeh ? (
-                    <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                      {assignedVeh.model} ({assignedVeh.plate})
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">Nenhum</span>
-                  )}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+      {/* Search & Presentation Mode Toolbar */}
+      <div className="bg-white p-3.5 border border-slate-200 rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex-1 w-full sm:max-w-md">
+          <LiveSearchInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Buscar colaborador por nome, cargo, telefone ou e-mail..."
+            emptyLabel="Nenhum funcionário"
+            getOptions={(query) => {
+              const q = query.toLowerCase();
+              return employees
+                .filter(e => e.name.toLowerCase().includes(q) || e.role.toLowerCase().includes(q))
+                .map(e => ({
+                  id: e.id,
+                  title: e.name,
+                  subtitle: `${e.role} · ${e.phone || 'Sem telefone'}`,
+                  badgeText: e.status,
+                  data: e.name
+                }));
+            }}
+            onSelect={(opt) => setSearchTerm(opt.data)}
+          />
+        </div>
+        <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
       </div>
+
+      {/* Employees List or Grid Cards */}
+      {viewMode === 'list' ? (
+        <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+          {filteredEmployees.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-400">
+              <Users className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+              Nenhum funcionário encontrado com os filtros informados.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="dense-table text-left text-xs">
+                <thead>
+                  <tr>
+                    <th>Colaborador</th>
+                    <th>Cargo</th>
+                    <th>Status</th>
+                    <th>Telefone</th>
+                    <th className="text-right">Salário Base</th>
+                    <th className="text-center">Comissão</th>
+                    <th>Veículo</th>
+                    <th className="text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEmployees.map(emp => {
+                    const assignedVeh = vehicles.find(v => v.id === emp.assignedVehicleId);
+                    const totalStaffCost = emp.baseSalary + emp.benefitsCharges;
+                    return (
+                      <tr
+                        key={emp.id}
+                        className="dense-row"
+                        onMouseEnter={(e) =>
+                          showTooltip(e, {
+                            title: emp.name,
+                            subtitle: `${emp.role} · Status: ${emp.status}`,
+                            description: `Admitido em ${formatDateBR(emp.admissionDate)} · Custo mensal total de ${formatBRL(totalStaffCost)} (salário base + encargos).`,
+                            fields: [
+                              { label: 'Telefone / WhatsApp', value: emp.phone || '—' },
+                              { label: 'E-mail', value: emp.email || '—' },
+                              { label: 'Salário Base', value: formatBRL(emp.baseSalary) },
+                              { label: 'Encargos / Benefícios', value: formatBRL(emp.benefitsCharges) },
+                              { label: 'Comissão', value: `${emp.commissionRate}%` },
+                              { label: 'Veículo Alocado', value: assignedVeh ? `${assignedVeh.model} (${assignedVeh.plate})` : 'Nenhum' }
+                            ]
+                          })
+                        }
+                        onMouseLeave={hideTooltip}
+                      >
+                        <td className="font-semibold text-slate-900">{emp.name}</td>
+                        <td className="text-blue-700 font-medium">{emp.role}</td>
+                        <td>
+                          <span className={`font-semibold text-[11px] ${emp.status === 'Ativo' ? 'text-emerald-700' : 'text-slate-500'}`}>
+                            {emp.status}
+                          </span>
+                        </td>
+                        <td className="font-mono text-slate-600 tabular-nums">{emp.phone || '—'}</td>
+                        <td className="text-right font-mono font-bold text-slate-900 tabular-nums">{formatBRL(emp.baseSalary)}</td>
+                        <td className="text-center font-mono font-bold text-blue-600 tabular-nums">{emp.commissionRate}%</td>
+                        <td className="font-mono text-slate-700">{assignedVeh ? assignedVeh.plate : '—'}</td>
+                        <td className="text-right">
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setDetailEmployee(emp)}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados do funcionário"
+                              aria-label={`Ver detalhes de ${emp.name}`}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(emp)}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                              title="Editar funcionário"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Excluir o funcionário ${emp.name}?`)) {
+                                  deleteEmployee(emp.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                              title="Excluir funcionário"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredEmployees.map(emp => {
+            const assignedVeh = vehicles.find(v => v.id === emp.assignedVehicleId);
+            const totalStaffCost = emp.baseSalary + emp.benefitsCharges;
+
+            return (
+              <div key={emp.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-800 font-bold flex items-center justify-center text-base border border-blue-200 shrink-0">
+                      {emp.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-sm text-slate-900 truncate">{emp.name}</h3>
+                      <div className="text-xs text-slate-500 truncate">{emp.role}</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">Admissão: {formatDateBR(emp.admissionDate)}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                      emp.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {emp.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDetailEmployee(emp)}
+                      className="list-plus-btn"
+                      title="Abrir todos os dados do funcionário"
+                      aria-label={`Ver detalhes de ${emp.name}`}
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(emp)}
+                      className="p-1 text-slate-400 hover:text-blue-600 rounded cursor-pointer"
+                      title="Editar funcionário"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Excluir o funcionário ${emp.name}?`)) {
+                          deleteEmployee(emp.id);
+                        }
+                      }}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                      title="Excluir funcionário"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Remuneration details */}
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-xs space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Salário Base:</span>
+                    <span className="font-mono font-medium text-slate-800 tabular-nums">{formatBRL(emp.baseSalary)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Encargos / Provisões:</span>
+                    <span className="font-mono font-medium text-slate-800 tabular-nums">{formatBRL(emp.benefitsCharges)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Comissão Serviços/Vendas:</span>
+                    <span className="font-mono font-bold text-blue-600 tabular-nums">{emp.commissionRate}%</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-slate-200 font-bold text-slate-900">
+                    <span>Custo Fixo Mensal:</span>
+                    <span className="font-mono text-rose-700 tabular-nums">{formatBRL(totalStaffCost)}</span>
+                  </div>
+                </div>
+
+                {/* Assigned Vehicle */}
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <span className="text-slate-500 flex items-center gap-1.5">
+                    <Car className="w-3.5 h-3.5 text-slate-400" />
+                    Veículo Atribuído:
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {assignedVeh ? (
+                      <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        {assignedVeh.model} ({assignedVeh.plate})
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">Nenhum</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Modal Cadastro/Edição */}
       {isModalOpen && (
@@ -407,6 +563,71 @@ export const EmployeesView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {detailEmployee && (() => {
+        const assignedVeh = vehicles.find(v => v.id === detailEmployee.assignedVehicleId);
+        const totalStaffCost = detailEmployee.baseSalary + detailEmployee.benefitsCharges;
+        return (
+          <RecordDetailModal
+            isOpen={true}
+            onClose={() => setDetailEmployee(null)}
+            title={detailEmployee.name}
+            subtitle={`${detailEmployee.role} · Admissão: ${formatDateBR(detailEmployee.admissionDate)}`}
+            statusText={detailEmployee.status}
+            statusClassName={detailEmployee.status === 'Ativo' ? 'text-emerald-700' : 'text-slate-600'}
+            sections={[
+              {
+                heading: 'Contato & Alocação',
+                fields: [
+                  { label: 'Telefone / WhatsApp', value: detailEmployee.phone || '—' },
+                  { label: 'E-mail', value: detailEmployee.email || '—' },
+                  { label: 'Veículo Atribuído', value: assignedVeh ? `${assignedVeh.model} (${assignedVeh.plate})` : 'Nenhum veículo fixo', fullWidth: true }
+                ]
+              },
+              {
+                heading: 'Remuneração & Encargos',
+                fields: [
+                  { label: 'Salário Base', value: formatBRL(detailEmployee.baseSalary) },
+                  { label: 'Encargos / Provisões', value: formatBRL(detailEmployee.benefitsCharges) },
+                  { label: 'Custo Total Mensal', value: formatBRL(totalStaffCost) },
+                  { label: 'Comissão', value: `${detailEmployee.commissionRate}%` }
+                ]
+              }
+            ]}
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = detailEmployee;
+                    setDetailEmployee(null);
+                    handleOpenEdit(target);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Editar Funcionário</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Excluir o funcionário ${detailEmployee.name}?`)) {
+                      deleteEmployee(detailEmployee.id);
+                      setDetailEmployee(null);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Excluir</span>
+                </button>
+              </>
+            }
+          />
+        );
+      })()}
+
+      {tooltipElement}
     </div>
   );
 };

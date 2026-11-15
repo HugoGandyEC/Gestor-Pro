@@ -29,6 +29,8 @@ import { SaleItem, PaymentMethod, PaymentSplit, CardBrand, DirectSale } from '..
 import { WhatsAppModal } from './WhatsAppModal';
 import { LiveSearchInput } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
+import { ViewModeToggle, ViewMode } from './ViewModeToggle';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 export const SalesView: React.FC = () => {
   const { 
@@ -62,7 +64,9 @@ export const SalesView: React.FC = () => {
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [saleError, setSaleError] = useState<string | null>(null);
   const [salesSearch, setSalesSearch] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [detailSale, setDetailSale] = useState<DirectSale | null>(null);
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   const selectedClient = clients.find(c => c.id === clientId) || null;
   const isWholesaleUnlocked = selectedClient?.customerType === 'atacado';
@@ -411,33 +415,36 @@ export const SalesView: React.FC = () => {
           <h2 className="text-sm font-bold text-slate-900">
             Histórico de Vendas Faturadas ({filteredSales.length})
           </h2>
-          <div className="w-full sm:w-80">
-            <LiveSearchInput
-              value={salesSearch}
-              onChange={setSalesSearch}
-              placeholder="Buscar venda por código, cliente ou item..."
-              emptyLabel="Nenhuma venda"
-              inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white"
-              getOptions={(query) => {
-                const q = query.toLowerCase();
-                return directSales
-                  .filter(
-                    s =>
-                      s.code.toLowerCase().includes(q) ||
-                      s.clientName.toLowerCase().includes(q) ||
-                      s.items.some(it => it.name.toLowerCase().includes(q))
-                  )
-                  .map(s => ({
-                    id: s.id,
-                    title: `${s.code} · ${s.clientName}`,
-                    subtitle: `${formatDateBR(s.date)} · ${s.items.length} item(ns)`,
-                    priceText: formatBRL(s.total),
-                    badgeText: s.paymentStatus === 'pago' ? 'Pago' : 'Pendente',
-                    data: s
-                  }));
-              }}
-              onSelect={(opt) => setSalesSearch(opt.data.code)}
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex-1 sm:w-72">
+              <LiveSearchInput
+                value={salesSearch}
+                onChange={setSalesSearch}
+                placeholder="Buscar venda por código, cliente ou item..."
+                emptyLabel="Nenhuma venda"
+                inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white"
+                getOptions={(query) => {
+                  const q = query.toLowerCase();
+                  return directSales
+                    .filter(
+                      s =>
+                        s.code.toLowerCase().includes(q) ||
+                        s.clientName.toLowerCase().includes(q) ||
+                        s.items.some(it => it.name.toLowerCase().includes(q))
+                    )
+                    .map(s => ({
+                      id: s.id,
+                      title: `${s.code} · ${s.clientName}`,
+                      subtitle: `${formatDateBR(s.date)} · ${s.items.length} item(ns)`,
+                      priceText: formatBRL(s.total),
+                      badgeText: s.paymentStatus === 'pago' ? 'Pago' : 'Pendente',
+                      data: s
+                    }));
+                }}
+                onSelect={(opt) => setSalesSearch(opt.data.code)}
+              />
+            </div>
+            <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
           </div>
         </div>
 
@@ -445,7 +452,7 @@ export const SalesView: React.FC = () => {
           <div className="py-10 text-center text-xs text-slate-400">
             Nenhuma venda encontrada para os critérios informados.
           </div>
-        ) : (
+        ) : viewMode === 'list' ? (
           <div className="overflow-x-auto">
             <table className="dense-table text-left text-xs">
               <thead>
@@ -460,52 +467,155 @@ export const SalesView: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredSales.map(sale => (
-                  <tr key={sale.id} className="dense-row">
-                    <td className="font-mono font-bold text-blue-600">{sale.code}</td>
-                    <td className="font-bold text-slate-900">{sale.clientName}</td>
-                    <td className="font-mono text-slate-600 tabular-nums">{formatDateBR(sale.date)}</td>
-                    <td className={sale.priceType === 'atacado' ? 'font-semibold text-purple-700' : 'text-slate-600'}>
-                      {sale.priceType === 'atacado' ? 'Atacado' : 'Varejo'}
-                    </td>
-                    <td className={`font-semibold ${sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                      {sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente'}
-                    </td>
-                    <td className="text-right font-mono font-bold text-emerald-700 tabular-nums">
-                      {formatBRL(sale.total)}
-                    </td>
-                    <td className="text-right">
-                      <div className="inline-flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setChargingSale(sale);
-                            setPdvSuccessMessage(null);
-                          }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md text-white bg-[#53383e] hover:bg-[#432c32] cursor-pointer"
-                          title="Cobrar no PDV"
-                        >
-                          <CreditCard className="w-3.5 h-3.5" />
-                          <span>PDV</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDetailSale(sale)}
-                          className="list-plus-btn"
-                          title="Abrir todos os dados da venda"
-                          aria-label={`Ver detalhes da venda ${sale.code}`}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredSales.map(sale => {
+                  const seller = employees.find(e => e.id === sale.employeeId);
+                  const subtotal = sale.items.reduce((acc, it) => acc + it.price * it.quantity, 0);
+                  const itemsSummary = sale.items.map(it => `${it.quantity}x ${it.name}`).join(', ');
+                  return (
+                    <tr
+                      key={sale.id}
+                      className="dense-row"
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: `Venda ${sale.code} · ${sale.clientName}`,
+                          subtitle: `${formatDateBR(sale.date)} · Tabela ${sale.priceType === 'atacado' ? 'Atacado' : 'Varejo'} · ${sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente no PDV'}`,
+                          description: itemsSummary || undefined,
+                          fields: [
+                            { label: 'Vendedor', value: seller?.name || 'Balcão' },
+                            { label: 'Terminal PDV', value: sale.pdvTerminal || 'Caixa 01' },
+                            { label: 'Forma Pagamento', value: sale.paymentMethod.replace('_', ' ').toUpperCase() },
+                            { label: 'Itens', value: `${sale.items.length} item(ns)` },
+                            { label: 'Subtotal / Desconto', value: `${formatBRL(subtotal)} · -${formatBRL(sale.calculatedDiscount || 0)}` },
+                            { label: 'Total Líquido', value: formatBRL(sale.total) }
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
+                    >
+                      <td className="font-mono font-bold text-blue-600">{sale.code}</td>
+                      <td className="font-bold text-slate-900">{sale.clientName}</td>
+                      <td className="font-mono text-slate-600 tabular-nums">{formatDateBR(sale.date)}</td>
+                      <td className={sale.priceType === 'atacado' ? 'font-semibold text-purple-700' : 'text-slate-600'}>
+                        {sale.priceType === 'atacado' ? 'Atacado' : 'Varejo'}
+                      </td>
+                      <td className={`font-semibold ${sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente'}
+                      </td>
+                      <td className="text-right font-mono font-bold text-emerald-700 tabular-nums">
+                        {formatBRL(sale.total)}
+                      </td>
+                      <td className="text-right">
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setChargingSale(sale);
+                              setPdvSuccessMessage(null);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md text-white bg-[#53383e] hover:bg-[#432c32] cursor-pointer"
+                            title="Cobrar no PDV"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>PDV</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDetailSale(sale)}
+                            className="list-plus-btn"
+                            title="Abrir todos os dados da venda"
+                            aria-label={`Ver detalhes da venda ${sale.code}`}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+        ) : (
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 bg-slate-50/40">
+            {filteredSales.map(sale => {
+              const seller = employees.find(e => e.id === sale.employeeId);
+              return (
+                <div
+                  key={sale.id}
+                  className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between gap-3 hover:border-slate-300 transition-colors"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-mono font-bold text-blue-600">{sale.code}</span>
+                          <span aria-hidden="true" className="text-slate-300">·</span>
+                          <span className="font-mono text-[11px] text-slate-500 tabular-nums">{formatDateBR(sale.date)}</span>
+                        </div>
+                        <h3 className="font-bold text-sm text-slate-900 mt-0.5 break-words">
+                          {sale.clientName}
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDetailSale(sale)}
+                        className="list-plus-btn shrink-0"
+                        title="Abrir todos os dados da venda"
+                        aria-label={`Ver detalhes da venda ${sale.code}`}
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-slate-500">
+                      <span className={sale.priceType === 'atacado' ? 'font-bold text-purple-700' : 'text-slate-600'}>
+                        {sale.priceType === 'atacado' ? 'Tabela Atacado' : 'Tabela Varejo'}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span className={`font-semibold ${sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente'}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span>{sale.items.length} item(ns)</span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 text-xs text-slate-600 space-y-1">
+                      <div className="text-[11px] text-slate-500">
+                        Vendedor: <span className="font-medium text-slate-800">{seller?.name || 'Balcão'}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-2">
+                        {sale.items.map(it => `${it.quantity}x ${it.name}`).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Total Líquido</span>
+                      <span className="font-mono font-bold text-sm text-emerald-700 tabular-nums">
+                        {formatBRL(sale.total)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChargingSale(sale);
+                        setPdvSuccessMessage(null);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-white bg-[#53383e] hover:bg-[#432c32] cursor-pointer"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>PDV</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
+
+      {tooltipElement}
 
       {/* Modal Completa da Venda (Aberta pelo botão +) */}
       {(() => {
