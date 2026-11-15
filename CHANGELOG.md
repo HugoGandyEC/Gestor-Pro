@@ -1,6 +1,19 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.9`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.10`).
+
+---
+
+## [v2.7.10] — 14/11/2026
+**Foto do Produto no Hover, na Listagem e na Grade (Cards)**
+
+### Adicionado
+- **Miniatura Segura (`ProductPhotoThumb`)**: renderização de foto com `referrerPolicy="no-referrer"` e fallback automático em caso de ausência de imagem ou erro de carregamento.
+- **Foto no Hover (`RowHoverTooltip`)**: o card flutuante exibido ao passar o mouse agora apresenta a foto do produto nas telas de **Produtos & Estoque** (Listagem, Grade e Movimentações Kardex), **Cadastro Geral → Produtos & Peças** e **Balcão PDV**.
+- **Foto na Listagem**: adicionada coluna **Foto** compacta nas tabelas em linha única de **Produtos & Estoque** e **Cadastro Geral → Produtos & Peças**, além de miniatura no Kardex.
+
+### Alterado
+- **Foto na Grade (Cards)**: cards da visualização em Grade atualizados com área de exibição ampliada para a foto do produto (`h-36`) e miniatura nos cards do **Balcão PDV**, além de campo de upload/URL de foto no modal rápido de produto do **Cadastro Geral**.
 
 ---
 

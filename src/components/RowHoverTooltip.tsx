@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { ProductPhotoThumb } from './ProductPhotoThumb';
 
 export interface HoverTooltipField {
   label: string;
@@ -11,6 +12,9 @@ export interface HoverTooltipData {
   title: string;
   subtitle?: string;
   description?: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  showImageSlot?: boolean;
   fields: HoverTooltipField[];
   footerHint?: string;
 }
@@ -82,7 +86,7 @@ const RowHoverTooltipPortal: React.FC<{ state: ActiveHoverState }> = ({ state })
   let left = Math.max(12, Math.min(rect.left + 20, vw - maxWidth - 12));
 
   // Decide se abre abaixo ou acima da linha dependendo do espaço disponível
-  const estimatedHeight = 250;
+  const estimatedHeight = 270;
   const spaceBelow = vh - rect.bottom;
   const showAbove = spaceBelow < estimatedHeight && rect.top > estimatedHeight;
   const top = showAbove ? Math.max(12, rect.top - 8) : Math.min(vh - 24, rect.bottom + 8);
@@ -90,6 +94,8 @@ const RowHoverTooltipPortal: React.FC<{ state: ActiveHoverState }> = ({ state })
   const validFields = data.fields.filter(
     f => f.value !== undefined && f.value !== null && f.value !== ''
   );
+
+  const hasMedia = Boolean(data.imageUrl || data.showImageSlot);
 
   return createPortal(
     <div
@@ -104,15 +110,26 @@ const RowHoverTooltipPortal: React.FC<{ state: ActiveHoverState }> = ({ state })
       }}
       className="pointer-events-none bg-white border border-slate-300 rounded-xl shadow-2xl p-3.5 text-xs text-slate-800 animate-in fade-in duration-100"
     >
-      <div className="pb-2 border-b border-slate-100">
-        <div className="font-bold text-slate-900 text-[13px] leading-snug break-words">
-          {data.title}
-        </div>
-        {data.subtitle && (
-          <div className="text-[11px] text-slate-500 mt-0.5 break-words">
-            {data.subtitle}
-          </div>
+      <div className="pb-2 border-b border-slate-100 flex items-start gap-3">
+        {hasMedia && (
+          <ProductPhotoThumb
+            src={data.imageUrl}
+            alt={data.imageAlt || data.title}
+            className="w-16 h-16 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden"
+            iconClassName="w-6 h-6 text-slate-400"
+            emptyLabel={!data.imageUrl ? 'Sem foto' : undefined}
+          />
         )}
+        <div className="min-w-0 flex-1">
+          <div className="font-bold text-slate-900 text-[13px] leading-snug break-words">
+            {data.title}
+          </div>
+          {data.subtitle && (
+            <div className="text-[11px] text-slate-500 mt-0.5 break-words">
+              {data.subtitle}
+            </div>
+          )}
+        </div>
       </div>
 
       {data.description && (

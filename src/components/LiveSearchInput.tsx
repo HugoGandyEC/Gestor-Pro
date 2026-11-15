@@ -49,6 +49,40 @@ function renderHighlightedText(text: string, query: string): React.ReactNode {
   );
 }
 
+function SearchOptionThumb({
+  src,
+  title,
+  icon
+}: {
+  src?: string;
+  title: string;
+  icon?: React.ReactNode;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [src]);
+
+  if (src && !imgFailed) {
+    return (
+      <img
+        src={src}
+        alt={title}
+        referrerPolicy="no-referrer"
+        onError={() => setImgFailed(true)}
+        className="search-item-thumb"
+      />
+    );
+  }
+
+  return (
+    <div className="search-item-thumb">
+      {icon || title.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
 export function LiveSearchInput<T = unknown>({
   value,
   onChange,
@@ -258,18 +292,11 @@ export function LiveSearchInput<T = unknown>({
                     onClick={() => handleSelectOption(opt)}
                     className={`search-item ${isActive ? 'is-active' : ''}`}
                   >
-                    {opt.thumbnailUrl ? (
-                      <img
-                        src={opt.thumbnailUrl}
-                        alt={opt.title}
-                        referrerPolicy="no-referrer"
-                        className="search-item-thumb"
-                      />
-                    ) : (
-                      <div className="search-item-thumb">
-                        {opt.icon || opt.title.slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
+                    <SearchOptionThumb
+                      src={opt.thumbnailUrl}
+                      title={opt.title}
+                      icon={opt.icon}
+                    />
 
                     <div className="search-item-content">
                       <div className="flex items-center gap-1.5 min-w-0">

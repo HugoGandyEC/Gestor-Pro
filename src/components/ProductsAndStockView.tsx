@@ -54,6 +54,7 @@ import { LiveSearchInput } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
 import { useRowHoverTooltip } from './RowHoverTooltip';
+import { ProductPhotoThumb } from './ProductPhotoThumb';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -893,6 +894,7 @@ export const ProductsAndStockView: React.FC = () => {
                 <table className="dense-table text-left text-xs">
                   <thead>
                     <tr>
+                      <th className="w-14 text-center">Foto</th>
                       <th>Código</th>
                       <th>Produto</th>
                       <th className="text-right">Varejo</th>
@@ -904,6 +906,7 @@ export const ProductsAndStockView: React.FC = () => {
                   <tbody>
                     {paginatedProducts.map(p => {
                       const isLow = p.currentStock <= p.minStock;
+                      const thumb = p.photos?.[0];
                       return (
                         <tr
                           key={p.id}
@@ -913,6 +916,9 @@ export const ProductsAndStockView: React.FC = () => {
                               title: p.name,
                               subtitle: `${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}${p.brand ? ` · Marca: ${p.brand}` : ''}`,
                               description: p.description || 'Produto cadastrado no catálogo de estoque e vendas.',
+                              imageUrl: thumb,
+                              imageAlt: p.name,
+                              showImageSlot: true,
                               fields: [
                                 { label: 'Código / SKU', value: `${p.code}${p.sku ? ` · ${p.sku}` : ''}` },
                                 { label: 'EAN / NCM', value: `${p.barcode || '—'} · ${p.ncm}` },
@@ -925,6 +931,14 @@ export const ProductsAndStockView: React.FC = () => {
                           }
                           onMouseLeave={hideTooltip}
                         >
+                          <td className="text-center">
+                            <ProductPhotoThumb
+                              src={thumb}
+                              alt={p.name}
+                              className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center mx-auto overflow-hidden"
+                              iconClassName="w-4 h-4 text-slate-400"
+                            />
+                          </td>
                           <td className="font-mono font-bold text-blue-600">{p.code}</td>
                           <td className="font-semibold text-slate-900">
                             <span className="inline-block truncate max-w-[260px] align-bottom">{p.name}</span>
@@ -991,38 +1005,50 @@ export const ProductsAndStockView: React.FC = () => {
                   return (
                     <div
                       key={p.id}
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: p.name,
+                          subtitle: `${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}${p.brand ? ` · Marca: ${p.brand}` : ''}`,
+                          description: p.description || 'Produto cadastrado no catálogo de estoque e vendas.',
+                          imageUrl: thumb,
+                          imageAlt: p.name,
+                          showImageSlot: true,
+                          fields: [
+                            { label: 'Código / SKU', value: `${p.code}${p.sku ? ` · ${p.sku}` : ''}` },
+                            { label: 'EAN / NCM', value: `${p.barcode || '—'} · ${p.ncm}` },
+                            { label: 'Custo / Margem', value: `${formatBRL(p.costPrice)}${p.profitMarginPercent !== undefined ? ` (${p.profitMarginPercent}%)` : ''}` },
+                            { label: 'Varejo / Atacado', value: `${formatBRL(p.retailPrice)} · ${formatBRL(p.wholesalePrice)}` },
+                            { label: 'Estoque Atual', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` },
+                            { label: 'Modelo / Série', value: [p.model, p.serialNumber].filter(Boolean).join(' · ') || '—' }
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
                       className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3 hover:border-slate-300 transition-colors"
                     >
-                      <div className="space-y-2.5">
-                        <div className="flex items-start gap-3">
-                          <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
-                            {thumb ? (
-                              <img
-                                src={thumb}
-                                alt={p.name}
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <Package className="w-5 h-5 text-slate-400" />
-                            )}
+                      <div className="space-y-3">
+                        <ProductPhotoThumb
+                          src={thumb}
+                          alt={p.name}
+                          className="w-full h-36 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden"
+                          iconClassName="w-8 h-8 text-slate-400"
+                          emptyLabel="Sem foto"
+                        />
+                        <div>
+                          <div className="flex items-center justify-between gap-2 text-[11px] tabular-nums">
+                            <span className="font-mono font-bold text-blue-600 truncate">
+                              {p.code}
+                            </span>
+                            <span className={`font-bold shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
+                              {p.currentStock} {p.unit}
+                            </span>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-mono text-[11px] font-bold text-blue-600 truncate">
-                                {p.code}
-                              </span>
-                              <span className={`text-[11px] font-bold tabular-nums shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
-                                {p.currentStock} {p.unit}
-                              </span>
-                            </div>
-                            <h3 className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug mt-0.5">
-                              {p.name}
-                            </h3>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                              {p.category}{p.brand ? ` · ${p.brand}` : ''}
-                            </p>
-                          </div>
+                          <h3 className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug mt-1">
+                            {p.name}
+                          </h3>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                            {p.category}{p.brand ? ` · ${p.brand}` : ''}
+                          </p>
                         </div>
 
                         {p.description && (
@@ -1270,6 +1296,10 @@ export const ProductsAndStockView: React.FC = () => {
             <tbody className="divide-y divide-slate-100 font-sans">
               {stockMovements.map(m => {
                 const isEntry = m.type.startsWith('entrada');
+                const linkedProduct = products.find(
+                  pr => pr.id === m.productId || pr.name.toLowerCase() === m.productName.toLowerCase()
+                );
+                const thumb = linkedProduct?.photos?.[0];
                 return (
                   <tr
                     key={m.id}
@@ -1279,6 +1309,9 @@ export const ProductsAndStockView: React.FC = () => {
                         title: m.productName,
                         subtitle: `${m.date} · ${m.type.replace('_', ' ').toUpperCase()}`,
                         description: m.notes || 'Movimentação registrada no Kardex de estoque.',
+                        imageUrl: thumb,
+                        imageAlt: m.productName,
+                        showImageSlot: true,
                         fields: [
                           { label: 'Documento Ref.', value: m.referenceDoc || '—' },
                           { label: 'Quantidade', value: isEntry ? `+${m.quantity}` : `-${m.quantity}` },
@@ -1296,7 +1329,17 @@ export const ProductsAndStockView: React.FC = () => {
                         {m.type.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">{m.productName}</td>
+                    <td className="py-3 px-4 font-semibold text-slate-900">
+                      <div className="flex items-center gap-2.5">
+                        <ProductPhotoThumb
+                          src={thumb}
+                          alt={m.productName}
+                          className="w-7 h-7 rounded-md border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden"
+                          iconClassName="w-3.5 h-3.5 text-slate-400"
+                        />
+                        <span>{m.productName}</span>
+                      </div>
+                    </td>
                     <td className="py-3 px-3 font-mono text-slate-600">{m.referenceDoc || '-'}</td>
                     <td className="py-3 px-3 text-center font-mono font-bold">
                       <span className={isEntry ? 'text-emerald-700' : 'text-rose-700'}>

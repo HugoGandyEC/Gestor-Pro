@@ -16,6 +16,35 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.10',
+    date: '14/11/2026',
+    title: 'Foto do Produto no Hover, na Listagem e na Grade (Cards)',
+    summary:
+      'Adicionada exibição padronizada da foto do produto com fallback seguro no tooltip flutuante ao passar o mouse (hover), na coluna Foto das tabelas em listagem, nos cards de grade e no balcão do PDV.',
+    highlights: [
+      'Tooltip flutuante (RowHoverTooltip) atualizado para exibir a foto do produto ao passar o mouse sobre linhas, cards de grade, movimentações de estoque e itens do PDV',
+      'Coluna Foto em linha única adicionada às tabelas de Produtos & Estoque e Cadastro Geral (Produtos & Peças)',
+      'Cards de Grade ampliados com destaque visual para a foto do produto e suporte rápido para anexar foto também no Cadastro Geral'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Criado componente reutilizável ProductPhotoThumb com política anti-quebra (referrerPolicy="no-referrer" e fallback automático caso a imagem falhe ou ainda não exista foto cadastrada).'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Incluído suporte a foto de produto no card flutuante de hover (RowHoverTooltip) em Produtos & Estoque (listagem, grade e movimentações Kardex), Cadastro Geral (Produtos & Peças) e Balcão PDV.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Adicionada coluna Foto na listagem em tabela de produtos, ampliado o bloco de imagem nos cards em formato Grade e habilitado envio/URL de foto diretamente no modal de produto do Cadastro Geral.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.9',
     date: '14/11/2026',
     title: 'Página de Gráficos & BI Interativos, Remoção de Blocos de Resumo nos Cadastros e Módulo Completo de Usuários',

@@ -33,6 +33,7 @@ import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
 import { useRowHoverTooltip } from './RowHoverTooltip';
+import { ProductPhotoThumb } from './ProductPhotoThumb';
 import { 
   Client, 
   Supplier, 
@@ -166,7 +167,8 @@ export const MasterRegistrationsView: React.FC = () => {
     wholesalePrice: 0,
     currentStock: 10,
     minStock: 2,
-    unit: 'UN'
+    unit: 'UN',
+    photos: [] as string[]
   });
 
   // Employee form state
@@ -335,7 +337,8 @@ export const MasterRegistrationsView: React.FC = () => {
                 setEditingProduct(null);
                 setProductForm({
                   name: '', sku: `PRD-${Date.now().toString().slice(-4)}`, category: 'Tanques & Reservatórios',
-                  ncm: '8419.19.10', costPrice: 0, retailPrice: 0, wholesalePrice: 0, currentStock: 10, minStock: 2, unit: 'UN'
+                  ncm: '8419.19.10', costPrice: 0, retailPrice: 0, wholesalePrice: 0, currentStock: 10, minStock: 2, unit: 'UN',
+                  photos: []
                 });
                 setIsProductModalOpen(true);
               }}
@@ -861,6 +864,7 @@ export const MasterRegistrationsView: React.FC = () => {
               <table className="dense-table text-left text-xs">
                 <thead>
                   <tr>
+                    <th className="w-14 text-center">Foto</th>
                     <th>Código</th>
                     <th>Produto</th>
                     <th className="text-right">Varejo</th>
@@ -872,6 +876,7 @@ export const MasterRegistrationsView: React.FC = () => {
                 <tbody>
                   {filteredProducts.map(product => {
                     const isLow = product.currentStock <= product.minStock;
+                    const thumb = product.photos?.[0];
                     return (
                       <tr
                         key={product.id}
@@ -881,6 +886,9 @@ export const MasterRegistrationsView: React.FC = () => {
                             title: product.name,
                             subtitle: `${product.category}${product.brand ? ` · Marca: ${product.brand}` : ''}`,
                             description: product.description || 'Produto cadastrado no catálogo mestre de peças e itens.',
+                            imageUrl: thumb,
+                            imageAlt: product.name,
+                            showImageSlot: true,
                             fields: [
                               { label: 'Código / SKU', value: `${product.code}${product.sku ? ` · ${product.sku}` : ''}` },
                               { label: 'NCM', value: product.ncm || '—' },
@@ -891,6 +899,14 @@ export const MasterRegistrationsView: React.FC = () => {
                         }
                         onMouseLeave={hideTooltip}
                       >
+                        <td className="text-center">
+                          <ProductPhotoThumb
+                            src={thumb}
+                            alt={product.name}
+                            className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center mx-auto overflow-hidden"
+                            iconClassName="w-4 h-4 text-slate-400"
+                          />
+                        </td>
                         <td className="font-mono text-slate-600 tabular-nums">{product.code || product.sku}</td>
                         <td className="font-semibold text-slate-900">{product.name}</td>
                         <td className="text-right font-mono font-semibold text-emerald-700 tabular-nums">{formatBRL(product.retailPrice)}</td>
@@ -923,7 +939,8 @@ export const MasterRegistrationsView: React.FC = () => {
                                   wholesalePrice: product.wholesalePrice,
                                   currentStock: product.currentStock,
                                   minStock: product.minStock,
-                                  unit: product.unit
+                                  unit: product.unit,
+                                  photos: product.photos ? [...product.photos] : []
                                 });
                                 setIsProductModalOpen(true);
                               }}
@@ -959,19 +976,39 @@ export const MasterRegistrationsView: React.FC = () => {
               const isLow = product.currentStock <= product.minStock;
               const thumb = product.photos?.[0];
               return (
-                <div key={product.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
-                      {thumb ? (
-                        <img src={thumb} alt={product.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                      ) : (
-                        <Package className="w-5 h-5 text-slate-400" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[11px] text-blue-600 font-bold truncate">{product.code || product.sku}</span>
-                        <span className={`text-[11px] font-mono font-bold tabular-nums shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
+                <div
+                  key={product.id}
+                  onMouseEnter={(e) =>
+                    showTooltip(e, {
+                      title: product.name,
+                      subtitle: `${product.category}${product.brand ? ` · Marca: ${product.brand}` : ''}`,
+                      description: product.description || 'Produto cadastrado no catálogo mestre de peças e itens.',
+                      imageUrl: thumb,
+                      imageAlt: product.name,
+                      showImageSlot: true,
+                      fields: [
+                        { label: 'Código / SKU', value: `${product.code}${product.sku ? ` · ${product.sku}` : ''}` },
+                        { label: 'NCM', value: product.ncm || '—' },
+                        { label: 'Custo / Varejo', value: `${formatBRL(product.costPrice)} · ${formatBRL(product.retailPrice)}` },
+                        { label: 'Atacado / Estoque', value: `${formatBRL(product.wholesalePrice)} · ${product.currentStock} ${product.unit}` }
+                      ]
+                    })
+                  }
+                  onMouseLeave={hideTooltip}
+                  className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3 hover:border-slate-300 transition-colors"
+                >
+                  <div className="space-y-2.5">
+                    <ProductPhotoThumb
+                      src={thumb}
+                      alt={product.name}
+                      className="w-full h-36 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden"
+                      iconClassName="w-8 h-8 text-slate-400"
+                      emptyLabel="Sem foto"
+                    />
+                    <div>
+                      <div className="flex items-center justify-between gap-2 text-[11px] tabular-nums">
+                        <span className="font-mono text-blue-600 font-bold truncate">{product.code || product.sku}</span>
+                        <span className={`font-mono font-bold shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
                           {product.currentStock} {product.unit}
                         </span>
                       </div>
@@ -1009,7 +1046,8 @@ export const MasterRegistrationsView: React.FC = () => {
                             wholesalePrice: product.wholesalePrice,
                             currentStock: product.currentStock,
                             minStock: product.minStock,
-                            unit: product.unit
+                            unit: product.unit,
+                            photos: product.photos ? [...product.photos] : []
                           });
                           setIsProductModalOpen(true);
                         }}
@@ -2096,6 +2134,7 @@ export const MasterRegistrationsView: React.FC = () => {
                   currentStock: productForm.currentStock,
                   minStock: productForm.minStock,
                   unit: productForm.unit,
+                  photos: productForm.photos.filter(Boolean),
                   icmsRate: 18,
                   pisRate: 1.65,
                   cofinsRate: 7.6
@@ -2200,6 +2239,68 @@ export const MasterRegistrationsView: React.FC = () => {
                     onChange={(e) => setProductForm({ ...productForm, unit: e.target.value.toUpperCase() })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
                   />
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label className="block text-xs font-semibold text-slate-700">Foto Principal do Produto</label>
+                <div className="flex items-center gap-3">
+                  <ProductPhotoThumb
+                    src={productForm.photos[0]}
+                    alt={productForm.name || 'Produto'}
+                    className="w-14 h-14 rounded-lg border border-slate-200 bg-white flex items-center justify-center shrink-0 overflow-hidden"
+                    iconClassName="w-5 h-5 text-slate-400"
+                    emptyLabel="Sem foto"
+                  />
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      type="url"
+                      placeholder="Cole a URL da imagem (https://...)"
+                      value={productForm.photos[0] || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setProductForm(prev => ({
+                          ...prev,
+                          photos: val ? [val, ...prev.photos.slice(1)] : prev.photos.slice(1)
+                        }));
+                      }}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-100 cursor-pointer">
+                        <span>Carregar arquivo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              const base64 = ev.target?.result as string;
+                              if (base64) {
+                                setProductForm(prev => ({
+                                  ...prev,
+                                  photos: [base64, ...prev.photos.slice(1)]
+                                }));
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      {productForm.photos[0] && (
+                        <button
+                          type="button"
+                          onClick={() => setProductForm(prev => ({ ...prev, photos: prev.photos.slice(1) }))}
+                          className="text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          Remover foto
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2975,7 +3076,7 @@ export const MasterRegistrationsView: React.FC = () => {
                   ]
                 },
                 {
-                  heading: 'Preços & Estoque',
+                  heading: 'Preços, Margens & Estoque',
                   fields: [
                     { label: 'Custo Compra', value: formatBRL(p.costPrice) },
                     { label: 'Preço Varejo', value: formatBRL(p.retailPrice) },
@@ -2984,6 +3085,25 @@ export const MasterRegistrationsView: React.FC = () => {
                   ]
                 }
               ]}
+              customContent={
+                p.photos && p.photos.length > 0 ? (
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                      Fotos do Produto
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {p.photos.map((photo, idx) => (
+                        <ProductPhotoThumb
+                          key={idx}
+                          src={photo}
+                          alt={`${p.name} ${idx + 1}`}
+                          className="w-20 h-20 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : undefined
+              }
               actions={
                 <>
                   <button
@@ -3000,7 +3120,8 @@ export const MasterRegistrationsView: React.FC = () => {
                         wholesalePrice: p.wholesalePrice,
                         currentStock: 0,
                         minStock: p.minStock,
-                        unit: p.unit
+                        unit: p.unit,
+                        photos: p.photos ? [...p.photos] : []
                       });
                       setDetailTarget(null);
                       setIsProductModalOpen(true);
@@ -3023,7 +3144,8 @@ export const MasterRegistrationsView: React.FC = () => {
                         wholesalePrice: p.wholesalePrice,
                         currentStock: p.currentStock,
                         minStock: p.minStock,
-                        unit: p.unit
+                        unit: p.unit,
+                        photos: p.photos ? [...p.photos] : []
                       });
                       setDetailTarget(null);
                       setIsProductModalOpen(true);

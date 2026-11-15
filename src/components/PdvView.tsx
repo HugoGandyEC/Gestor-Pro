@@ -41,6 +41,8 @@ import {
   ServiceOrder
 } from '../types';
 import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
+import { ProductPhotoThumb } from './ProductPhotoThumb';
+import { useRowHoverTooltip } from './RowHoverTooltip';
 
 type PdvSubTab = 'fila' | 'balcao' | 'movimentacoes' | 'fechamentos';
 type QueueFilter = 'todos' | 'enviados' | 'os' | 'vendas';
@@ -110,6 +112,7 @@ export const PdvView: React.FC = () => {
   const [subTab, setSubTab] = useState<PdvSubTab>('fila');
   const [queueFilter, setQueueFilter] = useState<QueueFilter>('todos');
   const [queueSearch, setQueueSearch] = useState('');
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Open / Close / Supply / Bleed Modals
   const [isOpenSessionModalOpen, setIsOpenSessionModalOpen] = useState(false);
@@ -1223,21 +1226,48 @@ export const PdvView: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[520px] overflow-y-auto pr-1">
               {filteredPosProducts.map(prod => {
                 const price = effectivePosPriceType === 'atacado' ? prod.wholesalePrice : prod.retailPrice;
+                const thumb = prod.photos?.[0];
                 return (
                   <button
                     key={prod.id}
                     type="button"
                     onClick={() => handleAddToPosCart(prod)}
+                    onMouseEnter={(e) =>
+                      showTooltip(e, {
+                        title: prod.name,
+                        subtitle: `${prod.category}${prod.brand ? ` · Marca: ${prod.brand}` : ''}`,
+                        description: prod.description || 'Produto disponível no balcão PDV.',
+                        imageUrl: thumb,
+                        imageAlt: prod.name,
+                        showImageSlot: true,
+                        fields: [
+                          { label: 'Código', value: prod.code },
+                          { label: 'Estoque', value: `${prod.currentStock} ${prod.unit}` },
+                          { label: 'Varejo', value: formatBRL(prod.retailPrice) },
+                          { label: 'Atacado', value: formatBRL(prod.wholesalePrice) }
+                        ],
+                        footerHint: 'Clique no card para adicionar ao carrinho do PDV'
+                      })
+                    }
+                    onMouseLeave={hideTooltip}
                     className="p-3 rounded-xl border border-[#d8d8d8] hover:border-[#53383e] bg-[#f9f9fb] hover:bg-white text-left transition-all flex flex-col justify-between gap-2 cursor-pointer"
                   >
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[10px] font-bold text-[#707174]">{prod.code}</span>
-                        <span className={`font-mono text-[10px] font-semibold ${prod.currentStock <= prod.minStock ? 'text-rose-600' : 'text-[#707174]'}`}>
-                          Est: {prod.currentStock} {prod.unit}
-                        </span>
+                    <div className="flex items-start gap-2.5">
+                      <ProductPhotoThumb
+                        src={thumb}
+                        alt={prod.name}
+                        className="w-12 h-12 rounded-lg border border-slate-200 bg-white flex items-center justify-center shrink-0 overflow-hidden"
+                        iconClassName="w-5 h-5 text-slate-400"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-[10px] font-bold text-[#707174] truncate">{prod.code}</span>
+                          <span className={`font-mono text-[10px] font-semibold shrink-0 tabular-nums ${prod.currentStock <= prod.minStock ? 'text-rose-600' : 'text-[#707174]'}`}>
+                            Est: {prod.currentStock} {prod.unit}
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold text-[#363739] mt-1 line-clamp-2">{prod.name}</div>
                       </div>
-                      <div className="text-xs font-bold text-[#363739] mt-1 line-clamp-2">{prod.name}</div>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-[#ececef]">
                       <span className={`font-mono tabular-nums font-black text-sm ${effectivePosPriceType === 'atacado' ? 'text-purple-800' : 'text-[#53383e]'}`}>
@@ -2577,6 +2607,7 @@ export const PdvView: React.FC = () => {
           </div>
         </div>
       )}
+      {tooltipElement}
     </div>
   );
 };
