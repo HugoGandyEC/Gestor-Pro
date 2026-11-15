@@ -29,6 +29,7 @@ import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
 import { LoginView } from './components/LoginView';
 import { SystemFooter } from './components/SystemFooter';
 import { PdvView } from './components/PdvView';
+import { AnalyticsChartsView } from './components/AnalyticsChartsView';
 
 const VALID_TABS: ActiveTab[] = [
   'dashboard',
@@ -51,6 +52,7 @@ const VALID_TABS: ActiveTab[] = [
   'cardOperators',
   'googleDrive',
   'configuracoes',
+  'charts',
   'documentation'
 ];
 
@@ -171,6 +173,8 @@ const MainLayout: React.FC = () => {
         return <InitialCostSimulatorView />;
       case 'financial':
         return <FinancialView />;
+      case 'charts':
+        return <AnalyticsChartsView />;
       case 'employees':
         return <EmployeesView />;
       case 'documentation':

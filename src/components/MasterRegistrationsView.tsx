@@ -23,10 +23,12 @@ import {
   CheckCircle2,
   Copy,
   Database,
+  UserCog,
   X
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { UniversalDataImportView } from './UniversalDataImportView';
+import { UsersManagementPanel } from './UsersManagementPanel';
 import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
@@ -50,6 +52,7 @@ type RegistrationTab =
   | 'fleet' 
   | 'services' 
   | 'checklists'
+  | 'users'
   | 'import';
 
 export const MasterRegistrationsView: React.FC = () => {
@@ -82,6 +85,7 @@ export const MasterRegistrationsView: React.FC = () => {
     addChecklistTemplate, 
     updateChecklistTemplate, 
     deleteChecklistTemplate,
+    authUsers,
     lookupCep, 
     lookupCnpj 
   } = useApp();
@@ -272,6 +276,7 @@ export const MasterRegistrationsView: React.FC = () => {
     { id: 'fleet', label: 'Frota de Veículos', icon: Truck, count: vehicles.length },
     { id: 'services', label: 'Serviços Tabelados', icon: Wrench, count: serviceCatalog.length },
     { id: 'checklists', label: 'Modelos de Checklist', icon: CheckSquare, count: checklistTemplates.length },
+    { id: 'users', label: 'Usuários', icon: UserCog, count: authUsers.length },
     { id: 'import', label: 'Importação Geral & Backups', icon: Database, count: '6 Formatos' }
   ];
 
@@ -439,7 +444,7 @@ export const MasterRegistrationsView: React.FC = () => {
       </div>
 
       {/* Search and Filters Bar */}
-      {activeSubTab !== 'import' && (
+      {activeSubTab !== 'import' && activeSubTab !== 'users' && (
         <div className="bg-white p-3.5 border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-xs">
           <div className="flex-1 w-full md:max-w-md">
             <LiveSearchInput
@@ -1727,7 +1732,12 @@ export const MasterRegistrationsView: React.FC = () => {
         );
       })()}
 
-      {/* SUB-TAB 8: IMPORTAÇÃO GERAL & BACKUPS MULTI-FORMATO */}
+      {/* SUB-TAB 8: USUÁRIOS DO SISTEMA */}
+      {activeSubTab === 'users' && (
+        <UsersManagementPanel />
+      )}
+
+      {/* SUB-TAB 9: IMPORTAÇÃO GERAL & BACKUPS MULTI-FORMATO */}
       {activeSubTab === 'import' && (
         <UniversalDataImportView />
       )}

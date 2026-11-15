@@ -11,14 +11,11 @@ import {
   Trash2, 
   CheckCircle2, 
   UserCheck, 
-  Package, 
-  DollarSign, 
-  FileText,
   Building2,
   ExternalLink,
   MessageSquare
 } from 'lucide-react';
-import { useApp, formatBRL } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { Supplier, GeneralExpense } from '../types';
 import { TablePagination } from './TablePagination';
 import { LiveSearchInput } from './LiveSearchInput';
@@ -63,25 +60,6 @@ export const SuppliersView: React.FC = () => {
   const [isLoadingLookup, setIsLoadingLookup] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
   const [detailSupplier, setDetailSupplier] = useState<Supplier | null>(null);
-
-  // Quick stats
-  const totalSuppliers = suppliers.length;
-
-  // Total payables associated with suppliers
-  const totalPayablesAmount = useMemo(() => {
-    return generalExpenses
-      .filter((p: GeneralExpense) => !p.isPaid)
-      .reduce((acc: number, curr: GeneralExpense) => acc + curr.cost, 0);
-  }, [generalExpenses]);
-
-  const suppliersWithPendingPayables = useMemo(() => {
-    const supplierIds = new Set(
-      generalExpenses
-        .filter((p: GeneralExpense) => !p.isPaid && p.supplierId)
-        .map((p: GeneralExpense) => p.supplierId)
-    );
-    return suppliers.filter(s => supplierIds.has(s.id)).length;
-  }, [suppliers, generalExpenses]);
 
   // Filtered suppliers
   const filteredSuppliers = useMemo(() => {
@@ -311,53 +289,6 @@ export const SuppliersView: React.FC = () => {
             <Plus className="w-4 h-4" />
             Novo Fornecedor
           </button>
-        </div>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total de Fornecedores</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-1">{totalSuppliers}</h3>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">Empresas homologadas</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Building className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Com Contas a Pagar</p>
-            <h3 className="text-2xl font-bold text-amber-700 mt-1">{suppliersWithPendingPayables}</h3>
-            <span className="text-[11px] text-amber-600 font-medium mt-0.5 block">Títulos em aberto</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <FileText className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total em Aberto (Geral)</p>
-            <h3 className="text-xl font-bold text-rose-700 mt-1">{formatBRL(totalPayablesAmount)}</h3>
-            <span className="text-[11px] text-rose-600 font-medium mt-0.5 block">Contas a pagar empresa</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-            <DollarSign className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Linha Principal</p>
-            <h3 className="text-lg font-bold text-slate-800 mt-1">Tanques & Peças</h3>
-            <span className="text-[11px] text-slate-500 font-medium mt-0.5 block">Aquecimento & Solar</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <Package className="w-5 h-5" />
-          </div>
         </div>
       </div>
 

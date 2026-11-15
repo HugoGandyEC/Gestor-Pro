@@ -1,6 +1,21 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.8`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.9`).
+
+---
+
+## [v2.7.9] — 14/11/2026
+**Página de Gráficos & BI Interativos, Remoção de Blocos de Resumo nos Cadastros e Módulo Completo de Usuários**
+
+### Removido
+- **Clientes (`ClientsView`)**: removidas as contagens/blocos de `Total de Clientes`, `Pessoa Jurídica (PJ)`, `Pessoa Física (PF)`, `Com OS em Aberto` e `Em atendimento`.
+- **Fornecedores (`SuppliersView`)**: removidos os cards `Total de Fornecedores`, `Com Contas a Pagar`, `Total em Aberto (Geral)` e `Linha Principal`.
+- **Quadro de Funcionários (`EmployeesView`)**: removidos os cards `Custo Total de Folha Mensal`, `Salários Base Nominais` e `Encargos & Benefícios (INSS/FGTS)`.
+
+### Adicionado
+- **Página Gráficos & BI (`AnalyticsChartsView`)**: central analítica com seletor de competência (`Mensal` | `Geral`) cobrindo Clientes, Fornecedores, Quadro de Funcionários e Financeiro completo (DRE, Evolução Mensal, Receitas por Canal, Formas de Pagamento, Despesas por Categoria/Frota e Contas a Pagar).
+- **Múltiplos Modelos de Gráficos**: seletor global e individual por gráfico para alternar em tempo real entre **Colunas Verticais**, **Barras Horizontais**, **Linha & Área**, **Rosca / Pizza** e **Proporção (100%)**.
+- **Gestão de Usuários (`UsersManagementPanel`)**: cadastro completo de usuários com alternância **Listagem | Grade (Cards)**, Busca Dinâmica e modal (+) integrado em *Cadastro Geral* e *Configurações*.
 
 ---
 

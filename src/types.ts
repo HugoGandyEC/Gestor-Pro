@@ -712,6 +712,8 @@ export interface AuthUser {
   username: string;
   name: string;
   email: string;
+  password?: string;
+  active?: boolean;
   role: UserRole;
   roleBadge: string;
   avatar?: string;

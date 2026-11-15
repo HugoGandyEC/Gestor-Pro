@@ -102,6 +102,9 @@ interface AppContextType {
   openLogoutModal: () => void;
   closeLogoutModal: () => void;
   authUsers: AuthUser[];
+  addAuthUser: (user: Omit<AuthUser, 'id'>) => void;
+  updateAuthUser: (id: string, updates: Partial<AuthUser>) => void;
+  deleteAuthUser: (id: string) => void;
 
   // Dynamic Themes
   currentTheme: AppTheme;
@@ -376,7 +379,8 @@ const KEYS = {
   PRODUCT_TAGS: 'gestaopro_product_tags_v4',
   APPOINTMENTS: 'gestaopro_appointments_v4',
   CASH_SESSIONS: 'gestaopro_cash_sessions_v4',
-  CASH_MOVEMENTS: 'gestaopro_cash_movements_v4'
+  CASH_MOVEMENTS: 'gestaopro_cash_movements_v4',
+  AUTH_USERS: 'gestaopro_auth_users_v4'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -419,18 +423,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return themeDefinitions.find(t => t.id === currentTheme) || themeDefinitions[0];
   }, [currentTheme]);
 
+  const [authUsers, setAuthUsers] = useState<AuthUser[]>(() => {
+    const saved = localStorage.getItem(KEYS.AUTH_USERS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    return initialAuthUsers;
+  });
+
   const login = (identifier: string, pass?: string) => {
     const cleanId = identifier.trim().toLowerCase();
     if (!cleanId) {
       return { success: false, message: 'Informe seu usuário ou e-mail cadastrado.' };
     }
 
-    // 1. Usuário Admin Padrão
-    const foundAuth = initialAuthUsers.find(
+    // 1. Usuários Cadastrados do Sistema
+    const foundAuth = authUsers.find(
       u => u.username.toLowerCase() === cleanId || 
            u.email.toLowerCase() === cleanId
     );
     if (foundAuth) {
+      if (foundAuth.active === false) {
+        return { success: false, message: 'Este usuário está inativo. Contate o administrador.' };
+      }
+      if (foundAuth.password && pass && foundAuth.password !== pass) {
+        return { success: false, message: 'Senha incorreta para este usuário.' };
+      }
       setCurrentUser(foundAuth);
       setCurrentRole(foundAuth.role);
       return { success: true };
@@ -768,6 +789,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   useEffect(() => { localStorage.setItem(KEYS.WARRANTY_POLICIES, JSON.stringify(warrantyPolicies)); broadcastSync('KEY', KEYS.WARRANTY_POLICIES); }, [warrantyPolicies]);
   useEffect(() => { localStorage.setItem(KEYS.CASH_SESSIONS, JSON.stringify(cashSessions)); broadcastSync('KEY', KEYS.CASH_SESSIONS); }, [cashSessions]);
   useEffect(() => { localStorage.setItem(KEYS.CASH_MOVEMENTS, JSON.stringify(cashMovements)); broadcastSync('KEY', KEYS.CASH_MOVEMENTS); }, [cashMovements]);
+  useEffect(() => { localStorage.setItem(KEYS.AUTH_USERS, JSON.stringify(authUsers)); broadcastSync('KEY', KEYS.AUTH_USERS); }, [authUsers]);
 
   // Real-time synchronization across browser tabs and devices (desktop & mobile)
   useEffect(() => {
@@ -1171,6 +1193,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setDirectSales(initialDirectSales);
     setSetupCosts(initialSetupCosts);
     setAppointments(initialAppointments);
+    setAuthUsers(initialAuthUsers);
     setSelectedMonthYear('2026-10');
     broadcastSync('FULL');
     addAuditLog('Restauração de Sistema', 'Base de dados restaurada para o padrão inicial de fábrica.');
@@ -2810,6 +2833,26 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setEmployees(prev => prev.filter(e => e.id !== id));
   };
 
+  const addAuthUser = (user: Omit<AuthUser, 'id'>) => {
+    const newUser: AuthUser = {
+      ...user,
+      active: user.active !== false,
+      id: `usr-${Date.now()}`
+    };
+    setAuthUsers(prev => [...prev, newUser]);
+    addAuditLog('Cadastro de Usuário', `Novo usuário criado: ${newUser.name} (${newUser.username}) · Perfil ${newUser.role}`);
+  };
+
+  const updateAuthUser = (id: string, updates: Partial<AuthUser>) => {
+    setAuthUsers(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+    addAuditLog('Atualização de Usuário', `Dados/permissões do usuário ${updates.name || id} atualizados.`);
+  };
+
+  const deleteAuthUser = (id: string) => {
+    setAuthUsers(prev => prev.filter(u => u.id !== id));
+    addAuditLog('Exclusão de Usuário', `Usuário ${id} removido do sistema.`);
+  };
+
   const addSetupCost = (item: Omit<InitialSetupCostItem, 'id'>) => {
     const newItem: InitialSetupCostItem = {
       ...item,
@@ -3235,7 +3278,10 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         isLogoutModalOpen,
         openLogoutModal,
         closeLogoutModal,
-        authUsers: initialAuthUsers,
+        authUsers,
+        addAuthUser,
+        updateAuthUser,
+        deleteAuthUser,
         currentTheme,
         setTheme: setCurrentTheme,
         themeDefinitions,

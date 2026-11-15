@@ -37,9 +37,11 @@ import {
   Phone,
   Send,
   Server,
-  Copy
+  Copy,
+  UserCog
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
+import { UsersManagementPanel } from './UsersManagementPanel';
 import { CardBrand, CardMachineRate, CompanySettings, UserRole, SequenceSettings, WarrantyPolicy } from '../types';
 import { 
   defaultWhatsAppTemplates, 
@@ -57,6 +59,7 @@ type SettingsTab =
   | 'cardRates' 
   | 'fiscal' 
   | 'whatsapp'
+  | 'users'
   | 'permissions' 
   | 'backup';
 
@@ -536,6 +539,7 @@ export const SystemSettingsView: React.FC = () => {
     { id: 'themes', label: 'Temas & Identidade Visual', icon: Palette },
     { id: 'cardRates', label: 'Taxas de Maquininha por Bandeira', icon: CreditCard },
     { id: 'fiscal', label: 'Ambiente Fiscal & NF-e', icon: FileText },
+    { id: 'users', label: 'Usuários & Acessos', icon: UserCog },
     { id: 'permissions', label: 'Matriz de Permissões (RBAC)', icon: Lock },
     { id: 'backup', label: 'Gestão de Dados, Limpeza & Restauração', icon: Database }
   ];
@@ -1661,6 +1665,11 @@ export const SystemSettingsView: React.FC = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {/* TAB: USUÁRIOS & ACESSOS */}
+      {activeTab === 'users' && (
+        <UsersManagementPanel />
       )}
 
       {/* TAB: INTEGRAÇÃO WHATSAPP */}

@@ -109,24 +109,6 @@ export const ClientsView: React.FC = () => {
   const [csvContent, setCsvContent] = useState('');
   const [csvResult, setCsvResult] = useState<string | null>(null);
 
-  // Quick stats
-  const totalClients = clients.length;
-  const pjCount = clients.filter(c => (c.personType === 'PJ') || (c.document.replace(/\D/g, '').length === 14)).length;
-  const pfCount = clients.filter(c => (c.personType === 'PF') || (c.document.replace(/\D/g, '').length !== 14)).length;
-  const atacadoCount = clients.filter(c => c.customerType === 'atacado').length;
-  const varejoCount = clients.filter(c => (c.customerType || 'varejo') === 'varejo').length;
-  
-  // Clients with active service orders
-  const clientsWithActiveOSCount = useMemo(() => {
-    const activeClientIds = new Set(
-      serviceOrders
-        .filter(os => !['entregue_finalizada', 'cancelada'].includes(os.status))
-        .map(os => os.clientId)
-    );
-    return clients.filter(c => activeClientIds.has(c.id)).length;
-  }, [clients, serviceOrders]);
-
-  // Filtered clients list
   const filteredClients = useMemo(() => {
     return clients.filter(client => {
       const isPJ = client.personType === 'PJ' || client.document.replace(/\D/g, '').length === 14;
@@ -642,21 +624,21 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
             <div className="inline-flex rounded-lg border border-[#d8d8d8] p-0.5 bg-[#f4f5f6] text-xs">
               <button
                 onClick={() => setTypeFilter('all')}
-                className={`px-3 py-1 rounded-md font-medium transition-colors ${typeFilter === 'all' ? 'bg-[#53383e] text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${typeFilter === 'all' ? 'bg-[#53383e] text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
               >
-                Todos ({clients.length})
+                Todos
               </button>
               <button
                 onClick={() => setTypeFilter('pj')}
-                className={`px-3 py-1 rounded-md font-medium transition-colors ${typeFilter === 'pj' ? 'bg-[#53383e] text-white font-semibold shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${typeFilter === 'pj' ? 'bg-[#53383e] text-white font-semibold shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
               >
-                PJ ({pjCount})
+                PJ
               </button>
               <button
                 onClick={() => setTypeFilter('pf')}
-                className={`px-3 py-1 rounded-md font-medium transition-colors ${typeFilter === 'pf' ? 'bg-[#363739] text-white font-semibold shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${typeFilter === 'pf' ? 'bg-[#363739] text-white font-semibold shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
               >
-                PF ({pfCount})
+                PF
               </button>
             </div>
 
@@ -664,21 +646,21 @@ Dr. Eduardo Prado;123.456.789-00;(11) 98888-7777;eduardo@prado.com;01452-002;Av 
             <div className="inline-flex rounded-lg border border-[#d8d8d8] p-0.5 bg-[#f4f5f6] text-xs">
               <button
                 onClick={() => setCommercialFilter('all')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-colors ${commercialFilter === 'all' ? 'bg-[#363739] text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${commercialFilter === 'all' ? 'bg-[#363739] text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
               >
                 Todos
               </button>
               <button
                 onClick={() => setCommercialFilter('varejo')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-colors ${commercialFilter === 'varejo' ? 'bg-slate-700 text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${commercialFilter === 'varejo' ? 'bg-slate-700 text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
               >
-                Varejo ({varejoCount})
+                Varejo
               </button>
               <button
                 onClick={() => setCommercialFilter('atacado')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-colors ${commercialFilter === 'atacado' ? 'bg-purple-700 text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
+                className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${commercialFilter === 'atacado' ? 'bg-purple-700 text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'}`}
               >
-                Atacado ({atacadoCount})
+                Atacado
               </button>
             </div>
 

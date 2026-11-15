@@ -16,6 +16,36 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.9',
+    date: '14/11/2026',
+    title: 'Página de Gráficos & BI Interativos, Remoção de Blocos de Resumo nos Cadastros e Módulo Completo de Usuários',
+    summary:
+      'Removidos os blocos de indicadores de Clientes, Fornecedores e Quadro de Funcionários e criada a página dedicada de Gráficos & BI com múltiplos modelos visuais selecionáveis pelo usuário (Colunas, Barras, Linha/Área, Rosca/Pizza e Proporção), além da gestão completa de Usuários com alternância Listagem e Grade.',
+    highlights: [
+      'Remoção completa dos blocos de resumo em Clientes (Total, PJ, PF, Com OS em Aberto, Em atendimento), Fornecedores e Quadro de Funcionários',
+      'Nova página Gráficos & BI no menu Financeiro consolidando indicadores de Clientes, Fornecedores, Folha de Funcionários e Financeiro/DRE',
+      'Seletor global e por gráfico com 5 modelos visuais: Colunas Verticais, Barras Horizontais, Linha & Área, Rosca/Pizza e Comparativo Proporcional',
+      'Módulo completo de Usuários com CRUD, Busca Dinâmica, tooltip no hover e alternância Listagem | Grade (Cards)'
+    ],
+    changes: [
+      {
+        category: 'Removido',
+        description:
+          'Removidos os indicadores "Total de Clientes", "Pessoa Jurídica (PJ)", "Pessoa Física (PF)", "Com OS em Aberto" e "Em atendimento" da tela de Clientes; "Total de Fornecedores", "Com Contas a Pagar", "Total em Aberto (Geral)" e "Linha Principal" da tela de Fornecedores; e "Custo Total de Folha Mensal", "Salários Base Nominais" e "Encargos & Benefícios (INSS/FGTS)" da tela de Quadro de Funcionários.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Criada a página Gráficos & BI (AnalyticsChartsView) acessível no menu lateral Financeiro com filtros de competência (Mensal/Geral), gráficos de Clientes, Fornecedores, Folha Salarial, DRE Gerencial, Evolução Mensal, Receitas por Canal, Formas de Pagamento, Despesas Operacionais/Frota e Contas a Pagar, com alternância instantânea entre 5 modelos de gráficos.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Implementado o módulo completo de Usuários (UsersManagementPanel) integrado em Cadastro Geral e Configurações do Sistema com persistência, ativação/inativação, Busca Dinâmica, modal (+) e alternância Listagem | Grade (Cards) alinhada às telas de Serviços, Produtos, Vendas, Clientes e Fornecedores.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.8',
     date: '14/11/2026',
     title: 'Alternância Listagem/Grade (Cards), Tooltip de Descrição no Hover e Remoção dos Cards de Clientes',

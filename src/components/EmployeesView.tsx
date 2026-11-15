@@ -108,10 +108,6 @@ export const EmployeesView: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const totalBaseSalaries = employees.reduce((a, b) => a + b.baseSalary, 0);
-  const totalCharges = employees.reduce((a, b) => a + b.benefitsCharges, 0);
-  const totalPayroll = totalBaseSalaries + totalCharges;
-
   const filteredEmployees = employees.filter(emp => {
     const q = searchTerm.toLowerCase();
     return (
@@ -147,39 +143,6 @@ export const EmployeesView: React.FC = () => {
           <Plus className="w-4 h-4" />
           <span>Cadastrar Funcionário</span>
         </button>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
-          <span className="text-xs font-medium text-slate-500">Custo Total de Folha Mensal</span>
-          <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
-            {formatBRL(totalPayroll)}
-          </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Salários Base + Encargos Trabalhistas
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
-          <span className="text-xs font-medium text-slate-500">Salários Base Nominais</span>
-          <div className="text-2xl font-bold font-mono text-blue-600 mt-1">
-            {formatBRL(totalBaseSalaries)}
-          </div>
-          <div className="text-xs text-slate-500 mt-1">
-            {employees.length} colaboradores ativos
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
-          <span className="text-xs font-medium text-slate-500">Encargos & Benefícios (INSS/FGTS)</span>
-          <div className="text-2xl font-bold font-mono text-rose-600 mt-1">
-            {formatBRL(totalCharges)}
-          </div>
-          <div className="text-xs text-slate-500 mt-1">
-            Média de ~37% sobre a folha base
-          </div>
-        </div>
       </div>
 
       {/* Search & Presentation Mode Toolbar */}

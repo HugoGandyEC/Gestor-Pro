@@ -610,9 +610,39 @@ export const initialAuthUsers: AuthUser[] = [
     username: 'admin',
     name: 'Administrador',
     email: 'admin@gestaopro.com.br',
+    active: true,
     role: 'admin',
     roleBadge: 'Administrador Geral',
     employeeId: 'emp-admin'
+  },
+  {
+    id: 'usr-camila',
+    username: 'camila.vendas',
+    name: 'Camila Mendes',
+    email: 'camila@gestaopro.com.br',
+    active: true,
+    role: 'colaborador',
+    roleBadge: 'Consultora de Vendas & PDV',
+    employeeId: 'emp-camila'
+  },
+  {
+    id: 'usr-ricardo',
+    username: 'ricardo.tecnico',
+    name: 'Ricardo Silveira',
+    email: 'ricardo@gestaopro.com.br',
+    active: true,
+    role: 'tecnico',
+    roleBadge: 'Técnico de Campo',
+    employeeId: 'emp-ricardo'
+  },
+  {
+    id: 'usr-contabil',
+    username: 'contabilidade',
+    name: 'Dr. Roberto Nunes',
+    email: 'fiscal@nunescontabil.com.br',
+    active: true,
+    role: 'contador',
+    roleBadge: 'Contador / Auditor Fiscal'
   }
 ];
 

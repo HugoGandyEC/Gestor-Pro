@@ -26,7 +26,8 @@ import {
   X,
   LogOut,
   Calendar,
-  Store
+  Store,
+  BarChart3
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SYSTEM_VERSION } from '../constants/version';
@@ -52,6 +53,7 @@ export type ActiveTab =
   | 'cardOperators'
   | 'googleDrive'
   | 'configuracoes'
+  | 'charts'
   | 'documentation';
 
 interface SidebarProps {
@@ -194,6 +196,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Financeiro & DRE',
           icon: DollarSign,
           badge: null,
+          roles: ['admin', 'colaborador', 'contador']
+        },
+        {
+          id: 'charts' as ActiveTab,
+          label: 'Gráficos & BI',
+          icon: BarChart3,
+          badge: 'BI',
+          highlight: true,
           roles: ['admin', 'colaborador', 'contador']
         },
         {
