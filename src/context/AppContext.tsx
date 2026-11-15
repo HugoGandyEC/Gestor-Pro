@@ -39,6 +39,12 @@ import {
   PaymentReceiptItem,
   PaymentReceiptKind
 } from '../types';
+import {
+  computeEmployeeNominalPay,
+  getEmployeeRemunerationType,
+  hasEmployeeCommission,
+  REMUNERATION_TYPE_LABELS
+} from '../utils/employeeRemuneration';
 import { 
   initialEmployees, 
   initialVehicles, 
@@ -3259,11 +3265,16 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     addAuditLog('Nova Despesa', `Despesa de R$ ${exp.cost.toFixed(2)} lançada (${exp.description}).`);
   };
 
+  const dismissedAutoExpenseIdsRef = React.useRef<Set<string>>(new Set());
+
   const updateGeneralExpense = (id: string, updates: Partial<GeneralExpense>) => {
     setGeneralExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
   };
 
   const deleteGeneralExpense = (id: string) => {
+    if (id.startsWith('auto-')) {
+      dismissedAutoExpenseIdsRef.current.add(id);
+    }
     setGeneralExpenses(prev => prev.filter(e => e.id !== id));
   };
 
@@ -3356,81 +3367,236 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setSetupCosts(prev => prev.filter(s => s.id !== id));
   };
 
-  const syncSetupCostsToExpenses = () => {
-    let syncedCount = 0;
-    const mapCategory = (cat: string): ExpenseCategory => {
-      switch (cat) {
-        case 'aluguel_loja': return 'aluguel';
-        case 'salario_clt': return 'salario';
-        case 'das_mei': return 'das_mei';
-        case 'combustivel': return 'gasolina';
-        case 'internet': return 'internet';
-        case 'alimentacao': return 'alimentacao';
-        case 'seguro_veiculo': return 'seguro';
-        case 'ipva': return 'ipva';
-        case 'impostos_carro': return 'impostos_carro';
-        case 'divida_empresa': return 'divida_empresa';
-        case 'ferramental': return 'ferramental';
-        default: return 'outros';
+  const mapSetupCategoryToExpenseCategory = (cat: string): ExpenseCategory => {
+    switch (cat) {
+      case 'aluguel_loja':
+      case 'aluguel':
+        return 'aluguel';
+      case 'salario_clt':
+      case 'salario':
+        return 'salario';
+      case 'comissao':
+        return 'comissao';
+      case 'compra_materiais':
+        return 'compra_materiais';
+      case 'das_mei':
+        return 'das_mei';
+      case 'combustivel':
+        return 'gasolina';
+      case 'internet':
+        return 'internet';
+      case 'celular':
+      case 'telefone':
+        return 'celular';
+      case 'alimentacao':
+        return 'alimentacao';
+      case 'seguro_veiculo':
+        return 'seguro';
+      case 'ipva':
+        return 'ipva';
+      case 'impostos_carro':
+        return 'impostos_carro';
+      case 'divida_empresa':
+        return 'divida_empresa';
+      case 'ferramental':
+        return 'ferramental';
+      default:
+        return 'outros';
+    }
+  };
+
+  const buildReconciledGeneralExpenses = (
+    currentExpenses: GeneralExpense[],
+    monthYear: string
+  ): { nextExpenses: GeneralExpense[]; syncedCount: number } => {
+    const existingById = new Map<string, GeneralExpense>();
+    currentExpenses.forEach(e => existingById.set(e.id, e));
+
+    const autoEntries: GeneralExpense[] = [];
+
+    // 1. Contas Recorrentes, Parceladas & Custos Cadastrados (Aluguel, Telefone, Internet, Materiais, etc.)
+    setupCosts.forEach(item => {
+      if (item.syncWithGeneralExpenses === false) return;
+      if (item.status === 'quitado') return;
+
+      const isRecurrent = item.costType === 'recorrente' || item.isRecurring === true;
+      const isInstallment = item.costType === 'parcelado';
+      if (!isRecurrent && !isInstallment) return;
+
+      const cost = isInstallment
+        ? (item.installmentValue || (item.installmentsCount ? item.actualCost / item.installmentsCount : item.actualCost))
+        : (item.installmentValue || item.actualCost || 0);
+      if (cost <= 0) return;
+
+      let dueDate = item.dueDate || `${monthYear}-${String(item.dueDay || 10).padStart(2, '0')}`;
+      if (!dueDate.startsWith(monthYear) && item.dueDay) {
+        dueDate = `${monthYear}-${String(item.dueDay).padStart(2, '0')}`;
       }
-    };
 
-    setGeneralExpenses(prev => {
-      const updated = [...prev];
-      setupCosts.forEach(item => {
-        if (item.syncWithGeneralExpenses === false) return;
-        if (item.status === 'quitado') return;
+      const expenseDescription = isInstallment
+        ? `${item.name} (Parc. ${(item.paidInstallments || 0) + 1}/${item.installmentsCount || 1})`
+        : item.name;
 
-        const isRecurrent = item.costType === 'recorrente' || item.isRecurring === true;
-        const isInstallment = item.costType === 'parcelado';
-        
-        if (!isRecurrent && !isInstallment) return;
+      const autoId = `auto-setup-${item.id}-${monthYear}`;
+      if (dismissedAutoExpenseIdsRef.current.has(autoId)) return;
 
-        const cost = isInstallment 
-          ? (item.installmentValue || (item.installmentsCount ? item.actualCost / item.installmentsCount : item.actualCost)) 
-          : (item.installmentValue || item.actualCost || 0);
-        if (cost <= 0) return;
+      // Avoid duplicating legacy manually-synced entries created before deterministic IDs
+      const legacyManualMatch = currentExpenses.find(
+        e => !e.id.startsWith('auto-') &&
+             (e.description === expenseDescription || e.description.startsWith(item.name)) &&
+             e.dueDate.startsWith(monthYear)
+      );
+      if (legacyManualMatch) return;
 
-        let dueDate = item.dueDate || `${selectedMonthYear}-${String(item.dueDay || 10).padStart(2, '0')}`;
-        if (!dueDate.startsWith(selectedMonthYear) && item.dueDay) {
-          dueDate = `${selectedMonthYear}-${String(item.dueDay).padStart(2, '0')}`;
-        }
-
-        const expenseDescription = isInstallment 
-          ? `${item.name} (Parc. ${(item.paidInstallments || 0) + 1}/${item.installmentsCount || 1})`
-          : item.name;
-
-        const existingIndex = updated.findIndex(e => 
-          (e.description === expenseDescription || e.description.startsWith(item.name)) && 
-          e.dueDate.startsWith(selectedMonthYear)
-        );
-
-        if (existingIndex >= 0) {
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            cost,
-            dueDate,
-            supplier: item.creditor || updated[existingIndex].supplier,
-            isRecurring: isRecurrent
-          };
-          syncedCount++;
-        } else {
-          updated.push({
-            id: `ge-sync-${item.id}-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-            category: mapCategory(item.category),
-            description: expenseDescription,
-            cost,
-            dueDate,
-            isPaid: false,
-            supplier: item.creditor || 'Contas da Empresa',
-            isRecurring: isRecurrent
-          });
-          syncedCount++;
-        }
+      const prevEntry = existingById.get(autoId);
+      autoEntries.push({
+        id: autoId,
+        category: mapSetupCategoryToExpenseCategory(item.category),
+        description: expenseDescription,
+        cost: Number(cost.toFixed(2)),
+        dueDate,
+        isPaid: prevEntry?.isPaid ?? false,
+        paymentDate: prevEntry?.paymentDate,
+        supplier: item.creditor || 'Contas da Empresa',
+        isRecurring: isRecurrent
       });
-      return updated;
     });
 
+    // 2. Folha de Funcionários (Salários Fixos, Horas Trabalhadas & Encargos)
+    employees.forEach(emp => {
+      if (emp.status === 'Inativo') return;
+      const nominalPay = computeEmployeeNominalPay(emp);
+      const totalPayroll = Number((nominalPay + Number(emp.benefitsCharges || 0)).toFixed(2));
+      if (totalPayroll > 0) {
+        const autoPayId = `auto-emp-pay-${emp.id}-${monthYear}`;
+        if (!dismissedAutoExpenseIdsRef.current.has(autoPayId)) {
+          const prevEntry = existingById.get(autoPayId);
+          const remLabel = REMUNERATION_TYPE_LABELS[getEmployeeRemunerationType(emp)];
+          autoEntries.push({
+            id: autoPayId,
+            category: 'salario',
+            description: `Folha (${remLabel}): ${emp.name}`,
+            cost: totalPayroll,
+            dueDate: `${monthYear}-05`,
+            isPaid: prevEntry?.isPaid ?? false,
+            paymentDate: prevEntry?.paymentDate,
+            employeeId: emp.id,
+            supplier: emp.name,
+            isRecurring: true
+          });
+        }
+      }
+
+      // 3. Comissões conquistadas em O.S. concluídas e Vendas pagas no mês
+      if (hasEmployeeCommission(emp) && Number(emp.commissionRate || 0) > 0) {
+        const monthOrders = serviceOrders.filter(o => {
+          if (o.employeeId !== emp.id) return false;
+          const dateToCheck = o.completionDate || o.openDate;
+          const isFinished = o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada';
+          return dateToCheck.startsWith(monthYear) && isFinished;
+        });
+        let commBase = 0;
+        monthOrders.forEach(o => {
+          const srvTotal = o.services.reduce((acc, s) => acc + Number(s.price || 0), 0);
+          commBase += srvTotal - Number(o.calculatedDiscount || 0) + Number(o.visitFee || 0);
+        });
+        const monthSales = directSales.filter(
+          s => s.employeeId === emp.id && s.date.startsWith(monthYear) && s.paymentStatus === 'pago'
+        );
+        monthSales.forEach(s => {
+          commBase += Number(s.total || 0);
+        });
+
+        const commissionEarned = Number((Math.max(0, commBase) * (Number(emp.commissionRate) / 100)).toFixed(2));
+        if (commissionEarned > 0) {
+          const autoCommId = `auto-emp-comm-${emp.id}-${monthYear}`;
+          if (!dismissedAutoExpenseIdsRef.current.has(autoCommId)) {
+            const prevEntry = existingById.get(autoCommId);
+            autoEntries.push({
+              id: autoCommId,
+              category: 'comissao',
+              description: `Comissão (${emp.commissionRate}%): ${emp.name}`,
+              cost: commissionEarned,
+              dueDate: `${monthYear}-10`,
+              isPaid: prevEntry?.isPaid ?? false,
+              paymentDate: prevEntry?.paymentDate,
+              employeeId: emp.id,
+              supplier: emp.name,
+              isRecurring: false
+            });
+          }
+        }
+      }
+    });
+
+    // 4. Compras de Materiais (Entradas manuais ou XML sem conta a pagar prévia no mês)
+    stockMovements.forEach(move => {
+      if (move.type !== 'entrada_manual' && move.type !== 'entrada_xml') return;
+      if (!move.date.startsWith(monthYear)) return;
+      const totalCost = Number((Number(move.unitCost || 0) * Number(move.quantity || 0)).toFixed(2));
+      if (totalCost <= 0) return;
+
+      if (move.type === 'entrada_xml' && move.referenceDoc) {
+        const refPrefix = move.referenceDoc.split(' (')[0];
+        const hasExistingNFePayable = currentExpenses.some(
+          e => !e.id.startsWith('auto-') &&
+               (e.invoiceNumber === refPrefix || e.description.includes(refPrefix))
+        );
+        if (hasExistingNFePayable) return;
+      }
+
+      const autoMatId = `auto-mat-${move.id}`;
+      if (dismissedAutoExpenseIdsRef.current.has(autoMatId)) return;
+
+      const prevEntry = existingById.get(autoMatId);
+      autoEntries.push({
+        id: autoMatId,
+        category: 'compra_materiais',
+        description: `Compra de Material: ${move.productName} (${move.quantity}x)`,
+        cost: totalCost,
+        dueDate: move.date,
+        isPaid: prevEntry?.isPaid ?? false,
+        paymentDate: prevEntry?.paymentDate,
+        supplier: move.referenceDoc || 'Compra de Materiais / Estoque',
+        invoiceNumber: move.referenceDoc,
+        isRecurring: false
+      });
+    });
+
+    // Keep manual expenses + auto expenses from other months, then append reconciled auto expenses for this month
+    const retainedExpenses = currentExpenses.filter(e => {
+      if (!e.id.startsWith('auto-')) return true;
+      if (e.id.startsWith('auto-mat-')) {
+        return !e.dueDate.startsWith(monthYear);
+      }
+      return !e.id.endsWith(`-${monthYear}`);
+    });
+
+    const nextExpenses = [...retainedExpenses, ...autoEntries];
+    return { nextExpenses, syncedCount: autoEntries.length };
+  };
+
+  // Automatic real-time reconciliation of Costs, Payroll, Commissions and Material Purchases
+  useEffect(() => {
+    setGeneralExpenses(prev => {
+      const { nextExpenses } = buildReconciledGeneralExpenses(prev, selectedMonthYear);
+      if (JSON.stringify(prev) === JSON.stringify(nextExpenses)) {
+        return prev;
+      }
+      return nextExpenses;
+    });
+  }, [setupCosts, employees, stockMovements, serviceOrders, directSales, selectedMonthYear]);
+
+  const syncSetupCostsToExpenses = () => {
+    let syncedCount = 0;
+    setGeneralExpenses(prev => {
+      const result = buildReconciledGeneralExpenses(prev, selectedMonthYear);
+      syncedCount = result.syncedCount;
+      if (JSON.stringify(prev) === JSON.stringify(result.nextExpenses)) {
+        return prev;
+      }
+      return result.nextExpenses;
+    });
     return { count: syncedCount };
   };
 
@@ -3480,10 +3646,13 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     const totalRevenue = servicesRevenue + partsRevenue + directSalesRevenue + visitFeesRevenue;
     const grossContribution = totalRevenue - partsCost;
 
-    const baseSalary = employee.baseSalary;
+    const remunerationType = getEmployeeRemunerationType(employee);
+    const baseSalary = computeEmployeeNominalPay(employee);
     const benefitsCharges = employee.benefitsCharges;
-    const commissionEarned = ((servicesRevenue + visitFeesRevenue) * (employee.commissionRate / 100)) + 
-                             (directSalesRevenue * (employee.commissionRate / 100));
+    const commissionEarned = hasEmployeeCommission(employee)
+      ? ((servicesRevenue + visitFeesRevenue) * (employee.commissionRate / 100)) +
+        (directSalesRevenue * (employee.commissionRate / 100))
+      : 0;
     const totalPersonnelCost = baseSalary + benefitsCharges + commissionEarned;
 
     const assignedVehicle = vehicles.find(v => v.id === employee.assignedVehicleId || v.assignedEmployeeId === employee.id);
@@ -3546,6 +3715,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     return {
       employee,
       monthYear,
+      remunerationType,
       ordersCount: monthOrders.length,
       servicesRevenue,
       partsRevenue,
@@ -3691,9 +3861,9 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     const totalPartsCost = ordersPartsCost + salesCost;
     const grossMargin = totalRevenue - totalPartsCost;
 
-    // 3. Custos com Pessoal (Salários CLT, Benefícios e Comissões)
-    const baseSalaries = employees.reduce((a, b) => a + b.baseSalary, 0);
-    const benefitsCharges = employees.reduce((a, b) => a + b.benefitsCharges, 0);
+    // 3. Custos com Pessoal (Salários, Horas Trabalhadas, Benefícios e Comissões)
+    const baseSalaries = employees.reduce((a, b) => a + computeEmployeeNominalPay(b), 0);
+    const benefitsCharges = employees.reduce((a, b) => a + Number(b.benefitsCharges || 0), 0);
     const commissions = allReports.reduce((acc, r) => acc + r.commissionEarned, 0);
     const totalPersonnelCost = baseSalaries + benefitsCharges + commissions;
 
@@ -3703,9 +3873,11 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     const totalVehicleProrated = vehicles.reduce((acc, v) => acc + ((v.annualIpvaValue + v.annualInsuranceValue) / 12), 0);
     const totalVehicleCost = totalVehicleDirect + totalVehicleProrated;
 
-    // 5. Custos Operacionais & Administrativos (Despesas Gerais + Dívidas/Parcelas do Mês)
+    // 5. Custos Operacionais & Administrativos (Despesas Gerais + Dívidas/Parcelas do Mês, evitando dupla contagem da folha já apurada em totalPersonnelCost)
     const monthGeneralExpenses = generalExpenses.filter(ge => ge.dueDate.startsWith(selectedMonthYear));
-    const generalExpensesSum = monthGeneralExpenses.reduce((acc, ge) => acc + ge.cost, 0);
+    const generalExpensesSum = monthGeneralExpenses
+      .filter(ge => !ge.id.startsWith('auto-emp-'))
+      .reduce((acc, ge) => acc + ge.cost, 0);
     
     // Soma de parcelas de dívidas ativas cadastradas em setupCosts (se não estiverem sincronizadas em generalExpenses)
     const unsyncedDebtInstallments = setupCosts

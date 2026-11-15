@@ -70,10 +70,28 @@ const CATEGORY_MAP: Record<string, CategoryConfig> = {
     icon: <Car className="w-3.5 h-3.5 text-purple-600" />
   },
   internet: {
-    label: 'Internet & Telefonia',
+    label: 'Internet, Telefone Fixo & Fibra',
     badgeBg: 'bg-cyan-50 border-cyan-200',
     badgeText: 'text-cyan-700',
     icon: <Wifi className="w-3.5 h-3.5 text-cyan-600" />
+  },
+  celular: {
+    label: 'Telefone / Celular Corporativo',
+    badgeBg: 'bg-violet-50 border-violet-200',
+    badgeText: 'text-violet-700',
+    icon: <Wifi className="w-3.5 h-3.5 text-violet-600" />
+  },
+  comissao: {
+    label: 'Comissões de Equipe & Vendedores',
+    badgeBg: 'bg-emerald-50 border-emerald-200',
+    badgeText: 'text-emerald-700',
+    icon: <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+  },
+  compra_materiais: {
+    label: 'Compra de Materiais & Peças / Estoque',
+    badgeBg: 'bg-sky-50 border-sky-200',
+    badgeText: 'text-sky-700',
+    icon: <Layers className="w-3.5 h-3.5 text-sky-600" />
   },
   aluguel_loja: {
     label: 'Aluguel da Loja & Ponto Comercial',
@@ -277,6 +295,7 @@ export const InitialCostSimulatorView: React.FC = () => {
     return setupCosts.filter(item => {
       // Tab filter
       if (activeTab === 'recorrente' && item.costType !== 'recorrente' && !item.isRecurring) return false;
+      if (activeTab === 'parcelado' && item.costType !== 'parcelado') return false;
       if (activeTab === 'unico' && item.costType !== 'investimento_unico') {
         if (item.costType === 'recorrente' || item.costType === 'parcelado' || item.isRecurring) return false;
       }
@@ -584,47 +603,18 @@ export const InitialCostSimulatorView: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs">
         {/* Table Filter Tabs */}
         <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-            <button
-              onClick={() => setActiveTab('todos')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 ${
-                activeTab === 'todos'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-slate-600 shrink-0">Tipo de Conta:</label>
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as 'todos' | 'recorrente' | 'parcelado' | 'unico')}
+              className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold"
             >
-              Todas as Contas & Dívidas ({setupCosts.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('recorrente')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 ${
-                activeTab === 'recorrente'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Contas Recorrentes Mensais ({setupCosts.filter(s => s.costType === 'recorrente' || s.isRecurring).length})
-            </button>
-            <button
-              onClick={() => setActiveTab('parcelado')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 ${
-                activeTab === 'parcelado'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Dívidas & Financiamentos Parcelados ({setupCosts.filter(s => s.costType === 'parcelado').length})
-            </button>
-            <button
-              onClick={() => setActiveTab('unico')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 ${
-                activeTab === 'unico'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Investimentos Iniciais de Setup ({setupCosts.filter(s => s.costType === 'investimento_unico' || (!s.costType && !s.isRecurring)).length})
-            </button>
+              <option value="todos">Todas as Contas & Dívidas ({setupCosts.length})</option>
+              <option value="recorrente">Contas Recorrentes Mensais ({setupCosts.filter(s => s.costType === 'recorrente' || s.isRecurring).length})</option>
+              <option value="parcelado">Dívidas & Financiamentos Parcelados ({setupCosts.filter(s => s.costType === 'parcelado').length})</option>
+              <option value="unico">Investimentos Iniciais de Setup ({setupCosts.filter(s => s.costType === 'investimento_unico' || (!s.costType && !s.isRecurring)).length})</option>
+            </select>
           </div>
 
           {/* Search & Category Filter */}
@@ -671,12 +661,15 @@ export const InitialCostSimulatorView: React.FC = () => {
             >
               <option value="todas">Todas as Categorias</option>
               <option value="salario_clt">Salários & CLT</option>
+              <option value="comissao">Comissões</option>
+              <option value="compra_materiais">Compra de Materiais</option>
+              <option value="aluguel_loja">Aluguel da Loja</option>
+              <option value="internet">Internet & Telefone</option>
+              <option value="celular">Celular Corporativo</option>
               <option value="combustivel">Combustíveis</option>
               <option value="ipva">IPVA</option>
               <option value="seguro_veiculo">Seguro Veicular</option>
               <option value="impostos_carro">Impostos Carro</option>
-              <option value="internet">Internet</option>
-              <option value="aluguel_loja">Aluguel da Loja</option>
               <option value="alimentacao">Alimentação</option>
               <option value="das_mei">DAS MEI / Simples</option>
               <option value="divida_empresa">Dívidas Empresa</option>
@@ -939,12 +932,15 @@ export const InitialCostSimulatorView: React.FC = () => {
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="salario_clt">Salários & Funcionário Fichado (CLT + Encargos)</option>
+                  <option value="comissao">Comissões de Equipe & Vendedores</option>
+                  <option value="compra_materiais">Compra de Materiais, Peças & Insumos</option>
+                  <option value="aluguel_loja">Aluguel da Loja & Ponto Comercial</option>
+                  <option value="internet">Internet Fibra & Telefone Fixo</option>
+                  <option value="celular">Telefone / Celular Corporativo</option>
                   <option value="combustivel">Combustíveis da Frota & Operação (Gasolina/Etanol)</option>
                   <option value="ipva">IPVA de Veículos</option>
                   <option value="seguro_veiculo">Seguros do Veículo / Frota</option>
                   <option value="impostos_carro">Impostos sobre Carro (Licenciamento/Taxas)</option>
-                  <option value="internet">Internet Fibra & Telefonia</option>
-                  <option value="aluguel_loja">Aluguel da Loja & Ponto Comercial</option>
                   <option value="alimentacao">Alimentação da Equipe & Vale Refeição</option>
                   <option value="das_mei">DAS do 'MEI' / Tributos Simples Nacional</option>
                   <option value="divida_empresa">Dívidas da Empresa Diversas (Empréstimos/Parcelamentos)</option>

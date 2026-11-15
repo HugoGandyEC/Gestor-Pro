@@ -39,11 +39,21 @@ import {
   Supplier, 
   Product, 
   Employee, 
+  EmployeeRemunerationType,
   Vehicle, 
   ServiceCatalogItem, 
   ChecklistTemplate,
   ChecklistItem
 } from '../types';
+import {
+  REMUNERATION_TYPE_OPTIONS,
+  REMUNERATION_TYPE_LABELS,
+  getEmployeeRemunerationType,
+  getRemunerationConfig,
+  computeEmployeeNominalPay,
+  computeEmployeeMonthlyFixedCost,
+  formatEmployeeRemunerationSummary
+} from '../utils/employeeRemuneration';
 
 type RegistrationTab = 
   | 'clients' 
@@ -94,6 +104,14 @@ export const MasterRegistrationsView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<RegistrationTab>('clients');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [clientTypeFilter, setClientTypeFilter] = useState<'todos' | 'varejo' | 'atacado'>('todos');
+  const [supplierCityFilter, setSupplierCityFilter] = useState<string>('todas');
+  const [productCategoryFilter, setProductCategoryFilter] = useState<string>('todas');
+  const [productStockFilter, setProductStockFilter] = useState<'todos' | 'normal' | 'baixo'>('todos');
+  const [employeeRemFilter, setEmployeeRemFilter] = useState<'todas' | EmployeeRemunerationType>('todas');
+  const [vehicleStatusFilter, setVehicleStatusFilter] = useState<'todos' | Vehicle['status']>('todos');
+  const [serviceCategoryFilter, setServiceCategoryFilter] = useState<string>('todas');
+  const [checklistEquipFilter, setChecklistEquipFilter] = useState<string>('todos');
   const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
   // Modal states
@@ -175,12 +193,16 @@ export const MasterRegistrationsView: React.FC = () => {
   const [employeeForm, setEmployeeForm] = useState({
     name: '',
     role: 'Técnico Hidráulico Sênior',
+    remunerationType: 'salario' as EmployeeRemunerationType,
     baseSalary: 3800,
+    hourlyRate: 35,
+    monthlyHoursWorked: 160,
     benefitsAndCharges: 1900,
     commissionRate: 5,
     assignedVehicleId: '',
     phone: '',
     email: '',
+    status: 'Ativo' as Employee['status'],
     admissionDate: new Date().toISOString().split('T')[0]
   });
 
@@ -273,7 +295,7 @@ export const MasterRegistrationsView: React.FC = () => {
   const tabsConfig = [
     { id: 'clients', label: 'Clientes', icon: Users, count: clients.length },
     { id: 'suppliers', label: 'Fornecedores', icon: Building, count: suppliers.length },
-    { id: 'products', label: 'Produtos & Peças', icon: Package, count: products.length },
+    { id: 'products', label: 'Estoque', icon: Package, count: products.length },
     { id: 'employees', label: 'Equipe & Técnicos', icon: UserCheck, count: employees.length },
     { id: 'fleet', label: 'Frota de Veículos', icon: Truck, count: vehicles.length },
     { id: 'services', label: 'Serviços Tabelados', icon: Wrench, count: serviceCatalog.length },
@@ -352,8 +374,10 @@ export const MasterRegistrationsView: React.FC = () => {
               onClick={() => {
                 setEditingEmployee(null);
                 setEmployeeForm({
-                  name: '', role: 'Técnico Especialista', baseSalary: 3800, benefitsAndCharges: 1900,
-                  commissionRate: 5, assignedVehicleId: '', phone: '', email: '', admissionDate: new Date().toISOString().split('T')[0]
+                  name: '', role: 'Técnico Especialista', remunerationType: 'salario',
+                  baseSalary: 3800, hourlyRate: 35, monthlyHoursWorked: 160, benefitsAndCharges: 1900,
+                  commissionRate: 5, assignedVehicleId: '', phone: '', email: '', status: 'Ativo',
+                  admissionDate: new Date().toISOString().split('T')[0]
                 });
                 setIsEmployeeModalOpen(true);
               }}
@@ -416,40 +440,44 @@ export const MasterRegistrationsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs Bar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-1.5 flex flex-wrap gap-1 shadow-xs">
-        {tabsConfig.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveSubTab(tab.id as RegistrationTab);
+      {/* Navigation Sub-Tabs Combobox */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3 flex-1">
+          <SlidersHorizontal className="w-4 h-4 text-blue-600 shrink-0" />
+          <div className="flex-1 max-w-md">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Módulo / Seção de Cadastro
+            </label>
+            <select
+              value={activeSubTab}
+              onChange={(e) => {
+                setActiveSubTab(e.target.value as RegistrationTab);
                 setSearchTerm('');
               }}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white cursor-pointer"
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-              <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                isActive ? 'bg-blue-700 text-blue-100' : 'bg-slate-200 text-slate-700'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
+              {tabsConfig.map((tab) => (
+                <option key={tab.id} value={tab.id}>
+                  {tab.label} ({tab.count})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="text-xs text-slate-500 flex items-center gap-2">
+          <span className="font-semibold text-slate-700">
+            {tabsConfig.find(t => t.id === activeSubTab)?.label}:
+          </span>
+          <span className="font-mono font-bold text-blue-700">
+            {tabsConfig.find(t => t.id === activeSubTab)?.count}
+          </span>
+        </div>
       </div>
 
-      {/* Search and Filters Bar */}
+      {/* Search and Combobox Filters Bar */}
       {activeSubTab !== 'import' && activeSubTab !== 'users' && (
-        <div className="bg-white p-3.5 border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-xs">
-          <div className="flex-1 w-full md:max-w-md">
+        <div className="bg-white p-3.5 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="flex-1 min-w-[220px] md:max-w-md">
             <LiveSearchInput
               value={searchTerm}
               onChange={setSearchTerm}
@@ -495,10 +523,119 @@ export const MasterRegistrationsView: React.FC = () => {
               onSelect={(opt) => setSearchTerm(opt.data)}
             />
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <span className="text-xs text-slate-500 hidden lg:block">
-              Mostrando registros atualizados do banco de dados
-            </span>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {activeSubTab === 'clients' && (
+              <select
+                value={clientTypeFilter}
+                onChange={(e) => setClientTypeFilter(e.target.value as 'todos' | 'varejo' | 'atacado')}
+                aria-label="Filtrar perfil do cliente"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+              >
+                <option value="todos">Perfil: Todos</option>
+                <option value="varejo">Varejo</option>
+                <option value="atacado">Atacado</option>
+              </select>
+            )}
+
+            {activeSubTab === 'suppliers' && (
+              <select
+                value={supplierCityFilter}
+                onChange={(e) => setSupplierCityFilter(e.target.value)}
+                aria-label="Filtrar cidade do fornecedor"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+              >
+                <option value="todas">Cidade/UF: Todas</option>
+                {Array.from(new Set(suppliers.map(s => [s.city, s.state].filter(Boolean).join('/')).filter(Boolean)))
+                  .sort()
+                  .map(cityUf => (
+                    <option key={cityUf} value={cityUf}>{cityUf}</option>
+                  ))}
+              </select>
+            )}
+
+            {activeSubTab === 'products' && (
+              <>
+                <select
+                  value={productCategoryFilter}
+                  onChange={(e) => setProductCategoryFilter(e.target.value)}
+                  aria-label="Filtrar categoria do estoque"
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+                >
+                  <option value="todas">Categoria: Todas</option>
+                  {Array.from(new Set(products.map(p => p.category).filter(Boolean))).sort().map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <select
+                  value={productStockFilter}
+                  onChange={(e) => setProductStockFilter(e.target.value as 'todos' | 'normal' | 'baixo')}
+                  aria-label="Filtrar situação do estoque"
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+                >
+                  <option value="todos">Estoque: Todos</option>
+                  <option value="normal">Estoque Normal</option>
+                  <option value="baixo">Estoque Baixo / Mínimo</option>
+                </select>
+              </>
+            )}
+
+            {activeSubTab === 'employees' && (
+              <select
+                value={employeeRemFilter}
+                onChange={(e) => setEmployeeRemFilter(e.target.value as 'todas' | EmployeeRemunerationType)}
+                aria-label="Filtrar remuneração do colaborador"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+              >
+                <option value="todas">Remuneração: Todas</option>
+                {REMUNERATION_TYPE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            )}
+
+            {activeSubTab === 'fleet' && (
+              <select
+                value={vehicleStatusFilter}
+                onChange={(e) => setVehicleStatusFilter(e.target.value as 'todos' | Vehicle['status'])}
+                aria-label="Filtrar situação do veículo"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+              >
+                <option value="todos">Status: Todos</option>
+                <option value="Disponível">Disponível</option>
+                <option value="Em Rota">Em Rota</option>
+                <option value="Em Manutenção">Em Manutenção</option>
+              </select>
+            )}
+
+            {activeSubTab === 'services' && (
+              <select
+                value={serviceCategoryFilter}
+                onChange={(e) => setServiceCategoryFilter(e.target.value)}
+                aria-label="Filtrar categoria do serviço"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+              >
+                <option value="todas">Categoria: Todas</option>
+                {Array.from(new Set(serviceCatalog.map(s => s.category).filter(Boolean))).sort().map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            )}
+
+            {activeSubTab === 'checklists' && (
+              <select
+                value={checklistEquipFilter}
+                onChange={(e) => setChecklistEquipFilter(e.target.value)}
+                aria-label="Filtrar equipamento do checklist"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+              >
+                <option value="todos">Equipamento: Todos</option>
+                {Array.from(new Set(checklistTemplates.map(t => t.equipmentType).filter(Boolean))).sort().map(eq => (
+                  <option key={eq} value={eq}>{eq}</option>
+                ))}
+              </select>
+            )}
+
             <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
           </div>
         </div>
@@ -506,11 +643,14 @@ export const MasterRegistrationsView: React.FC = () => {
 
       {/* SUB-TAB 1: CLIENTES */}
       {activeSubTab === 'clients' && (() => {
-        const filteredClients = clients.filter(c =>
-          c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.document.includes(searchTerm) ||
-          (c.tradeName && c.tradeName.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
+        const filteredClients = clients.filter(c => {
+          const matchesSearch =
+            c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.document.includes(searchTerm) ||
+            (c.tradeName && c.tradeName.toLowerCase().includes(searchTerm.toLowerCase()));
+          const matchesType = clientTypeFilter === 'todos' || (c.customerType || 'varejo') === clientTypeFilter;
+          return matchesSearch && matchesType;
+        });
         return viewMode === 'list' ? (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -686,11 +826,15 @@ export const MasterRegistrationsView: React.FC = () => {
 
       {/* SUB-TAB 2: FORNECEDORES */}
       {activeSubTab === 'suppliers' && (() => {
-        const filteredSuppliers = suppliers.filter(s =>
-          s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          s.cnpj.includes(searchTerm) ||
-          (s.tradeName && s.tradeName.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
+        const filteredSuppliers = suppliers.filter(s => {
+          const matchesSearch =
+            s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.cnpj.includes(searchTerm) ||
+            (s.tradeName && s.tradeName.toLowerCase().includes(searchTerm.toLowerCase()));
+          const cityUf = [s.city, s.state].filter(Boolean).join('/');
+          const matchesCity = supplierCityFilter === 'todas' || cityUf === supplierCityFilter;
+          return matchesSearch && matchesCity;
+        });
         return viewMode === 'list' ? (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -851,13 +995,18 @@ export const MasterRegistrationsView: React.FC = () => {
         );
       })()}
 
-      {/* SUB-TAB 3: PRODUTOS & PEÇAS */}
+      {/* SUB-TAB 3: ESTOQUE */}
       {activeSubTab === 'products' && (() => {
-        const filteredProducts = products.filter(p =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
+        const filteredProducts = products.filter(p => {
+          const matchesSearch =
+            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+          const matchesCat = productCategoryFilter === 'todas' || p.category === productCategoryFilter;
+          const isLow = p.currentStock <= p.minStock;
+          const matchesStock = productStockFilter === 'todos' || (productStockFilter === 'baixo' ? isLow : !isLow);
+          return matchesSearch && matchesCat && matchesStock;
+        });
         return viewMode === 'list' ? (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -1079,10 +1228,14 @@ export const MasterRegistrationsView: React.FC = () => {
 
       {/* SUB-TAB 4: EQUIPE & TÉCNICOS */}
       {activeSubTab === 'employees' && (() => {
-        const filteredEmployees = employees.filter(e =>
-          e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.role.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const filteredEmployees = employees.filter(e => {
+          const matchesSearch =
+            e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            e.role.toLowerCase().includes(searchTerm.toLowerCase());
+          const remType = getEmployeeRemunerationType(e);
+          const matchesRem = employeeRemFilter === 'todas' || remType === employeeRemFilter;
+          return matchesSearch && matchesRem;
+        });
         return viewMode === 'list' ? (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -1091,8 +1244,9 @@ export const MasterRegistrationsView: React.FC = () => {
                   <tr>
                     <th>Colaborador</th>
                     <th>Cargo</th>
+                    <th>Remuneração</th>
                     <th>Telefone</th>
-                    <th className="text-right">Salário</th>
+                    <th className="text-right">Remun. Nominal</th>
                     <th className="text-center">Comissão</th>
                     <th>Veículo</th>
                     <th className="text-right">Ações</th>
@@ -1101,6 +1255,9 @@ export const MasterRegistrationsView: React.FC = () => {
                 <tbody>
                   {filteredEmployees.map(employee => {
                     const assignedVeh = vehicles.find(v => v.id === employee.assignedVehicleId);
+                    const remType = getEmployeeRemunerationType(employee);
+                    const nominalPay = computeEmployeeNominalPay(employee);
+                    const totalMonthlyCost = computeEmployeeMonthlyFixedCost(employee);
                     return (
                       <tr
                         key={employee.id}
@@ -1108,12 +1265,12 @@ export const MasterRegistrationsView: React.FC = () => {
                         onMouseEnter={(e) =>
                           showTooltip(e, {
                             title: employee.name,
-                            subtitle: `${employee.role} · Status: ${employee.status}`,
-                            description: `Admissão: ${formatDateBR(employee.admissionDate)} · Custo mensal total de ${formatBRL(employee.baseSalary + employee.benefitsCharges)}.`,
+                            subtitle: `${employee.role} · ${REMUNERATION_TYPE_LABELS[remType]} · ${employee.status}`,
+                            description: `Admissão: ${formatDateBR(employee.admissionDate)} · Custo mensal total de ${formatBRL(totalMonthlyCost)}.`,
                             fields: [
                               { label: 'Telefone', value: employee.phone || '—' },
                               { label: 'E-mail', value: employee.email || '—' },
-                              { label: 'Salário / Encargos', value: `${formatBRL(employee.baseSalary)} + ${formatBRL(employee.benefitsCharges)}` },
+                              { label: 'Remuneração / Encargos', value: `${formatEmployeeRemunerationSummary(employee, formatBRL)} + ${formatBRL(employee.benefitsCharges)}` },
                               { label: 'Comissão / Veículo', value: `${employee.commissionRate}% · ${assignedVeh ? `${assignedVeh.model} (${assignedVeh.plate})` : 'Nenhum'}` }
                             ]
                           })
@@ -1122,9 +1279,10 @@ export const MasterRegistrationsView: React.FC = () => {
                       >
                         <td className="font-semibold text-slate-900">{employee.name}</td>
                         <td className="text-blue-700 font-medium">{employee.role}</td>
+                        <td className="text-slate-600 text-[11px] font-medium">{REMUNERATION_TYPE_LABELS[remType]}</td>
                         <td className="font-mono text-slate-600 tabular-nums">{employee.phone || '—'}</td>
                         <td className="text-right font-mono font-medium text-slate-700 tabular-nums">
-                          {formatBRL(employee.baseSalary)}
+                          {formatBRL(nominalPay)}
                         </td>
                         <td className="text-center font-mono font-semibold text-emerald-700 tabular-nums">
                           {employee.commissionRate}%
@@ -1150,12 +1308,16 @@ export const MasterRegistrationsView: React.FC = () => {
                                 setEmployeeForm({
                                   name: employee.name,
                                   role: employee.role,
+                                  remunerationType: getEmployeeRemunerationType(employee),
                                   baseSalary: employee.baseSalary,
+                                  hourlyRate: employee.hourlyRate || 35,
+                                  monthlyHoursWorked: employee.monthlyHoursWorked || 160,
                                   benefitsAndCharges: employee.benefitsCharges,
                                   commissionRate: employee.commissionRate,
                                   assignedVehicleId: employee.assignedVehicleId || '',
                                   phone: employee.phone,
                                   email: employee.email,
+                                  status: employee.status,
                                   admissionDate: employee.admissionDate
                                 });
                                 setIsEmployeeModalOpen(true);
@@ -1190,11 +1352,12 @@ export const MasterRegistrationsView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredEmployees.map(employee => {
               const assignedVeh = vehicles.find(v => v.id === employee.assignedVehicleId);
+              const remType = getEmployeeRemunerationType(employee);
               return (
                 <div key={employee.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3">
                   <div className="space-y-1.5">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-[11px] font-semibold text-blue-700">{employee.role}</span>
+                      <span className="text-[11px] font-semibold text-blue-700">{employee.role} · {REMUNERATION_TYPE_LABELS[remType]}</span>
                       <button
                         type="button"
                         onClick={() => setDetailTarget({ kind: 'employee', data: employee })}
@@ -1207,7 +1370,7 @@ export const MasterRegistrationsView: React.FC = () => {
                     </div>
                     <h3 className="font-bold text-sm text-slate-900">{employee.name}</h3>
                     <div className="text-xs text-slate-600 space-y-1 font-mono tabular-nums">
-                      <div>Salário Base: {formatBRL(employee.baseSalary)} · Comissão: {employee.commissionRate}%</div>
+                      <div>{formatEmployeeRemunerationSummary(employee, formatBRL)}</div>
                       <div className="text-slate-500">{employee.phone || '—'} · Veículo: {assignedVeh ? assignedVeh.plate : 'Nenhum'}</div>
                     </div>
                   </div>
@@ -1219,12 +1382,16 @@ export const MasterRegistrationsView: React.FC = () => {
                         setEmployeeForm({
                           name: employee.name,
                           role: employee.role,
+                          remunerationType: getEmployeeRemunerationType(employee),
                           baseSalary: employee.baseSalary,
+                          hourlyRate: employee.hourlyRate || 35,
+                          monthlyHoursWorked: employee.monthlyHoursWorked || 160,
                           benefitsAndCharges: employee.benefitsCharges,
                           commissionRate: employee.commissionRate,
                           assignedVehicleId: employee.assignedVehicleId || '',
                           phone: employee.phone,
                           email: employee.email,
+                          status: employee.status,
                           admissionDate: employee.admissionDate
                         });
                         setIsEmployeeModalOpen(true);
@@ -1256,10 +1423,13 @@ export const MasterRegistrationsView: React.FC = () => {
 
       {/* SUB-TAB 5: FROTA DE VEÍCULOS */}
       {activeSubTab === 'fleet' && (() => {
-        const filteredVehicles = vehicles.filter(v =>
-          v.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          v.model.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const filteredVehicles = vehicles.filter(v => {
+          const matchesSearch =
+            v.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            v.model.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchesStatus = vehicleStatusFilter === 'todos' || v.status === vehicleStatusFilter;
+          return matchesSearch && matchesStatus;
+        });
         return viewMode === 'list' ? (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -1427,10 +1597,13 @@ export const MasterRegistrationsView: React.FC = () => {
 
       {/* SUB-TAB 6: SERVIÇOS TABELADOS */}
       {activeSubTab === 'services' && (() => {
-        const filteredServices = serviceCatalog.filter(s =>
-          s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          s.code.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const filteredServices = serviceCatalog.filter(s => {
+          const matchesSearch =
+            s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.code.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchesCat = serviceCategoryFilter === 'todas' || s.category === serviceCategoryFilter;
+          return matchesSearch && matchesCat;
+        });
         return viewMode === 'list' ? (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -1580,10 +1753,13 @@ export const MasterRegistrationsView: React.FC = () => {
 
       {/* SUB-TAB 7: MODELOS DE CHECKLIST */}
       {activeSubTab === 'checklists' && (() => {
-        const filteredChecklists = checklistTemplates.filter(t =>
-          t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.equipmentType.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const filteredChecklists = checklistTemplates.filter(t => {
+          const matchesSearch =
+            t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.equipmentType.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchesEquip = checklistEquipFilter === 'todos' || t.equipmentType === checklistEquipFilter;
+          return matchesSearch && matchesEquip;
+        });
         return viewMode === 'list' ? (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -2325,9 +2501,16 @@ export const MasterRegistrationsView: React.FC = () => {
       )}
 
       {/* EMPLOYEE MODAL */}
-      {isEmployeeModalOpen && (
+      {isEmployeeModalOpen && (() => {
+        const remCfg = getRemunerationConfig(employeeForm.remunerationType);
+        const estimatedPay = remCfg.usesSalary
+          ? employeeForm.baseSalary
+          : remCfg.usesHourly
+            ? employeeForm.hourlyRate * employeeForm.monthlyHoursWorked
+            : 0;
+        return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-4">
               <h3 className="text-lg font-bold text-slate-900">
                 {editingEmployee ? 'Editar Colaborador' : 'Cadastrar Colaborador / Técnico'}
@@ -2343,13 +2526,16 @@ export const MasterRegistrationsView: React.FC = () => {
                 const employeePayload = {
                   name: employeeForm.name,
                   role: employeeForm.role,
-                  baseSalary: employeeForm.baseSalary,
+                  remunerationType: employeeForm.remunerationType,
+                  baseSalary: remCfg.usesSalary ? employeeForm.baseSalary : 0,
+                  hourlyRate: remCfg.usesHourly ? employeeForm.hourlyRate : 0,
+                  monthlyHoursWorked: remCfg.usesHourly ? employeeForm.monthlyHoursWorked : 0,
                   benefitsCharges: employeeForm.benefitsAndCharges,
-                  commissionRate: employeeForm.commissionRate,
+                  commissionRate: remCfg.usesCommission ? employeeForm.commissionRate : 0,
                   assignedVehicleId: employeeForm.assignedVehicleId || undefined,
                   phone: employeeForm.phone,
                   email: employeeForm.email,
-                  status: 'Ativo' as const,
+                  status: employeeForm.status,
                   admissionDate: employeeForm.admissionDate
                 };
                 if (editingEmployee) {
@@ -2383,6 +2569,33 @@ export const MasterRegistrationsView: React.FC = () => {
                   />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Situação</label>
+                  <select
+                    value={employeeForm.status}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, status: e.target.value as Employee['status'] })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                  >
+                    <option value="Ativo">Ativo</option>
+                    <option value="Em Férias">Em Férias</option>
+                    <option value="Inativo">Inativo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Forma de Remuneração *</label>
+                  <select
+                    value={employeeForm.remunerationType}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, remunerationType: e.target.value as EmployeeRemunerationType })}
+                    className="w-full px-3 py-2 border border-blue-200 bg-blue-50/40 rounded-lg text-xs font-semibold text-slate-800"
+                  >
+                    {REMUNERATION_TYPE_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Veículo de Campo</label>
                   <select
                     value={employeeForm.assignedVehicleId}
@@ -2396,39 +2609,81 @@ export const MasterRegistrationsView: React.FC = () => {
                   </select>
                 </div>
               </div>
+
               <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Salário Base (R$) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={employeeForm.baseSalary}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, baseSalary: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
-                  />
-                </div>
+                {remCfg.usesSalary && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Salário Base (R$) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={employeeForm.baseSalary}
+                      onChange={(e) => setEmployeeForm({ ...employeeForm, baseSalary: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
+                    />
+                  </div>
+                )}
+                {remCfg.usesHourly && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Valor Hora (R$) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        required
+                        value={employeeForm.hourlyRate}
+                        onChange={(e) => setEmployeeForm({ ...employeeForm, hourlyRate: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Horas / Mês *</label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        required
+                        value={employeeForm.monthlyHoursWorked}
+                        onChange={(e) => setEmployeeForm({ ...employeeForm, monthlyHoursWorked: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
+                      />
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Encargos (R$)</label>
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
                     value={employeeForm.benefitsAndCharges}
                     onChange={(e) => setEmployeeForm({ ...employeeForm, benefitsAndCharges: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">% Comissão</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={employeeForm.commissionRate}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, commissionRate: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono text-emerald-700 font-bold"
-                  />
-                </div>
+                {remCfg.usesCommission && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">% Comissão</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={employeeForm.commissionRate}
+                      onChange={(e) => setEmployeeForm({ ...employeeForm, commissionRate: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono text-emerald-700 font-bold"
+                    />
+                  </div>
+                )}
               </div>
+
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between">
+                <span className="text-slate-600">Prévia Custo Fixo Mensal (Folha + Encargos):</span>
+                <span className="font-mono font-bold text-slate-900">{formatBRL(estimatedPay + employeeForm.benefitsAndCharges)}</span>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Telefone Celular</label>
@@ -2468,7 +2723,8 @@ export const MasterRegistrationsView: React.FC = () => {
             </form>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* VEHICLE MODAL */}
       {isVehicleModalOpen && (
@@ -3175,13 +3431,15 @@ export const MasterRegistrationsView: React.FC = () => {
         if (detailTarget.kind === 'employee') {
           const e = detailTarget.data;
           const assignedVeh = vehicles.find(v => v.id === e.assignedVehicleId);
-          const totalMonthlyCost = Number(e.baseSalary || 0) + Number(e.benefitsCharges || 0);
+          const remType = getEmployeeRemunerationType(e);
+          const nominalPay = computeEmployeeNominalPay(e);
+          const totalMonthlyCost = computeEmployeeMonthlyFixedCost(e);
           return (
             <RecordDetailModal
               isOpen={true}
               onClose={() => setDetailTarget(null)}
               title={e.name}
-              subtitle={e.role}
+              subtitle={`${e.role} · ${REMUNERATION_TYPE_LABELS[remType]}`}
               statusText={e.status}
               statusClassName={e.status === 'Ativo' ? 'text-emerald-700' : 'text-slate-600'}
               sections={[
@@ -3198,7 +3456,9 @@ export const MasterRegistrationsView: React.FC = () => {
                 {
                   heading: 'Remuneração & Custos',
                   fields: [
-                    { label: 'Salário Base', value: formatBRL(e.baseSalary) },
+                    { label: 'Forma de Remuneração', value: REMUNERATION_TYPE_LABELS[remType] },
+                    { label: 'Resumo Base / Hora', value: formatEmployeeRemunerationSummary(e, formatBRL) },
+                    { label: 'Remuneração Nominal Mensal', value: formatBRL(nominalPay) },
                     { label: 'Encargos & Benefícios', value: formatBRL(e.benefitsCharges) },
                     { label: 'Custo Total Mensal', value: formatBRL(totalMonthlyCost) },
                     { label: 'Taxa de Comissão', value: `${e.commissionRate}%` }
@@ -3214,12 +3474,16 @@ export const MasterRegistrationsView: React.FC = () => {
                       setEmployeeForm({
                         name: e.name,
                         role: e.role,
+                        remunerationType: getEmployeeRemunerationType(e),
                         baseSalary: e.baseSalary,
+                        hourlyRate: e.hourlyRate || 35,
+                        monthlyHoursWorked: e.monthlyHoursWorked || 160,
                         benefitsAndCharges: e.benefitsCharges,
                         commissionRate: e.commissionRate,
                         assignedVehicleId: e.assignedVehicleId || '',
                         phone: e.phone,
                         email: e.email,
+                        status: e.status,
                         admissionDate: e.admissionDate
                       });
                       setDetailTarget(null);

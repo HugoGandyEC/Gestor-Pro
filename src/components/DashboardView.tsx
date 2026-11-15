@@ -23,6 +23,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
+import { computeEmployeeNominalPay } from '../utils/employeeRemuneration';
 import { ActiveTab } from './Sidebar';
 import { ServiceOrder, DirectSale } from '../types';
 import { TechnicianDashboardView } from './TechnicianDashboardView';
@@ -357,7 +358,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   }, [generalExpenses, selectedMonthYear]);
 
   const totalSalaries = useMemo(() => {
-    return employees.reduce((a, e) => a + e.baseSalary + e.benefitsCharges, 0);
+    return employees.reduce((a, e) => a + computeEmployeeNominalPay(e) + e.benefitsCharges, 0);
   }, [employees]);
 
   // Alerta de manutenção de frota (óleo)

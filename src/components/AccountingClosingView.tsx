@@ -14,6 +14,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
+import { computeEmployeeNominalPay } from '../utils/employeeRemuneration';
 import { getAccessToken, googleSignIn } from '../services/googleAuthService';
 import { uploadTextToDrive } from '../services/googleDriveService';
 
@@ -357,8 +358,8 @@ Salvo automaticamente via Google Drive pelo ERP GestãoPro.
 
           <div className="grid grid-cols-3 gap-3 font-mono">
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-sans">Salários Nominais:</span>
-              <div className="font-bold text-slate-900">{formatBRL(employees.reduce((a, b) => a + b.baseSalary, 0))}</div>
+              <span className="text-[10px] text-slate-500 font-sans">Salários / Horas Nominais:</span>
+              <div className="font-bold text-slate-900">{formatBRL(employees.reduce((a, b) => a + computeEmployeeNominalPay(b), 0))}</div>
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-[10px] text-slate-500 font-sans">Encargos Sociais:</span>
@@ -366,7 +367,7 @@ Salvo automaticamente via Google Drive pelo ERP GestãoPro.
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-[10px] text-slate-500 font-sans">Comissões Pagas:</span>
-              <div className="font-bold text-blue-700">{formatBRL(monthlyFinancialSummary.totalPersonnelCost - employees.reduce((a, b) => a + b.baseSalary + b.benefitsCharges, 0))}</div>
+              <div className="font-bold text-blue-700">{formatBRL(monthlyFinancialSummary.totalPersonnelCost - employees.reduce((a, b) => a + computeEmployeeNominalPay(b) + b.benefitsCharges, 0))}</div>
             </div>
           </div>
         </div>

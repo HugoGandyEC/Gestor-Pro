@@ -92,6 +92,8 @@ export const ProductsAndStockView: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('todas');
   const [brandFilter, setBrandFilter] = useState('todas');
   const [subcategoryFilter, setSubcategoryFilter] = useState('todas');
+  const [stockStatusFilter, setStockStatusFilter] = useState<'todos' | 'normal' | 'baixo'>('todos');
+  const [movementTypeFilter, setMovementTypeFilter] = useState<string>('todos');
 
   // Pagination State for Products
   const [currentPage, setCurrentPage] = useState(1);
@@ -654,14 +656,19 @@ export const ProductsAndStockView: React.FC = () => {
     const matchesCat = categoryFilter === 'todas' || p.category === categoryFilter;
     const matchesBrand = brandFilter === 'todas' || p.brand === brandFilter;
     const matchesSubcat = subcategoryFilter === 'todas' || p.subcategory === subcategoryFilter;
+    const isLow = p.currentStock <= p.minStock;
+    const matchesStockStatus =
+      stockStatusFilter === 'todos' ||
+      (stockStatusFilter === 'baixo' && isLow) ||
+      (stockStatusFilter === 'normal' && !isLow);
 
-    return matchesSearch && matchesCat && matchesBrand && matchesSubcat;
+    return matchesSearch && matchesCat && matchesBrand && matchesSubcat && matchesStockStatus;
   });
 
   // Reset page when filters change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, categoryFilter, brandFilter, subcategoryFilter]);
+  }, [searchTerm, categoryFilter, brandFilter, subcategoryFilter, stockStatusFilter]);
 
   const paginatedProducts = React.useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -675,14 +682,14 @@ export const ProductsAndStockView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-[#363739] tracking-tight">
-              Catálogo de Produtos, Peças & Taxonomias
+              Estoque
             </h1>
             <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
-              Estoque, Marcas, URLs & SEO
+              Produtos, Peças, Marcas & Movimentações
             </span>
           </div>
           <p className="hidden md:block text-xs text-[#707174] mt-1">
-            Gestão de produtos, reservatórios térmicos, bombas e peças com marcas, URLs amigáveis, tags, meta-tags e listas personalizáveis.
+            Gestão completa de estoque de produtos, reservatórios térmicos, bombas e peças com marcas, URLs amigáveis, tags e movimentações Kardex.
           </p>
         </div>
 
@@ -747,7 +754,7 @@ export const ProductsAndStockView: React.FC = () => {
             activeTab === 'products' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
           }`}
         >
-          Produtos & Estoque ({products.length})
+          Estoque ({products.length})
         </button>
         <button
           onClick={() => setActiveTab('movements')}
@@ -804,8 +811,27 @@ export const ProductsAndStockView: React.FC = () => {
                 />
               </div>
 
-              {/* Brand and Subcategory selects (somente desktop/tablet) */}
+              {/* Comboboxes de Filtros de Estoque */}
               <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500">Categoria:</span>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+                  >
+                    <option value="todas">Todas ({products.length})</option>
+                    {productCategories.map(cat => {
+                      const count = products.filter(p => p.category === cat).length;
+                      return (
+                        <option key={cat} value={cat}>
+                          {cat} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
                 <div className="hidden md:flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold text-slate-500">Marca:</span>
                   <select
@@ -834,15 +860,29 @@ export const ProductsAndStockView: React.FC = () => {
                   </select>
                 </div>
 
-                {(categoryFilter !== 'todas' || brandFilter !== 'todas' || subcategoryFilter !== 'todas' || searchTerm) && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500">Situação:</span>
+                  <select
+                    value={stockStatusFilter}
+                    onChange={(e) => setStockStatusFilter(e.target.value as 'todos' | 'normal' | 'baixo')}
+                    className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+                  >
+                    <option value="todos">Todo o Estoque</option>
+                    <option value="normal">Estoque Normal</option>
+                    <option value="baixo">Estoque Baixo / Mínimo</option>
+                  </select>
+                </div>
+
+                {(categoryFilter !== 'todas' || brandFilter !== 'todas' || subcategoryFilter !== 'todas' || stockStatusFilter !== 'todos' || searchTerm) && (
                   <button
                     onClick={() => {
                       setCategoryFilter('todas');
                       setBrandFilter('todas');
                       setSubcategoryFilter('todas');
+                      setStockStatusFilter('todos');
                       setSearchTerm('');
                     }}
-                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold px-2 py-1 rounded hover:bg-rose-50"
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold px-2 py-1 rounded hover:bg-rose-50 cursor-pointer"
                   >
                     Limpar Filtros
                   </button>
@@ -850,35 +890,6 @@ export const ProductsAndStockView: React.FC = () => {
 
                 <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
               </div>
-            </div>
-
-            {/* Category Pills from dynamic productCategories */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pt-1 border-t border-slate-100">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
-                Categoria:
-              </span>
-              <button
-                onClick={() => setCategoryFilter('todas')}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap transition-colors cursor-pointer ${
-                  categoryFilter === 'todas' ? 'bg-[#53383e] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Todas ({products.length})
-              </button>
-              {productCategories.map(cat => {
-                const count = products.filter(p => p.category === cat).length;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoryFilter(cat)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap transition-colors cursor-pointer ${
-                      categoryFilter === cat ? 'bg-[#53383e] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {cat} {count > 0 && <span className="opacity-75 font-normal">({count})</span>}
-                  </button>
-                );
-              })}
             </div>
           </div>
 
@@ -1272,13 +1283,30 @@ export const ProductsAndStockView: React.FC = () => {
       {/* Tab: Stock Movements */}
       {activeTab === 'movements' && (
         <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900">
-              Livro de Movimentações de Estoque (Kardex)
-            </h2>
-            <p className="text-xs text-slate-500">
-              Rastreabilidade de entradas via XML de fornecedores e baixas automáticas em Ordens de Serviço e Vendas.
-            </p>
+          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Livro de Movimentações de Estoque (Kardex)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Rastreabilidade de entradas via XML de fornecedores e baixas automáticas em Ordens de Serviço e Vendas.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[11px] font-semibold text-slate-500">Movimentação:</span>
+              <select
+                value={movementTypeFilter}
+                onChange={(e) => setMovementTypeFilter(e.target.value)}
+                className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+              >
+                <option value="todos">Todos os Tipos ({stockMovements.length})</option>
+                <option value="entrada_xml">Entrada XML NF-e</option>
+                <option value="entrada_manual">Entrada Manual</option>
+                <option value="saida_os">Saída O.S.</option>
+                <option value="saida_venda">Saída Venda</option>
+                <option value="ajuste">Ajuste</option>
+              </select>
+            </div>
           </div>
 
           <table className="w-full text-left text-xs">
@@ -1294,7 +1322,9 @@ export const ProductsAndStockView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans">
-              {stockMovements.map(m => {
+              {stockMovements
+                .filter(m => movementTypeFilter === 'todos' || m.type === movementTypeFilter)
+                .map(m => {
                 const isEntry = m.type.startsWith('entrada');
                 const linkedProduct = products.find(
                   pr => pr.id === m.productId || pr.name.toLowerCase() === m.productName.toLowerCase()

@@ -133,6 +133,8 @@ export type ExpenseCategory =
   | 'ferramental' 
   | 'software_contabilidade' 
   | 'compra_produtos_xml' 
+  | 'compra_materiais'
+  | 'comissao'
   | 'impostos' 
   | 'funcionario_fichado'
   | 'combustivel'
@@ -301,15 +303,25 @@ export interface StockMovement {
   notes?: string;
 }
 
+export type EmployeeRemunerationType =
+  | 'salario'
+  | 'hora_trabalhada'
+  | 'comissao'
+  | 'salario_comissao'
+  | 'hora_comissao';
+
 export interface Employee {
   id: string;
   name: string;
   role: string;
   email: string;
   phone: string;
+  remunerationType?: EmployeeRemunerationType; // Forma de remuneração: salário, hora trabalhada, comissão ou combinados
   baseSalary: number; // Salário base mensal
+  hourlyRate?: number; // Valor da hora trabalhada (R$/h)
+  monthlyHoursWorked?: number; // Horas trabalhadas no mês
   benefitsCharges: number; // Encargos trabalhistas (INSS, FGTS, VR, VT)
-  commissionRate: number; // % comissão sobre serviços (ex: 8%)
+  commissionRate: number; // % comissão sobre serviços/vendas (ex: 8%)
   assignedVehicleId?: string; // Veículo fixo da empresa alocado
   status: 'Ativo' | 'Férias' | 'Inativo';
   admissionDate: string;
@@ -595,6 +607,7 @@ export interface AuditLog {
 export interface EmployeeProfitabilityReport {
   employee: Employee;
   monthYear: string;
+  remunerationType?: EmployeeRemunerationType;
   ordersCount: number;
   servicesRevenue: number;
   partsRevenue: number;

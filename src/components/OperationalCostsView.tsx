@@ -168,29 +168,25 @@ export const OperationalCostsView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-              {[
-                { id: 'todos', label: 'Todas' },
-                { id: 'aluguel', label: 'Aluguel' },
-                { id: 'internet', label: 'Internet' },
-                { id: 'celular', label: 'Celulares' },
-                { id: 'alimentacao', label: 'Alimentação' },
-                { id: 'energia_agua', label: 'Energia / Água' },
-                { id: 'software_contabilidade', label: 'Contabilidade' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setFilterCategory(tab.id)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-colors cursor-pointer ${
-                    filterCategory === tab.id
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-800"
+            >
+              <option value="todos">Todas as Categorias ({generalExpenses.length})</option>
+              <option value="aluguel">Aluguel</option>
+              <option value="internet">Internet & Telefone Fixo</option>
+              <option value="celular">Telefone / Celular</option>
+              <option value="salario">Salários & Folha</option>
+              <option value="comissao">Comissões</option>
+              <option value="compra_materiais">Compra de Materiais</option>
+              <option value="compra_produtos_xml">Compra Produtos (NF-e)</option>
+              <option value="alimentacao">Alimentação</option>
+              <option value="energia_agua">Energia / Água</option>
+              <option value="software_contabilidade">Contabilidade & Software</option>
+              <option value="divida_empresa">Dívidas & Parcelamentos</option>
+              <option value="outros">Outros</option>
+            </select>
             <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
           </div>
         </div>
@@ -378,8 +374,11 @@ export const OperationalCostsView: React.FC = () => {
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-semibold"
                   >
                     <option value="aluguel">Aluguel do Ponto / Galpão</option>
-                    <option value="internet">Internet & Telefonia Fibra</option>
-                    <option value="celular">Conta de Celular Corporativo</option>
+                    <option value="internet">Internet & Telefone Fixo</option>
+                    <option value="celular">Telefone / Celular Corporativo</option>
+                    <option value="salario">Salários / Hora Trabalhada</option>
+                    <option value="comissao">Comissão de Vendedor / Técnico</option>
+                    <option value="compra_materiais">Compra de Materiais & Insumos</option>
                     <option value="alimentacao">Alimentação / Diária em Campo</option>
                     <option value="energia_agua">Energia Elétrica & Água</option>
                     <option value="software_contabilidade">Contabilidade & Softwares</option>

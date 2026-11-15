@@ -21,6 +21,11 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
+import {
+  computeEmployeeNominalPay,
+  getEmployeeRemunerationType,
+  REMUNERATION_TYPE_LABELS
+} from '../utils/employeeRemuneration';
 
 export type ChartModelType = 'colunas' | 'barras' | 'linha' | 'rosca' | 'empilhado';
 
@@ -1084,20 +1089,24 @@ export const AnalyticsChartsView: React.FC = () => {
   // 3. INDICADORES DE FOLHA / FUNCIONÁRIOS
   // =========================================================================
   const payrollMetrics = useMemo(() => {
-    const salariosBaseNominais = employees.reduce((acc, e) => acc + Number(e.baseSalary || 0), 0);
+    const salariosBaseNominais = employees.reduce((acc, e) => acc + computeEmployeeNominalPay(e), 0);
     const encargosBeneficios = employees.reduce((acc, e) => acc + Number(e.benefitsCharges || 0), 0);
     const custoTotalFolhaMensal = salariosBaseNominais + encargosBeneficios;
 
-    const perEmployeeChart: ChartDatum[] = employees.map((emp, i) => ({
-      label: emp.name,
-      shortLabel: emp.name.split(' ')[0],
-      value: Number(emp.baseSalary || 0) + Number(emp.benefitsCharges || 0),
-      color: CHART_COLORS[i % CHART_COLORS.length],
-      hint: `Base ${formatBRL(emp.baseSalary)} + Enc. ${formatBRL(emp.benefitsCharges)}`
-    }));
+    const perEmployeeChart: ChartDatum[] = employees.map((emp, i) => {
+      const nominal = computeEmployeeNominalPay(emp);
+      const remLabel = REMUNERATION_TYPE_LABELS[getEmployeeRemunerationType(emp)];
+      return {
+        label: emp.name,
+        shortLabel: emp.name.split(' ')[0],
+        value: nominal + Number(emp.benefitsCharges || 0),
+        color: CHART_COLORS[i % CHART_COLORS.length],
+        hint: `${remLabel}: ${formatBRL(nominal)} + Enc. ${formatBRL(emp.benefitsCharges)}`
+      };
+    });
 
     const compositionChart: ChartDatum[] = [
-      { label: 'Salários Base Nominais', shortLabel: 'Salários Base', value: salariosBaseNominais, color: '#2563eb' },
+      { label: 'Salários / Horas Nominais', shortLabel: 'Salários/Horas', value: salariosBaseNominais, color: '#2563eb' },
       { label: 'Encargos & Benefícios (INSS/FGTS)', shortLabel: 'Encargos', value: encargosBeneficios, color: '#dc2626' }
     ];
 
@@ -1426,8 +1435,9 @@ export const AnalyticsChartsView: React.FC = () => {
       });
     }
 
-    // Despesas Operacionais & Frota no período (aplicadas no panorama geral quando não isolado por entidade única)
+    // Despesas Operacionais & Frota no período (evita dupla contagem de auto-emp- já apurado em Folha / Pessoal)
     const expensesScope = generalExpenses.filter(g => {
+      if (g.id.startsWith('auto-emp-')) return false;
       if (!inResolvedPeriod(g.dueDate)) return false;
       if (paymentStatusFilter === 'pago') return g.isPaid;
       if (paymentStatusFilter === 'pendente') return !g.isPaid;
@@ -1706,25 +1716,20 @@ export const AnalyticsChartsView: React.FC = () => {
             </span>
           </div>
 
-          {/* Botões de Granularidade */}
-          <div className="flex flex-wrap gap-1.5">
-            {PERIOD_PRESETS.map(p => {
-              const active = periodPreset === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPeriodPreset(p.id)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
-                    active
-                      ? 'bg-[#53383e] text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
+          {/* Combobox de Granularidade / Período */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-semibold text-slate-500">
+              Tipo de Período / Granularidade
+            </label>
+            <select
+              value={periodPreset}
+              onChange={(e) => setPeriodPreset(e.target.value as PeriodPreset)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900"
+            >
+              {PERIOD_PRESETS.map(p => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Controles Específicos da Granularidade */}
@@ -1740,27 +1745,25 @@ export const AnalyticsChartsView: React.FC = () => {
                     className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs text-slate-800"
                   />
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setSpecificDay(todayYmd)}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold cursor-pointer"
+                <select
+                  value={specificDay === todayYmd ? 'hoje' : specificDay === addDaysYmd(todayYmd, -1) ? 'ontem' : 'custom'}
+                  onChange={(e) => {
+                    if (e.target.value === 'hoje') setSpecificDay(todayYmd);
+                    else if (e.target.value === 'ontem') setSpecificDay(addDaysYmd(todayYmd, -1));
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
                 >
-                  Hoje
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSpecificDay(addDaysYmd(todayYmd, -1))}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold cursor-pointer"
-                >
-                  Ontem
-                </button>
+                  <option value="custom">Atalho de Data...</option>
+                  <option value="hoje">Hoje ({formatDateBR(todayYmd)})</option>
+                  <option value="ontem">Ontem ({formatDateBR(addDaysYmd(todayYmd, -1))})</option>
+                </select>
               </>
             )}
 
             {periodPreset === 'semana' && (
               <>
                 <label className="flex items-center gap-2 font-medium text-slate-700">
-                  <span>Dia da semana referência:</span>
+                  <span>Dia referência:</span>
                   <input
                     type="date"
                     value={weekRefDay}
@@ -1768,20 +1771,18 @@ export const AnalyticsChartsView: React.FC = () => {
                     className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs text-slate-800"
                   />
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setWeekRefDay(todayYmd)}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold cursor-pointer"
+                <select
+                  value={weekRefDay === todayYmd ? 'atual' : weekRefDay === addDaysYmd(todayYmd, -7) ? 'passada' : 'custom'}
+                  onChange={(e) => {
+                    if (e.target.value === 'atual') setWeekRefDay(todayYmd);
+                    else if (e.target.value === 'passada') setWeekRefDay(addDaysYmd(todayYmd, -7));
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
                 >
-                  Semana Atual
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWeekRefDay(addDaysYmd(todayYmd, -7))}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold cursor-pointer"
-                >
-                  Semana Passada
-                </button>
+                  <option value="custom">Atalho Semanal...</option>
+                  <option value="atual">Semana Atual</option>
+                  <option value="passada">Semana Passada</option>
+                </select>
               </>
             )}
 
@@ -1796,26 +1797,14 @@ export const AnalyticsChartsView: React.FC = () => {
                     className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs text-slate-800"
                   />
                 </label>
-                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setQuinzenaHalf('1')}
-                    className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
-                      quinzenaHalf === '1' ? 'bg-slate-900 text-white' : 'text-slate-600'
-                    }`}
-                  >
-                    1ª Quinzena (01–15)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQuinzenaHalf('2')}
-                    className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
-                      quinzenaHalf === '2' ? 'bg-slate-900 text-white' : 'text-slate-600'
-                    }`}
-                  >
-                    2ª Quinzena (16–Fim)
-                  </button>
-                </div>
+                <select
+                  value={quinzenaHalf}
+                  onChange={(e) => setQuinzenaHalf(e.target.value as '1' | '2')}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                >
+                  <option value="1">1ª Quinzena (01–15)</option>
+                  <option value="2">2ª Quinzena (16–Fim)</option>
+                </select>
               </>
             )}
 
@@ -1842,20 +1831,16 @@ export const AnalyticsChartsView: React.FC = () => {
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
-                <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-0.5 gap-0.5">
-                  {([1, 2, 3, 4] as const).map(q => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => setQuarterNum(q)}
-                      className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
-                        quarterNum === q ? 'bg-slate-900 text-white' : 'text-slate-600'
-                      }`}
-                    >
-                      {q}º Trim ({q === 1 ? 'Jan–Mar' : q === 2 ? 'Abr–Jun' : q === 3 ? 'Jul–Set' : 'Out–Dez'})
-                    </button>
-                  ))}
-                </div>
+                <select
+                  value={quarterNum}
+                  onChange={(e) => setQuarterNum(Number(e.target.value) as 1 | 2 | 3 | 4)}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                >
+                  <option value={1}>1º Trimestre (Jan–Mar)</option>
+                  <option value={2}>2º Trimestre (Abr–Jun)</option>
+                  <option value={3}>3º Trimestre (Jul–Set)</option>
+                  <option value={4}>4º Trimestre (Out–Dez)</option>
+                </select>
               </>
             )}
 
@@ -1870,26 +1855,14 @@ export const AnalyticsChartsView: React.FC = () => {
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
-                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setSemesterNum(1)}
-                    className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
-                      semesterNum === 1 ? 'bg-slate-900 text-white' : 'text-slate-600'
-                    }`}
-                  >
-                    1º Semestre (Jan–Jun)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSemesterNum(2)}
-                    className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
-                      semesterNum === 2 ? 'bg-slate-900 text-white' : 'text-slate-600'
-                    }`}
-                  >
-                    2º Semestre (Jul–Dez)
-                  </button>
-                </div>
+                <select
+                  value={semesterNum}
+                  onChange={(e) => setSemesterNum(Number(e.target.value) as 1 | 2)}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                >
+                  <option value={1}>1º Semestre (Jan–Jun)</option>
+                  <option value={2}>2º Semestre (Jul–Dez)</option>
+                </select>
               </>
             )}
 
@@ -2042,26 +2015,15 @@ export const AnalyticsChartsView: React.FC = () => {
               <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                 Situação Financeira
               </label>
-              <div className="inline-flex w-full rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-                {[
-                  { id: 'todos', label: 'Tudo (Pago + Pendente)' },
-                  { id: 'pago', label: 'Somente Pagos' },
-                  { id: 'pendente', label: 'Somente Pendentes' }
-                ].map(st => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => setPaymentStatusFilter(st.id as 'todos' | 'pago' | 'pendente')}
-                    className={`flex-1 px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors ${
-                      paymentStatusFilter === st.id
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {st.label}
-                  </button>
-                ))}
-              </div>
+              <select
+                value={paymentStatusFilter}
+                onChange={(e) => setPaymentStatusFilter(e.target.value as 'todos' | 'pago' | 'pendente')}
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+              >
+                <option value="todos">Tudo (Pago + Pendente)</option>
+                <option value="pago">Somente Pagos</option>
+                <option value="pendente">Somente Pendentes</option>
+              </select>
             </div>
           </div>
         </div>
@@ -2081,17 +2043,26 @@ export const AnalyticsChartsView: React.FC = () => {
               </h2>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setVisibleSections(ALL_SECTIONS_ON)}
-                className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-              >
-                Marcar Tudo
-              </button>
-              <button
-                type="button"
-                onClick={() =>
+            <select
+              value={
+                activeSectionsCount === DATA_SECTIONS_CONFIG.length
+                  ? 'todos'
+                  : !visibleSections.cadastros &&
+                    visibleSections.panorama_financeiro &&
+                    visibleSections.despesas_pagar
+                  ? 'financeiro'
+                  : !visibleSections.panorama_financeiro &&
+                    visibleSections.por_cliente &&
+                    visibleSections.por_produto &&
+                    visibleSections.por_servico
+                  ? 'rankings'
+                  : 'custom'
+              }
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === 'todos') {
+                  setVisibleSections(ALL_SECTIONS_ON);
+                } else if (v === 'financeiro') {
                   setVisibleSections({
                     panorama_financeiro: true,
                     evolucao_fluxo: true,
@@ -2100,15 +2071,8 @@ export const AnalyticsChartsView: React.FC = () => {
                     por_servico: true,
                     despesas_pagar: true,
                     cadastros: false
-                  })
-                }
-                className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-              >
-                Foco 100% Financeiro
-              </button>
-              <button
-                type="button"
-                onClick={() =>
+                  });
+                } else if (v === 'rankings') {
                   setVisibleSections({
                     panorama_financeiro: false,
                     evolucao_fluxo: false,
@@ -2117,13 +2081,32 @@ export const AnalyticsChartsView: React.FC = () => {
                     por_servico: true,
                     despesas_pagar: false,
                     cadastros: false
-                  })
+                  });
+                } else if (v.startsWith('only:')) {
+                  const key = v.slice(5) as DataSectionKey;
+                  setVisibleSections({
+                    panorama_financeiro: key === 'panorama_financeiro',
+                    evolucao_fluxo: key === 'evolucao_fluxo',
+                    por_cliente: key === 'por_cliente',
+                    por_produto: key === 'por_produto',
+                    por_servico: key === 'por_servico',
+                    despesas_pagar: key === 'despesas_pagar',
+                    cadastros: key === 'cadastros'
+                  });
                 }
-                className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-              >
-                Rankings (Cliente/Prod/Serv)
-              </button>
-            </div>
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800"
+            >
+              <option value="todos">Exibir Todos os Painéis</option>
+              <option value="financeiro">Foco 100% Financeiro</option>
+              <option value="rankings">Rankings (Cliente / Produto / Serviço)</option>
+              <option value="custom" disabled>Seleção Personalizada Abaixo</option>
+              {DATA_SECTIONS_CONFIG.map(sec => (
+                <option key={`only-${sec.key}`} value={`only:${sec.key}`}>
+                  Somente: {sec.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -2176,47 +2159,42 @@ export const AnalyticsChartsView: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {CHART_MODELS.map((m) => {
-                const Icon = m.icon;
-                const isSelected = globalModel === m.id && Object.keys(chartOverrides).length === 0;
-                const isBaseModel = globalModel === m.id;
+            <div className="space-y-2.5">
+              <label className="block text-[11px] font-semibold text-slate-500">
+                Selecione o modelo visual padrão para todos os gráficos:
+              </label>
+              <select
+                value={globalModel}
+                onChange={(e) => handleGlobalModelChange(e.target.value as ChartModelType)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900"
+              >
+                {CHART_MODELS.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.label} — {m.description}
+                  </option>
+                ))}
+              </select>
+
+              {(() => {
+                const activeMeta = CHART_MODELS.find(m => m.id === globalModel) || CHART_MODELS[0];
+                const ActiveIcon = activeMeta.icon;
                 return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleGlobalModelChange(m.id)}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
-                      isSelected || isBaseModel
-                        ? 'bg-[#53383e] border-[#53383e] text-white'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <div
-                      className={`p-1.5 rounded-md shrink-0 ${
-                        isSelected || isBaseModel ? 'bg-white/15 text-white' : 'bg-white border border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
+                  <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#f6eff1]/70 border border-[#53383e]/30 text-xs">
+                    <div className="p-1.5 rounded-md bg-[#53383e] text-white shrink-0">
+                      <ActiveIcon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold leading-tight">{m.label}</div>
-                      <div
-                        className={`hidden md:block text-[10px] leading-tight mt-0.5 ${
-                          isSelected || isBaseModel ? 'text-white/80' : 'text-slate-500'
-                        }`}
-                      >
-                        {m.description}
-                      </div>
+                      <div className="font-bold text-slate-900">{activeMeta.label}</div>
+                      <div className="text-[11px] text-slate-600">{activeMeta.description}</div>
                     </div>
-                  </button>
+                  </div>
                 );
-              })}
+              })()}
             </div>
           </div>
 
           <div className="hidden md:block text-[11px] text-slate-500 pt-2 border-t border-slate-100">
-            Ao escolher um tipo acima, <strong>todos os gráficos selecionados</strong> assumem imediatamente esse formato. Você também pode ajustar um gráfico individual nos ícones do próprio card.
+            Ao escolher um tipo na combobox acima, <strong>todos os gráficos selecionados</strong> assumem imediatamente esse formato.
           </div>
         </div>
       </div>

@@ -164,7 +164,7 @@ const ENTITIES_CONFIG: EntityDefinition[] = [
   },
   {
     id: 'products',
-    label: 'Produtos & Estoque',
+    label: 'Estoque',
     singular: 'Produto',
     icon: Package,
     description: 'Estoque de reservatórios, bombas, conexões, marcas e custos.',

@@ -503,7 +503,7 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
                 </h4>
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2 text-xs">
                   <div className="flex justify-between py-1 border-b border-slate-200/60">
-                    <span className="text-slate-600">Salário Fixo Base:</span>
+                    <span className="text-slate-600">Salário Base / Horas Trabalhadas:</span>
                     <span className="font-mono font-medium text-slate-800">{formatBRL(selectedEmployeeForDetail.baseSalary)}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-200/60">

@@ -23,6 +23,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
+import { computeEmployeeNominalPay } from '../utils/employeeRemuneration';
 import { LiveSearchInput } from './LiveSearchInput';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
 import { useRowHoverTooltip } from './RowHoverTooltip';
@@ -281,10 +282,11 @@ export const FinancialView: React.FC = () => {
     acc + s.items.reduce((a, b) => a + ((b.cost || 0) * (b.quantity || 1)), 0), 0
   );
 
-  // Operational items
-  const monthGeneralExpenses = generalExpenses.filter(e => e.dueDate.startsWith(selectedMonthYear));
+  // Operational items (excluding auto-emp- payroll entries which are shown in section 4)
+  const monthGeneralExpenses = generalExpenses.filter(e => e.dueDate.startsWith(selectedMonthYear) && !e.id.startsWith('auto-emp-'));
   const rentTotal = monthGeneralExpenses.filter(e => e.category === 'aluguel' || e.category === 'aluguel_loja').reduce((a, b) => a + b.cost, 0);
-  const internetTotal = monthGeneralExpenses.filter(e => e.category === 'internet').reduce((a, b) => a + b.cost, 0);
+  const internetPhoneTotal = monthGeneralExpenses.filter(e => e.category === 'internet' || e.category === 'celular').reduce((a, b) => a + b.cost, 0);
+  const materialsPurchaseTotal = monthGeneralExpenses.filter(e => e.category === 'compra_materiais' || e.category === 'compra_produtos_xml').reduce((a, b) => a + b.cost, 0);
   const mealsTotal = monthGeneralExpenses.filter(e => e.category === 'alimentacao').reduce((a, b) => a + b.cost, 0);
   const dasMeiTotal = monthGeneralExpenses.filter(e => e.category === 'das_mei' || e.category === 'impostos').reduce((a, b) => a + b.cost, 0);
   const companyDebtsTotal = monthGeneralExpenses.filter(e => e.category === 'divida_empresa').reduce((a, b) => a + b.cost, 0);
@@ -482,8 +484,8 @@ export const FinancialView: React.FC = () => {
                 <span>{formatBRL(totalPersonnelCost)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
-                <span>· Salários Base da Equipe Operacional:</span>
-                <span>{formatBRL(employees.reduce((a, b) => a + b.baseSalary, 0))}</span>
+                <span>· Salários Base / Horas Trabalhadas da Equipe Operacional:</span>
+                <span>{formatBRL(employees.reduce((a, b) => a + computeEmployeeNominalPay(b), 0))}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Encargos Trabalhistas, FGTS & INSS (Funcionários Fichados):</span>
@@ -491,7 +493,7 @@ export const FinancialView: React.FC = () => {
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Comissões Conquistadas sobre Atendimentos e Vendas:</span>
-                <span>{formatBRL(totalPersonnelCost - (employees.reduce((a, b) => a + b.baseSalary + b.benefitsCharges, 0)))}</span>
+                <span>{formatBRL(totalPersonnelCost - (employees.reduce((a, b) => a + computeEmployeeNominalPay(b) + b.benefitsCharges, 0)))}</span>
               </div>
             </div>
 
@@ -518,7 +520,7 @@ export const FinancialView: React.FC = () => {
             {/* 6. Custos Operacionais Fixos & Tributos */}
             <div className="space-y-1.5">
               <div className="flex justify-between font-bold text-rose-800 text-sm border-b pb-1">
-                <span>(-) CUSTOS OPERACIONAIS, TRIBUTOS & DÍVIDAS DA EMPRESA</span>
+                <span>(-) CUSTOS OPERACIONAIS, COMPRAS DE MATERIAIS, TRIBUTOS & DÍVIDAS</span>
                 <span>{formatBRL(totalOperationalCost)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
@@ -526,8 +528,12 @@ export const FinancialView: React.FC = () => {
                 <span>{formatBRL(rentTotal)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
-                <span>· Internet Fibra & Telefonia:</span>
-                <span>{formatBRL(internetTotal)}</span>
+                <span>· Internet Fibra, Telefone Fixo & Celulares:</span>
+                <span>{formatBRL(internetPhoneTotal)}</span>
+              </div>
+              <div className="flex justify-between pl-4 text-slate-600">
+                <span>· Compras de Materiais, Peças & Reposição de Estoque:</span>
+                <span>{formatBRL(materialsPurchaseTotal)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Alimentação da Equipe & Vale Refeição:</span>

@@ -280,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'products' as ActiveTab,
-          label: 'Produtos & Estoque',
+          label: 'Estoque',
           icon: Package,
           badge: lowStockCount > 0 ? `${lowStockCount} baixo` : null,
           roles: ['admin', 'colaborador', 'tecnico']
