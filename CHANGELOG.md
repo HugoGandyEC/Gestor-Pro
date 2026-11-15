@@ -1,6 +1,20 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.10`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.11`).
+
+---
+
+## [v2.7.11] — 14/11/2026
+**BI Financeiro Completo com Caixas de Filtros, Períodos e Seletor Global de Gráficos**
+
+### Adicionado
+- **Caixa 1 — Filtro de Período & Datas**: recorte financeiro dinâmico por **Dia**, **Semana**, **Quinzena**, **Mês**, **Trimestre**, **Semestre**, **Anual**, **Data Específica** (intervalo personalizado) e **Todo o Período**.
+- **Caixa 2 — Filtros por Entidade**: segmentação por **Cliente**, **Produto / Peça**, **Serviço**, **Canal (O.S. vs Vendas Diretas)** e **Situação Financeira (Pago vs Pendente)**.
+- **Caixa 3 — Seleção de Painéis & Dados**: controle por caixas de seleção para ligar/desligar cada bloco (`Panorama Financeiro & DRE`, `Evolução & Fluxo de Caixa`, `Financeiro por Cliente`, `Financeiro por Produto`, `Financeiro por Serviço`, `Despesas, Frota & A Pagar` e `Cadastros`), com atalhos rápidos.
+- **Caixa 4 — Tipo de Gráfico Global**: seletor dedicado que aplica o mesmo modelo de visualização (**Colunas Verticais**, **Barras Horizontais**, **Linha / Área**, **Rosca / Pizza** ou **Proporção 100%**) a todos os gráficos selecionados simultaneamente.
+
+### Alterado
+- **Panorama Financeiro & DRE Executivo**: faixa de 6 KPIs e tabela DRE detalhada com percentuais sobre a receita e ajuste automático de custos fixos proporcionais ao período selecionado.
 
 ---
 

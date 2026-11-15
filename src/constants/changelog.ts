@@ -16,6 +16,45 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.11',
+    date: '14/11/2026',
+    title: 'BI Financeiro Completo com Caixas de Filtros, Períodos e Seletor Global de Gráficos',
+    summary:
+      'Página Gráficos & Indicadores Gerenciais (BI) reformulada com caixas independentes de filtros de período (Dia, Semana, Quinzena, Mês, Trimestre, Semestre, Anual, Data Específica e Todo o Período), filtros por Cliente, Produto, Serviço, Canal e Situação, caixas de seleção dos dados exibidos, panorama financeiro completo com DRE executivo e seletor único do tipo de gráfico aplicado a todos os painéis selecionados.',
+    highlights: [
+      'Caixa de Período & Datas: ajuste dinâmico para Dia, Semana, Quinzena, Mês, Trimestre, Semestre, Anual, Data Específica (início/fim) e Todo o Período com rateio proporcional de folha e frota',
+      'Caixa de Filtros por Entidade: recorte financeiro exato por Cliente, Produto/Peça, Serviço, Canal (O.S. vs PDV) e Situação (Pago vs Pendente)',
+      'Caixa de Escolha de Dados & Seletor Global de Tipo de Gráfico: ative/desative os 7 blocos de indicadores e altere simultaneamente o formato de todos os gráficos selecionados (Colunas, Barras, Linha/Área, Rosca/Pizza ou Proporção 100%)'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Caixa 1 — Filtro de Período & Datas em AnalyticsChartsView com botões rápidos para Dia, Semana, Quinzena, Mês, Trimestre, Semestre, Anual, Data Específica (data inicial e final) e Todo o Período.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Caixa 2 — Filtros por Cliente, Produto/Peça, Serviço, Canal de Origem e Situação Financeira, incluindo rateio proporcional de descontos e taxas de cartão nos itens filtrados.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Caixa 3 — Seleção de Dados & Painéis com caixas marcáveis e atalhos rápidos (Marcar Tudo, Foco 100% Financeiro, Rankings) para controlar quais blocos aparecem no BI.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Caixa 4 — Seletor Global de Tipo de Gráfico que define o modelo visual (Colunas Verticais, Barras Horizontais, Linha / Área, Rosca / Pizza ou Proporção 100%) para todos os gráficos selecionados de uma só vez.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Panorama Financeiro & DRE Executivo completo com 6 KPIs principais (Receita Bruta, Recebido, A Receber, Custos & Despesas, Contas a Pagar e Lucro Líquido) e demonstrativo linha a linha com percentuais sobre receita.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.10',
     date: '14/11/2026',
     title: 'Foto do Produto no Hover, na Listagem e na Grade (Cards)',
