@@ -133,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const openTicketsCount = customerTickets.filter(t => t.status === 'aberto' || t.status === 'em_analise').length;
   const pendingPdvCount =
     serviceOrders.filter(o => o.paymentStatus !== 'pago' && o.status !== 'cancelada').length +
-    directSales.filter(s => s.paymentStatus !== 'pago').length;
+    directSales.filter(s => s.paymentStatus !== 'pago' && s.status !== 'cancelada').length;
   const totalRegistrationsCount = clients.length + suppliers.length + products.length + employees.length + vehicles.length + serviceCatalog.length + checklistTemplates.length;
 
   // Simplified and Clean Categorized Navigation Structure

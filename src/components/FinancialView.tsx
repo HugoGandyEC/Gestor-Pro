@@ -66,7 +66,7 @@ export const FinancialView: React.FC = () => {
   }, [serviceOrders, selectedMonthYear]);
 
   const monthSales = useMemo(() => {
-    return directSales.filter(s => s.date.startsWith(selectedMonthYear));
+    return directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.status !== 'cancelada');
   }, [directSales, selectedMonthYear]);
 
   // Unified Receivables List

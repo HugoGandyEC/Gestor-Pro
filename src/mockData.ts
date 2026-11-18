@@ -484,7 +484,8 @@ export const initialCompanySettings: CompanySettings = {
   fiscalEnvironment: 'homologacao',
   standardVisitFee: 0,
   sequenceSettings: initialSequenceSettings,
-  logoUrl: ''
+  logoUrl: '',
+  pdvDeletePassword: ''
 };
 
 export const initialServiceCatalog: ServiceCatalogItem[] = [];

@@ -64,6 +64,7 @@ export const UsersManagementPanel: React.FC<UsersManagementPanelProps> = ({
   const [formRoleBadge, setFormRoleBadge] = useState('Operacional');
   const [formEmployeeId, setFormEmployeeId] = useState('');
   const [formActive, setFormActive] = useState(true);
+  const [formCanDeletePdvSales, setFormCanDeletePdvSales] = useState(false);
 
   const filteredUsers = authUsers.filter(u => {
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
@@ -88,6 +89,7 @@ export const UsersManagementPanel: React.FC<UsersManagementPanelProps> = ({
     setFormRoleBadge('Colaborador Operacional');
     setFormEmployeeId('');
     setFormActive(true);
+    setFormCanDeletePdvSales(false);
     setIsModalOpen(true);
   };
 
@@ -101,6 +103,7 @@ export const UsersManagementPanel: React.FC<UsersManagementPanelProps> = ({
     setFormRoleBadge(user.roleBadge || ROLE_LABELS[user.role]);
     setFormEmployeeId(user.employeeId || '');
     setFormActive(user.active !== false);
+    setFormCanDeletePdvSales(Boolean(user.canDeletePdvSales));
     setIsModalOpen(true);
   };
 
@@ -116,7 +119,8 @@ export const UsersManagementPanel: React.FC<UsersManagementPanelProps> = ({
       role: formRole,
       roleBadge: formRoleBadge.trim() || ROLE_LABELS[formRole],
       employeeId: formEmployeeId || undefined,
-      active: formActive
+      active: formActive,
+      canDeletePdvSales: formRole !== 'cliente' ? (formRole === 'admin' ? true : formCanDeletePdvSales) : false
     };
 
     if (editingUserId) {
@@ -246,7 +250,14 @@ export const UsersManagementPanel: React.FC<UsersManagementPanelProps> = ({
                       }
                       onMouseLeave={hideTooltip}
                     >
-                      <td className="font-semibold text-slate-900">{user.name}</td>
+                      <td className="font-semibold text-slate-900">
+                        <div>{user.name}</div>
+                        {(user.role === 'admin' || user.canDeletePdvSales) && (
+                          <div className="text-[10px] font-semibold text-[#53383e]">
+                            Autorizado excluir vendas PDV
+                          </div>
+                        )}
+                      </td>
                       <td className="font-mono text-slate-600">@{user.username}</td>
                       <td className="text-slate-600">{user.email}</td>
                       <td className={`font-semibold ${ROLE_COLORS[user.role]}`}>{ROLE_LABELS[user.role]}</td>
@@ -416,6 +427,15 @@ export const UsersManagementPanel: React.FC<UsersManagementPanelProps> = ({
                   { label: 'Perfil RBAC', value: ROLE_LABELS[detailUser.role] },
                   { label: 'Cargo / Rótulo', value: detailUser.roleBadge || ROLE_LABELS[detailUser.role] },
                   { label: 'Situação da Conta', value: detailUser.active !== false ? 'Ativo' : 'Inativo' },
+                  {
+                    label: 'Exclusão de Vendas no PDV',
+                    value:
+                      detailUser.role === 'admin'
+                        ? 'Autorizado (Administrador)'
+                        : detailUser.canDeletePdvSales
+                        ? 'Permitido pelo Administrador'
+                        : 'Não autorizado (apenas cancelar)'
+                  },
                   { label: 'Colaborador Vinculado', value: linkedEmp ? `${linkedEmp.name} (${linkedEmp.role})` : 'Não vinculado', fullWidth: true }
                 ]
               }
@@ -568,7 +588,7 @@ export const UsersManagementPanel: React.FC<UsersManagementPanelProps> = ({
                   </select>
                 </div>
 
-                <div className="sm:col-span-2 pt-1">
+                <div className="sm:col-span-2 pt-1 space-y-2.5">
                   <label className="inline-flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -578,6 +598,34 @@ export const UsersManagementPanel: React.FC<UsersManagementPanelProps> = ({
                     />
                     <span className="text-xs font-medium text-slate-700">Usuário ativo e liberado para login</span>
                   </label>
+
+                  {formRole !== 'cliente' && (
+                    <div className="p-3 rounded-xl border border-[#53383e]/20 bg-[#f6eff1]/60 space-y-1.5">
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formRole === 'admin' ? true : formCanDeletePdvSales}
+                          disabled={formRole === 'admin'}
+                          onChange={(e) => setFormCanDeletePdvSales(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-slate-300 text-[#53383e]"
+                        />
+                        <span className="text-xs font-semibold text-[#363739]">
+                          Permitir excluir vendas no PDV usando a senha deste colaborador
+                          {formRole === 'admin' && (
+                            <span className="ml-1 text-[10px] font-bold text-[#53383e]">(Automático p/ Admin)</span>
+                          )}
+                        </span>
+                      </label>
+                      <p className="text-[11px] text-slate-600 pl-6">
+                        Qualquer operador pode cancelar vendas no PDV, mas a exclusão definitiva exige a senha do Administrador ou de um funcionário marcado aqui.
+                      </p>
+                      {(formRole === 'admin' || formCanDeletePdvSales) && !formPassword.trim() && (
+                        <p className="text-[11px] font-semibold text-amber-800 pl-6">
+                          Cadastre uma Senha de Acesso acima para que a senha deste usuário funcione na confirmação do PDV.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

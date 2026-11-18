@@ -180,7 +180,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         // Vendas no dia (diretas + peças aplicadas)
         let salesTotal = 0;
         directSales.forEach(s => {
-          if (s.date === fullDate) {
+          if (s.status !== 'cancelada' && s.date === fullDate) {
             salesTotal += s.total;
           }
         });
@@ -227,7 +227,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         });
 
         directSales.forEach(s => {
-          if (s.date.slice(0, 7) === m.key) {
+          if (s.status !== 'cancelada' && s.date.slice(0, 7) === m.key) {
             salesTotal += s.total;
           }
         });
@@ -256,7 +256,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         });
 
         directSales.forEach(s => {
-          if (s.date.slice(0, 4) === yr) {
+          if (s.status !== 'cancelada' && s.date.slice(0, 4) === yr) {
             salesTotal += s.total;
           }
         });
@@ -312,6 +312,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
     // 2. Vendas Diretas de Balcão
     directSales.forEach(sale => {
+      if (sale.status === 'cancelada') return;
       sale.items.forEach(item => {
         const key = item.name.trim();
         const existing = productMap.get(key) || {

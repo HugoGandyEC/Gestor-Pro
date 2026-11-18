@@ -38,7 +38,7 @@ export const AccountingClosingView: React.FC = () => {
     return d.startsWith(selectedMonthYear) && (o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada');
   });
 
-  const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus === 'pago');
+  const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus === 'pago' && s.status !== 'cancelada');
 
   // Revenue breakdown for taxes
   const grossServicesRevenue = monthOrders.reduce((acc, o) => {

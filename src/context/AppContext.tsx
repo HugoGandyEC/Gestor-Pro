@@ -98,7 +98,9 @@ import {
   deleteAppointmentFromCloud,
   syncCashSessionToCloud,
   syncCashMovementToCloud,
+  deleteCashMovementFromCloud,
   syncPaymentReceiptToCloud,
+  deletePaymentReceiptFromCloud,
   bootstrapCloudDatabase,
   testFirestoreConnection
 } from '../services/firestoreSyncService';
@@ -259,7 +261,14 @@ interface AppContextType {
 
   addDirectSale: (sale: Omit<DirectSale, 'id' | 'code'>) => DirectSale;
   updateDirectSale: (id: string, updates: Partial<DirectSale>) => void;
-  deleteDirectSale: (id: string) => void;
+  cancelDirectSale: (id: string, reason?: string) => void;
+  deleteDirectSale: (id: string, authorizedByName?: string) => void;
+  authorizePdvSaleDelete: (password: string) => {
+    authorized: boolean;
+    authorizerName?: string;
+    authorizerRole?: UserRole;
+    hasAnyPasswordConfigured: boolean;
+  };
 
   // PDV / Frente de Caixa & Recibos de Pagamento
   cashSessions: CashRegisterSession[];
@@ -2567,9 +2576,157 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     }));
   };
 
-  const deleteDirectSale = (id: string) => {
+  const authorizePdvSaleDelete = (password: string) => {
+    const cleanPass = (password || '').trim();
+    const masterPass = (companySettings.pdvDeletePassword || '').trim();
+    const authorizedUsers = authUsers.filter(
+      u => u.active !== false && (u.role === 'admin' || u.canDeletePdvSales === true) && Boolean(u.password?.trim())
+    );
+    const hasAnyPasswordConfigured = Boolean(masterPass) || authorizedUsers.length > 0;
+
+    if (!cleanPass) {
+      return { authorized: false, hasAnyPasswordConfigured };
+    }
+
+    if (masterPass && cleanPass === masterPass) {
+      return {
+        authorized: true,
+        authorizerName: 'Administrador (Senha Mestra PDV)',
+        authorizerRole: 'admin' as UserRole,
+        hasAnyPasswordConfigured: true
+      };
+    }
+
+    const matchedUser = authorizedUsers.find(u => u.password?.trim() === cleanPass);
+    if (matchedUser) {
+      return {
+        authorized: true,
+        authorizerName: `${matchedUser.name} (@${matchedUser.username})`,
+        authorizerRole: matchedUser.role,
+        hasAnyPasswordConfigured: true
+      };
+    }
+
+    return { authorized: false, hasAnyPasswordConfigured };
+  };
+
+  const cancelDirectSale = (id: string, reason?: string) => {
+    const sale = directSales.find(s => s.id === id);
+    if (!sale || sale.status === 'cancelada') return;
+
+    const nowIso = new Date().toISOString();
+    const operatorName = currentUser?.name || 'Operador PDV';
+    const cleanReason = reason?.trim() || 'Cancelamento realizado no PDV';
+
+    const cancelledSale: DirectSale = {
+      ...sale,
+      status: 'cancelada',
+      cancelledAt: nowIso,
+      cancelledBy: operatorName,
+      cancelReason: cleanReason
+    };
+
+    setDirectSales(prev => prev.map(s => (s.id === id ? cancelledSale : s)));
+    syncDirectSaleToCloud(cancelledSale);
+
+    // Estornar estoque dos itens vendidos
+    (sale.items || []).forEach(it => {
+      if (it.quantity > 0) {
+        addStockMovement({
+          productId: it.productId || 'avulso',
+          productName: it.name,
+          type: 'ajuste',
+          quantity: it.quantity,
+          unitCost: it.cost,
+          referenceDoc: `CANC-${sale.code}`,
+          notes: `Estorno automático por cancelamento da venda ${sale.code} (${operatorName})`
+        });
+      }
+    });
+
+    // Marcar movimentações e recibos vinculados como cancelados para preservar histórico sem somar no caixa
+    setCashMovements(prev =>
+      prev.map(m => {
+        if (m.sourceType === 'venda' && m.sourceId === id && !m.cancelled) {
+          const updatedMove: CashRegisterMovement = {
+            ...m,
+            cancelled: true,
+            cancelledAt: nowIso,
+            cancelledBy: operatorName,
+            cancelReason: cleanReason
+          };
+          syncCashMovementToCloud(updatedMove);
+          return updatedMove;
+        }
+        return m;
+      })
+    );
+
+    setPaymentReceipts(prev =>
+      prev.map(r => {
+        if (r.sourceType === 'venda' && r.sourceId === id && !r.cancelled) {
+          const updatedReceipt: PaymentReceipt = {
+            ...r,
+            cancelled: true,
+            cancelledAt: nowIso,
+            cancelledBy: operatorName,
+            cancelReason: cleanReason
+          };
+          syncPaymentReceiptToCloud(updatedReceipt);
+          return updatedReceipt;
+        }
+        return r;
+      })
+    );
+
+    addAuditLog(
+      'Cancelamento de Venda PDV',
+      `Venda ${sale.code} (${sale.clientName}, ${sale.total.toFixed(2)}) cancelada por ${operatorName}. Motivo: ${cleanReason}.`
+    );
+  };
+
+  const deleteDirectSale = (id: string, authorizedByName?: string) => {
+    const sale = directSales.find(s => s.id === id);
+    if (sale && sale.status !== 'cancelada') {
+      (sale.items || []).forEach(it => {
+        if (it.quantity > 0) {
+          addStockMovement({
+            productId: it.productId || 'avulso',
+            productName: it.name,
+            type: 'ajuste',
+            quantity: it.quantity,
+            unitCost: it.cost,
+            referenceDoc: `DEL-${sale.code}`,
+            notes: `Estorno de estoque por exclusão da venda ${sale.code}`
+          });
+        }
+      });
+    }
+
+    const linkedMovements = cashMovements.filter(m => m.sourceType === 'venda' && m.sourceId === id);
+    const linkedReceipts = paymentReceipts.filter(r => r.sourceType === 'venda' && r.sourceId === id);
+
     setDirectSales(prev => prev.filter(s => s.id !== id));
     deleteDirectSaleFromCloud(id);
+
+    if (linkedMovements.length > 0) {
+      setCashMovements(prev => prev.filter(m => !(m.sourceType === 'venda' && m.sourceId === id)));
+      linkedMovements.forEach(m => deleteCashMovementFromCloud(m.id));
+    }
+
+    if (linkedReceipts.length > 0) {
+      setPaymentReceipts(prev => prev.filter(r => !(r.sourceType === 'venda' && r.sourceId === id)));
+      linkedReceipts.forEach(r => deletePaymentReceiptFromCloud(r.id));
+    }
+
+    if (sale) {
+      const executor = currentUser?.name || 'Operador PDV';
+      const authNote = authorizedByName ? ` · Autorizado por: ${authorizedByName}` : '';
+      addAuditLog(
+        'Exclusão de Venda PDV',
+        `Venda ${sale.code} (${sale.clientName}, R$ ${Number(sale.total || 0).toFixed(2)}) excluída por ${executor}${authNote}.`
+      );
+    }
   };
 
   // =========================================================================
@@ -2621,6 +2778,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     const sessionMoves = cashMovements.filter(m => m.sessionId === sessionId);
     let expectedCash = targetSession.openingBalance;
     sessionMoves.forEach(m => {
+      if (m.cancelled) return;
       if (m.type === 'suprimento' && m.paymentMethod === 'dinheiro') {
         expectedCash += m.grossAmount;
       } else if (m.type === 'sangria' && m.paymentMethod === 'dinheiro') {
@@ -2739,13 +2897,13 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
 
   const getPaidAmountForSource = (sourceType: 'os' | 'venda', sourceId: string): number => {
     const receiptsTotal = paymentReceipts
-      .filter(r => r.sourceType === sourceType && r.sourceId === sourceId)
+      .filter(r => r.sourceType === sourceType && r.sourceId === sourceId && !r.cancelled)
       .reduce((acc, r) => acc + Number(r.amountPaidNow || 0), 0);
     if (receiptsTotal > 0) return Number(receiptsTotal.toFixed(2));
 
     if (sourceType === 'venda') {
       const s = directSales.find(item => item.id === sourceId);
-      if (!s) return 0;
+      if (!s || s.status === 'cancelada') return 0;
       if (s.paymentStatus === 'pago') return Number(s.total || 0);
       return (s.payments || [])
         .filter(p => p.status === 'pago')
@@ -3504,7 +3662,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
           commBase += srvTotal - Number(o.calculatedDiscount || 0) + Number(o.visitFee || 0);
         });
         const monthSales = directSales.filter(
-          s => s.employeeId === emp.id && s.date.startsWith(monthYear) && s.paymentStatus === 'pago'
+          s => s.employeeId === emp.id && s.date.startsWith(monthYear) && s.paymentStatus === 'pago' && s.status !== 'cancelada'
         );
         monthSales.forEach(s => {
           commBase += Number(s.total || 0);
@@ -3636,7 +3794,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     });
 
     const monthSales = directSales.filter(s => {
-      return s.employeeId === employeeId && s.date.startsWith(monthYear) && s.paymentStatus === 'pago';
+      return s.employeeId === employeeId && s.date.startsWith(monthYear) && s.paymentStatus === 'pago' && s.status !== 'cancelada';
     });
 
     let directSalesRevenue = 0;
@@ -3852,8 +4010,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       acc + o.parts.reduce((a, b) => a + (Number(b.cost || 0) * Number(b.quantity || 1)), 0), 0
     );
 
-    // 2. Receitas de Vendas Diretas no mês (incluindo vendas avulsas e de balcão)
-    const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear));
+    // 2. Receitas de Vendas Diretas no mês (incluindo vendas avulsas e de balcão ativas)
+    const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.status !== 'cancelada');
     const salesRevenue = monthSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
     const salesCost = monthSales.reduce((acc, s) => 
       acc + s.items.reduce((a, b) => a + (Number(b.cost || 0) * Number(b.quantity || 1)), 0), 0
@@ -3899,6 +4057,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       }
     });
     directSales.forEach(s => {
+      if (s.status === 'cancelada') return;
       if (s.date.startsWith(selectedMonthYear)) {
         s.payments?.forEach(p => {
           if (p.rateAmount) totalCardFees += p.rateAmount;
@@ -3921,7 +4080,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       }, 0);
 
     const pendingSalesReceivables = directSales
-      .filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus !== 'pago')
+      .filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus !== 'pago' && s.status !== 'cancelada')
       .reduce((acc, s) => acc + Number(s.total || 0), 0);
 
     const totalPendingReceivables = pendingOrdersReceivables + pendingSalesReceivables;
@@ -4069,7 +4228,9 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         convertBudgetToOrderOrSale,
         addDirectSale,
         updateDirectSale,
+        cancelDirectSale,
         deleteDirectSale,
+        authorizePdvSaleDelete,
         cashSessions,
         cashMovements,
         activeCashSession,

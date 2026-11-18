@@ -341,6 +341,22 @@ export async function syncPaymentReceiptToCloud(receipt: PaymentReceipt): Promis
   }
 }
 
+export async function deleteCashMovementFromCloud(movementId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'cashMovements', movementId));
+  } catch (err) {
+    console.warn('Erro ao remover movimentação de caixa do Firestore:', err);
+  }
+}
+
+export async function deletePaymentReceiptFromCloud(receiptId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'paymentReceipts', receiptId));
+  } catch (err) {
+    console.warn('Erro ao remover recibo de pagamento do Firestore:', err);
+  }
+}
+
 // Initial bootstrap: if cloud is empty, upload current initial/local data
 export async function bootstrapCloudDatabase(initialData: {
   products: Product[];

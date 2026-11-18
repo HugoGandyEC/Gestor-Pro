@@ -1352,6 +1352,7 @@ export const AnalyticsChartsView: React.FC = () => {
     // Processa Vendas Diretas / PDV
     if ((channelFilter === 'todos' || channelFilter === 'vendas') && selectedServiceKey === 'todos') {
       directSales.forEach(s => {
+        if (s.status === 'cancelada') return;
         const sDate = (s.date || '').slice(0, 10);
         if (!inResolvedPeriod(sDate)) return;
         if (!matchesClient(s.clientId, s.clientName)) return;

@@ -243,6 +243,7 @@ export const CustomerPortalView: React.FC = () => {
 
     // 1. Vendas Diretas de Balcão
     directSales.forEach(s => {
+      if (s.status === 'cancelada') return;
       const matchClient = s.clientId === effectiveClientId || 
         (currentClient?.name && s.clientName.toLowerCase().includes(currentClient.name.toLowerCase()));
       if (matchClient) {

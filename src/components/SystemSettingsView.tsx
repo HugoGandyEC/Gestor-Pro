@@ -889,6 +889,32 @@ export const SystemSettingsView: React.FC = () => {
             </div>
           </div>
 
+          <div className="p-4 rounded-xl border border-[#53383E]/20 bg-[#f6eff1]/50 space-y-2">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-[#53383E]" />
+              <h3 className="text-xs font-bold text-slate-900">
+                Segurança do PDV · Senha do Administrador para Excluir Vendas
+              </h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Senha Mestra de Exclusão no PDV
+                </label>
+                <input
+                  type="password"
+                  value={formData.pdvDeletePassword || ''}
+                  onChange={(e) => setFormData({ ...formData, pdvDeletePassword: e.target.value })}
+                  placeholder="Digite a senha de autorização do administrador..."
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono"
+                />
+              </div>
+              <p className="text-[11px] text-slate-600 md:pt-5 leading-relaxed">
+                No PDV, qualquer operador pode <strong>Cancelar Venda</strong>, porém <strong>Excluir Venda</strong> só é liberado mediante esta senha mestra ou a senha de um Administrador / funcionário autorizado na aba <strong>Usuários</strong>.
+              </p>
+            </div>
+          </div>
+
           <div className="border-t border-slate-100 pt-4 flex justify-end">
             <button
               type="submit"

@@ -330,7 +330,7 @@ export const GoogleDriveView: React.FC = () => {
         const d = o.completionDate || o.openDate;
         return d.startsWith(selectedMonthYear) && (o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada');
       });
-      const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus === 'pago');
+      const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus === 'pago' && s.status !== 'cancelada');
 
       const grossServicesRevenue = monthOrders.reduce((acc, o) => {
         const srv = o.services.reduce((a, b) => a + Number(b.price || 0), 0) + Number(o.visitFee || 0);

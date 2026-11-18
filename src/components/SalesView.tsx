@@ -339,7 +339,8 @@ export const SalesView: React.FC = () => {
     setDiscountValue(0);
   };
 
-  const totalSalesVolume = directSales.reduce((acc, s) => acc + s.total, 0);
+  const activeSales = directSales.filter(s => s.status !== 'cancelada');
+  const totalSalesVolume = activeSales.reduce((acc, s) => acc + s.total, 0);
   const filteredSales = directSales.filter(sale => {
     const q = salesSearch.trim().toLowerCase();
     if (!q) return true;
@@ -389,14 +390,14 @@ export const SalesView: React.FC = () => {
             {formatBRL(totalSalesVolume)}
           </div>
           <div className="hidden md:block text-xs text-slate-500 mt-1">
-            {directSales.length} pedidos faturados com baixa de estoque
+            {activeSales.length} pedidos ativos com baixa de estoque
           </div>
         </div>
 
         <div className="hidden sm:block p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
           <span className="text-xs font-medium text-slate-500">Ticket Médio por Venda</span>
           <div className="text-2xl font-bold font-mono text-blue-600 mt-1">
-            {formatBRL(directSales.length > 0 ? totalSalesVolume / directSales.length : 0)}
+            {formatBRL(activeSales.length > 0 ? totalSalesVolume / activeSales.length : 0)}
           </div>
           <div className="text-xs text-slate-500 mt-1">
             Preços tabelados no varejo e atacado
@@ -503,26 +504,34 @@ export const SalesView: React.FC = () => {
                       <td className={`hidden md:table-cell ${sale.priceType === 'atacado' ? 'font-semibold text-purple-700' : 'text-slate-600'}`}>
                         {sale.priceType === 'atacado' ? 'Atacado' : 'Varejo'}
                       </td>
-                      <td className={`font-semibold ${sale.paymentStatus === 'pago' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                        {sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente'}
+                      <td className={`font-semibold ${
+                        sale.status === 'cancelada'
+                          ? 'text-rose-700'
+                          : sale.paymentStatus === 'pago'
+                          ? 'text-emerald-700'
+                          : 'text-amber-700'
+                      }`}>
+                        {sale.status === 'cancelada' ? 'Cancelada' : sale.paymentStatus === 'pago' ? 'Liquidado' : 'Pendente'}
                       </td>
-                      <td className="text-right font-mono font-bold text-emerald-700 tabular-nums">
+                      <td className={`text-right font-mono font-bold tabular-nums ${sale.status === 'cancelada' ? 'text-slate-400 line-through' : 'text-emerald-700'}`}>
                         {formatBRL(sale.total)}
                       </td>
                       <td className="text-right">
                         <div className="inline-flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setChargingSale(sale);
-                              setPdvSuccessMessage(null);
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md text-white bg-[#53383e] hover:bg-[#432c32] cursor-pointer"
-                            title="Cobrar no PDV"
-                          >
-                            <CreditCard className="w-3.5 h-3.5" />
-                            <span>PDV</span>
-                          </button>
+                          {sale.status !== 'cancelada' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChargingSale(sale);
+                                setPdvSuccessMessage(null);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md text-white bg-[#53383e] hover:bg-[#432c32] cursor-pointer"
+                              title="Cobrar no PDV"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              <span>PDV</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setDetailSale(sale)}

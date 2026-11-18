@@ -58,7 +58,11 @@ export const buildReceiptShareText = (
   const methodsLine =
     receipt.payments && receipt.payments.length > 0
       ? receipt.payments
-          .map(p => `${RECEIPT_METHOD_LABELS[p.method] || p.method}: ${formatBRL(p.amount)}`)
+          .map(p => {
+            const brand = p.cardBrand ? ` · ${p.cardBrand.toUpperCase()}` : '';
+            const inst = p.installments && p.installments > 1 ? ` ${p.installments}x` : '';
+            return `${RECEIPT_METHOD_LABELS[p.method] || p.method}${brand}${inst}: ${formatBRL(p.amount)}`;
+          })
           .join(' | ')
       : `${RECEIPT_METHOD_LABELS[receipt.paymentMethod] || receipt.paymentMethod}: ${formatBRL(receipt.amountPaidNow)}`;
 
@@ -462,7 +466,13 @@ const downloadThermal80mmPdf = (receipt: PaymentReceipt, company: CompanySetting
   doc.setFontSize(7.2);
   const payDesc =
     receipt.payments && receipt.payments.length > 0
-      ? receipt.payments.map(p => `${RECEIPT_METHOD_LABELS[p.method]} ${formatBRL(p.amount)}`).join(', ')
+      ? receipt.payments
+          .map(p => {
+            const brand = p.cardBrand ? ` ${p.cardBrand.toUpperCase()}` : '';
+            const inst = p.installments && p.installments > 1 ? ` ${p.installments}x` : '';
+            return `${RECEIPT_METHOD_LABELS[p.method]}${brand}${inst} ${formatBRL(p.amount)}`;
+          })
+          .join(', ')
       : `${RECEIPT_METHOD_LABELS[receipt.paymentMethod]}`;
   const payLines = doc.splitTextToSize(`PGTO: ${payDesc}`, w - mx * 2);
   doc.text(payLines, mx, y);

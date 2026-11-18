@@ -498,6 +498,10 @@ export interface DirectSale {
   paymentMethod: PaymentMethod;
   payments: PaymentSplit[];
   paymentStatus: 'pendente' | 'pago';
+  status?: 'ativa' | 'cancelada';
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
   pdvTerminal?: string;
   sentToPdvAt?: string;
   settledInPdvAt?: string;
@@ -555,6 +559,10 @@ export interface CashRegisterMovement {
   terminalName?: string;
   operatorName: string;
   createdAt: string;
+  cancelled?: boolean;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
 }
 
 export interface CustomerPortalTicket {
@@ -675,6 +683,7 @@ export interface CompanySettings {
   standardVisitFee: number;
   sequenceSettings?: SequenceSettings;
   logoUrl?: string;
+  pdvDeletePassword?: string;
 }
 
 export interface ServiceCatalogItem {
@@ -732,6 +741,7 @@ export interface AuthUser {
   avatar?: string;
   clientId?: string; // ID do cliente vinculado para isolamento de dados no Portal do Cliente (Multi-Tenancy)
   employeeId?: string; // ID do técnico/funcionário vinculado para isolamento de atendimentos (RBAC)
+  canDeletePdvSales?: boolean; // Permissão concedida pelo Administrador para autorizar exclusão de vendas no PDV com sua senha
 }
 
 // ============================================================================
@@ -811,6 +821,10 @@ export interface PaymentReceipt {
   nsu?: string;
   notes?: string;
   createdAt: string;
+  cancelled?: boolean;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
 }
 
 
