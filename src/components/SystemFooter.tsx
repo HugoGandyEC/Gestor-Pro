@@ -37,7 +37,7 @@ export const SystemFooter: React.FC<SystemFooterProps> = ({ onOpenDoc }) => {
       {/* Direita: Empresa, Status de Conexão e Atalhos */}
       <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap justify-center sm:justify-end">
         <span className="text-slate-600 font-medium truncate max-w-xs">
-          {companySettings.tradeName || companySettings.companyName || 'GestãoPro'}
+          {companySettings.tradeName || companySettings.companyName || 'FIRE GESTÃO'}
         </span>
         <span className="text-slate-300">·</span>
         <span className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">

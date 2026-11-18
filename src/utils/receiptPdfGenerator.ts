@@ -42,7 +42,7 @@ export const buildReceiptShareText = (
   receipt: PaymentReceipt,
   company: CompanySettings
 ): string => {
-  const companyName = company.tradeName || company.companyName || 'GestãoPro';
+  const companyName = company.tradeName || company.companyName || 'FIRE GESTÃO';
   const originLabel =
     receipt.sourceType === 'os' ? `Ordem de Serviço ${receipt.sourceCode}` : `Venda ${receipt.sourceCode}`;
   const statusLine = receipt.isFullyPaid
@@ -117,7 +117,7 @@ export const downloadReceiptPdf = (
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  doc.text(company.tradeName || company.companyName || 'GestãoPro', marginX + 5, cursorY + 8);
+  doc.text(company.tradeName || company.companyName || 'FIRE GESTÃO', marginX + 5, cursorY + 8);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -347,7 +347,7 @@ const downloadThermal80mmPdf = (receipt: PaymentReceipt, company: CompanySetting
   doc.setTextColor(20, 20, 20);
   doc.setFont('courier', 'bold');
   doc.setFontSize(10);
-  doc.text((company.tradeName || company.companyName || 'GestãoPro').slice(0, 32), w / 2, y, { align: 'center' });
+  doc.text((company.tradeName || company.companyName || 'FIRE GESTÃO').slice(0, 32), w / 2, y, { align: 'center' });
   y += 4.2;
 
   doc.setFont('courier', 'normal');

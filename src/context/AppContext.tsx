@@ -515,7 +515,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [currentTheme, setCurrentTheme] = useState<AppTheme>(() => {
     const saved = localStorage.getItem(KEYS.THEME);
-    return (saved as AppTheme) || 'terracota_mineral';
+    if (saved === 'fire_gestao' || saved === 'solar_vivido') {
+      return saved;
+    }
+    return 'fire_gestao';
   });
 
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
@@ -674,7 +677,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
     const saved = localStorage.getItem(KEYS.COMPANY_SETTINGS);
-    return saved ? JSON.parse(saved) : initialCompanySettings;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as CompanySettings;
+        const isLegacyTrade = !parsed.tradeName || parsed.tradeName === 'GestãoPro ERP' || parsed.tradeName === 'GestãoPro';
+        const isLegacyCompany = !parsed.companyName || parsed.companyName === 'GestãoPro - Assistência Técnica & Vendas';
+        return {
+          ...initialCompanySettings,
+          ...parsed,
+          tradeName: isLegacyTrade ? initialCompanySettings.tradeName : parsed.tradeName,
+          companyName: isLegacyCompany ? initialCompanySettings.companyName : parsed.companyName
+        };
+      } catch {}
+    }
+    return initialCompanySettings;
   });
 
   const [sequenceSettings, setSequenceSettings] = useState<SequenceSettings>(() => {

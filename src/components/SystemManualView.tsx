@@ -450,7 +450,7 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
 
   const handleDownloadChangelogMd = () => {
     const mdLines: string[] = [
-      '# Histórico de Versões e Alterações — GestãoPro ERP',
+      '# Histórico de Versões e Alterações — FIRE GESTÃO',
       '',
       `Versão Atual: ${SYSTEM_VERSION} (Build ${SYSTEM_BUILD} · ${SYSTEM_RELEASE_DATE})`,
       ''

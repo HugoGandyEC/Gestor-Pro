@@ -645,7 +645,7 @@ export const generatePDFDocument = (entityDef: EntityDefinition) => {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(100, 100, 100);
-  doc.text(`Dica de Importação: Você pode copiar o texto desta tabela e colar no assistente "Colar Texto / Tabela de PDF" do GestãoPro.`, 14, Math.min(finalY + 8, 200));
+  doc.text(`Dica de Importação: Você pode copiar o texto desta tabela e colar no assistente "Colar Texto / Tabela de PDF" do FIRE GESTÃO.`, 14, Math.min(finalY + 8, 200));
 
   doc.save(`modelo_importacao_${entityDef.id}.pdf`);
 };
@@ -2136,7 +2136,7 @@ export const UniversalDataImportView: React.FC = () => {
             {/* Footer */}
             <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs shrink-0">
               <span className="text-[11px] text-slate-500">
-                Sistema GestãoPro · Compatível com backups de qualquer ERP ou software anterior.
+                Sistema FIRE GESTÃO · Compatível com backups de qualquer ERP ou software anterior.
               </span>
               <div className="flex items-center gap-2">
                 <button

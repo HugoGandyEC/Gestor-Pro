@@ -366,7 +366,7 @@ Emissão: ${new Date().toLocaleString('pt-BR')}
 - Comércio (Anexo I - ~4%): ${formatBRL(grossGoodsRevenue * 0.04)}
 - TOTAL ESTIMADO A RECOLHER: ${formatBRL(grossServicesRevenue * 0.06 + grossGoodsRevenue * 0.04)}
 ========================================================================
-Documento gerado e salvo automaticamente no Google Drive pelo ERP GestãoPro.
+Documento gerado e salvo automaticamente no Google Drive pelo FIRE GESTÃO.
 `;
 
       const fileName = `Fechamento_Contabil_${selectedMonthYear}_${companySettings.tradeName || 'GestaoPro'}.txt`;

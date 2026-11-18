@@ -20,6 +20,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
 import { getAvailableMonths } from '../utils/financialHelpers';
+import { FireBrandIcon } from './FireBrandIcon';
 
 interface HeaderProps {
   onOpenNewOS: () => void;
@@ -110,14 +111,14 @@ export const Header: React.FC<HeaderProps> = ({
               className="max-h-9 max-w-[120px] object-contain shrink-0 rounded"
             />
           ) : (
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#53383e] flex items-center justify-center text-white shadow-sm ring-2 ring-[#c2bfb0]/40 shrink-0">
-              <Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-[#FFFBEB] via-[#FEF3C7] to-[#FFEDD5] border border-orange-200 flex items-center justify-center shadow-xs shrink-0">
+              <FireBrandIcon className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
           )}
           <div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="text-base sm:text-lg font-bold text-[#363739] tracking-tight whitespace-nowrap">
-                {companySettings.tradeName || 'GestãoPro'}
+              <span className="text-base sm:text-lg font-extrabold text-[#1C1917] tracking-tight whitespace-nowrap">
+                {companySettings.tradeName || 'FIRE GESTÃO'}
               </span>
               <span className="hidden md:inline-block text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
                 ERP · OS

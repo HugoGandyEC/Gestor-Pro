@@ -324,7 +324,7 @@ export const SystemSettingsView: React.FC = () => {
     const lines: string[] = [];
     lines.push('-- ========================================================');
     lines.push('-- SCRIPT & DUMP COMPLETO PARA BANCO DE DADOS MYSQL (5.7 / 8.0+)');
-    lines.push(`-- Sistema: GestãoPro · MP Piscinas (mppiscina2004@gmail.com)`);
+    lines.push(`-- Sistema: FIRE GESTÃO`);
     lines.push(`-- Gerado em: ${new Date().toLocaleString('pt-BR')}`);
     lines.push('-- Charset: utf8mb4 | Engine: InnoDB');
     lines.push('-- ========================================================');
@@ -1451,21 +1451,21 @@ export const SystemSettingsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <div className="flex items-center gap-2">
-                <Palette className="w-5 h-5 text-indigo-600" />
+                <Palette className="w-5 h-5 text-[#53383e]" />
                 <h2 className="text-base font-bold text-slate-900">
-                  Temas & Paletas Visuais do Sistema
+                  Temas &amp; Paletas Visuais do FIRE GESTÃO
                 </h2>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Alterne instantaneamente o tema de cores em tempo real. As paletas abaixo foram calibradas com fidelidade total à paleta de referência.
+                Escolha entre o tema oficial inspirado na chama do FIRE GESTÃO ou o tema Azul Cobalto. A troca é aplicada instantaneamente.
               </p>
             </div>
-            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 self-start sm:self-auto">
-              Tema Atual: <strong className="text-indigo-600">{themeDefinitions.find(t => t.id === currentTheme)?.name}</strong>
+            <span className="text-xs font-semibold text-slate-600 self-start sm:self-auto">
+              Tema Atual: <strong className="text-[#53383e]">{themeDefinitions.find(t => t.id === currentTheme)?.name}</strong>
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {themeDefinitions.map((th) => {
               const isSelected = currentTheme === th.id;
               return (
@@ -1473,48 +1473,48 @@ export const SystemSettingsView: React.FC = () => {
                   key={th.id}
                   className={`rounded-2xl border transition-all flex flex-col justify-between overflow-hidden ${
                     isSelected
-                      ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/20 shadow-md'
+                      ? 'border-[#53383e] ring-2 ring-orange-500/15 bg-white shadow-md'
                       : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
                   }`}
                 >
                   <div className="p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-black text-sm text-slate-900">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-extrabold text-base text-slate-900">
                         {th.name}
                       </span>
                       {isSelected ? (
-                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> Ativo
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-[#53383e] text-white flex items-center gap-1 shrink-0">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Ativo
                         </span>
                       ) : (
-                        <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        <span className="text-[11px] font-medium text-slate-500 shrink-0">
                           Disponível
                         </span>
                       )}
                     </div>
 
-                    <p className="text-xs text-slate-600 font-medium">
+                    <p className="text-xs text-slate-700 font-semibold">
                       {th.subtitle}
                     </p>
 
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                    <p className="text-xs text-slate-500 leading-relaxed">
                       {th.description}
                     </p>
 
-                    {/* Swatches Visual Pill */}
+                    {/* Amostras de Cor da Paleta */}
                     <div className="pt-2">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 tracking-wider">
-                        Amostras de Cor da Paleta:
+                      <div className="text-[11px] font-semibold text-slate-500 mb-2">
+                        Amostras de Cor da Paleta
                       </div>
                       <div className="flex items-center gap-1.5">
                         {th.swatches.map((hex, i) => (
                           <div key={i} className="flex-1 flex flex-col items-center gap-1">
                             <div
-                              className="w-full h-8 rounded-lg border border-black/10 shadow-xs"
+                              className="w-full h-9 rounded-lg border border-black/10 shadow-2xs"
                               style={{ backgroundColor: hex }}
                               title={hex}
                             />
-                            <span className="text-[9px] font-mono text-slate-500 font-semibold truncate max-w-full">
+                            <span className="text-[10px] font-mono text-slate-500 font-semibold truncate max-w-full">
                               {hex}
                             </span>
                           </div>
@@ -1534,7 +1534,7 @@ export const SystemSettingsView: React.FC = () => {
                       className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                         isSelected
                           ? 'bg-slate-200 text-slate-600 cursor-default'
-                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                          : 'bg-[#53383e] hover:bg-[#432c32] text-white shadow-xs'
                       }`}
                     >
                       <Palette className="w-3.5 h-3.5" />
@@ -1547,9 +1547,9 @@ export const SystemSettingsView: React.FC = () => {
           </div>
 
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-start gap-3">
-            <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+            <Info className="w-4 h-4 text-[#53383e] shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold text-slate-800">Dica de Produtividade:</span> Você pode trocar o tema a qualquer momento nesta aba <strong className="text-slate-800">Temas &amp; Identidade Visual</strong> em Configurações, ou na tela inicial de login com usuário e senha.
+              <span className="font-bold text-slate-800">Dica:</span> Você pode alternar entre o tema <strong className="text-slate-800">Fire Gestão · Chama Alegre</strong> e o tema <strong className="text-slate-800">Azul Cobalto</strong> a qualquer momento nesta aba.
             </div>
           </div>
         </div>

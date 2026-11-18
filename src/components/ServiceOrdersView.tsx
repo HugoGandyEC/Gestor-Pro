@@ -107,7 +107,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     stockMovements,
     generalExpenses,
     cashMovements,
-    loadDemoServiceOrdersData
+    companySettings
   } = useApp();
 
   const [demoLoadedMsg, setDemoLoadedMsg] = useState<string | null>(null);
@@ -1482,10 +1482,9 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     const grandTotal = Math.max(0, srvTotal + prtTotal + Number(chargingOS.visitFee || 0) - Number(chargingOS.calculatedDiscount || 0));
 
     const cleanPhone = chargingOS.clientPhone.replace(/\D/g, '');
-    const message = `Olá ${chargingOS.clientName}, segue a fatura da sua Ordem de Serviço ${chargingOS.code} no GestãoPro:
+    const message = `Olá ${chargingOS.clientName}, segue a fatura da sua Ordem de Serviço ${chargingOS.code} (${companySettings.tradeName || 'FIRE GESTÃO'}):
 Valor Total: ${formatBRL(grandTotal)}
-Chave Pix: pix@gestaopro.com.br (GestãoPro ERP)
-Equipamento: ${chargingOS.equipmentType || 'Aquecedor / Tanque'}
+Equipamento: ${chargingOS.equipmentType || 'Serviço / Equipamento'}
 Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
     const encoded = encodeURIComponent(message);

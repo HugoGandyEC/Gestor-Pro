@@ -16,6 +16,41 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.16',
+    date: '18/11/2026',
+    title: 'Nova Identidade FIRE GESTÃO, Favicon Chama Alegre, Login Solar & Temas Enxutos',
+    summary:
+      'Renomeação oficial do sistema para FIRE GESTÃO, criação do favicon em vetor de mini chama amarela e laranja, reformulação completa da tela de login nas cores alegres da chama e reorganização dos temas para apenas 2 opções: o novo tema oficial Fire Gestão · Chama Alegre e o tema Azul Cobalto.',
+    highlights: [
+      'Favicon Mini Chama (Amarelo + Laranja): ícone vetorial nítido na aba do navegador e identidade visual aplicada no cabeçalho e na tela de login',
+      'Identidade FIRE GESTÃO: renomeação unificada no título, cabeçalho, login, rodapé, portal do cliente, recibos PDF, manuais e documentos exportados',
+      'Tela de Login nas Cores do Favicon: visual alegre e luminoso combinando amarelo solar e laranja vibrante com alta legibilidade',
+      'Temas Enxutos e Harmoniosos: remoção dos temas antigos (Clássico, Terracota, Terra & Oliva e Claro Ouro), mantendo apenas Azul Cobalto e o novo tema Fire Gestão · Chama Alegre (laranja, amarelo, verde petróleo, esmeralda e marfim suave)'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Adicionado favicon vetorial oficial em mini chama unindo amarelo solar e laranja vibrante, replicado como ícone da marca na tela de login e no cabeçalho do sistema.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Sistema renomeado para FIRE GESTÃO em todo o aplicativo (título da aba, tela de login, cabeçalho, rodapé, portal do cliente, recibos, fechamentos, manuais e migração automática de nomes padrão antigos).'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Tela de login totalmente redesenhada nas cores alegres do favicon (amarelo solar + laranja chama sobre fundo iluminado), com cartão limpo e alto contraste.'
+      },
+      {
+        category: 'Removido',
+        description:
+          'Removidos os temas pré-instalados anteriores (Clássico, Terracota & Ardósia Mineral, Terra & Oliva e Claro & Suave), preservando o tema Azul Cobalto e adicionando o novo tema oficial Fire Gestão · Chama Alegre como padrão.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.15',
     date: '18/11/2026',
     title: 'Zero Absoluto + Revisão Geral do DRE e de Todos os Demonstrativos Financeiros',

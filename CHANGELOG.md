@@ -1,6 +1,17 @@
-# Histórico de Versões e Alterações — GestãoPro ERP
+# Histórico de Versões e Alterações — FIRE GESTÃO
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.15`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.16`).
+
+---
+
+## [v2.7.16] — 18/11/2026
+**Nova Identidade FIRE GESTÃO, Favicon Chama Alegre, Tela de Login & Temas Enxutos**
+
+### Adicionado & Alterado
+- **Favicon Oficial (Mini Chama Amarela & Laranja)**: criação de ícone vetorial alegre e vibrante unindo amarelo solar e laranja chama na aba do navegador e como emblema padrão no cabeçalho e na tela de login.
+- **Renomeação para FIRE GESTÃO**: atualização completa do nome do sistema no título HTML, tela de login, cabeçalho, rodapé, recibos PDF, portal do cliente, fechamentos, manuais e migração automática do nome padrão antigo.
+- **Tela de Login nas Cores do Favicon**: paleta alegre e iluminada combinando amarelo solar e laranja chama, cartão branco elevado com barra superior degradê da chama e alto contraste.
+- **Temas do Sistema**: remoção dos temas antigos pré-instalados, mantendo apenas **Azul Cobalto** e o novo tema oficial **Fire Gestão · Chama Alegre** (laranja chama + amarelo solar harmonizados com verde petróleo, esmeralda, grafite quente e fundo marfim suave).
 
 ---
 

@@ -2005,7 +2005,7 @@ export const ProductsAndStockView: React.FC = () => {
                     </div>
                     <input
                       type="text"
-                      placeholder={name || "Ex: Reservatório Boiler 600L Inox 316L Alta Pressão | GestãoPro"}
+                      placeholder={name || "Ex: Reservatório Boiler 600L Inox 316L Alta Pressão | FIRE GESTÃO"}
                       value={metaTitle}
                       onChange={(e) => setMetaTitle(e.target.value)}
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
@@ -2056,7 +2056,7 @@ export const ProductsAndStockView: React.FC = () => {
                       <span className="text-slate-400">› produtos › {slug || 'reservatorio-termico'}</span>
                     </div>
                     <div className="text-blue-700 hover:underline font-medium text-sm font-sans cursor-pointer truncate">
-                      {metaTitle || name || 'Título do Produto | Loja GestãoPro'}
+                      {metaTitle || name || 'Título do Produto | Loja FIRE GESTÃO'}
                     </div>
                     <p className="text-[11px] text-[#4d5156] line-clamp-2 leading-relaxed">
                       {metaDescription || description || 'Descrição otimizada do produto indexada nos motores de busca com especificações e melhores condições de compra.'}

@@ -836,7 +836,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-extrabold text-[#363739] tracking-tight">
-                  Manual de Uso do Sistema GestãoPro
+                  Manual de Uso do Sistema FIRE GESTÃO
                 </h2>
                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
                   Por Categoria & Módulo
@@ -1292,7 +1292,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         <div className="px-6 py-3.5 bg-slate-50 border-t border-[#d8d8d8] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Manual Oficial GestãoPro {SYSTEM_VERSION} · Atualizado e em conformidade operacional</span>
+            <span>Manual Oficial FIRE GESTÃO {SYSTEM_VERSION} · Atualizado e em conformidade operacional</span>
           </div>
 
           <div className="flex items-center gap-3">

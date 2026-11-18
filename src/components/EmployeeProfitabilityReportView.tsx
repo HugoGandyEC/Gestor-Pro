@@ -147,7 +147,7 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {companySettings.tradeName || companySettings.companyName || 'GestãoPro'} · Apuração exata da receita faturada deduzindo peças, salários, comissões, combustível, manutenção da frota e despesas operacionais.
+              {companySettings.tradeName || companySettings.companyName || 'FIRE GESTÃO'} · Apuração exata da receita faturada deduzindo peças, salários, comissões, combustível, manutenção da frota e despesas operacionais.
             </p>
           </div>
         </div>

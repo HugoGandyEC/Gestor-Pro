@@ -116,7 +116,7 @@ export const PaymentReceiptModal: React.FC<PaymentReceiptModalProps> = ({ receip
       ? `Ordem de Serviço Nº ${receipt.sourceCode}`
       : `Venda Direta Nº ${receipt.sourceCode}`;
 
-  const companyDisplayName = companySettings.tradeName || companySettings.companyName || 'GestãoPro';
+  const companyDisplayName = companySettings.tradeName || companySettings.companyName || 'FIRE GESTÃO';
 
   return (
     <>

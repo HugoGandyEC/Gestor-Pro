@@ -113,7 +113,7 @@ Emissão: ${new Date().toLocaleString('pt-BR')}
 4. TAXAS DE CARTÃO DEDUZIDAS: ${formatBRL(totalCardFees)}
 5. COMPRAS DE FORNECEDORES (XML): ${formatBRL(totalPurchasesCost)}
 ========================================================================
-Salvo automaticamente via Google Drive pelo ERP GestãoPro.
+Salvo automaticamente via Google Drive pelo FIRE GESTÃO.
 `;
 
       const fileName = `Fechamento_Contabil_${selectedMonthYear}_${(companySettings.tradeName || 'Empresa').replace(/\s+/g, '_')}.txt`;
@@ -150,7 +150,7 @@ Salvo automaticamente via Google Drive pelo ERP GestãoPro.
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {companySettings.tradeName || companySettings.companyName || 'GestãoPro'} · Consolidação das notas fiscais, faturamento tributável (Serviços vs Comércio) e deduções fiscais.
+              {companySettings.tradeName || companySettings.companyName || 'FIRE GESTÃO'} · Consolidação das notas fiscais, faturamento tributável (Serviços vs Comércio) e deduções fiscais.
             </p>
           </div>
         </div>

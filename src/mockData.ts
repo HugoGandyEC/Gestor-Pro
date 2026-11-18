@@ -234,8 +234,8 @@ export const initialWarrantyPolicies: WarrantyPolicy[] = [
 ];
 
 export const initialCompanySettings: CompanySettings = {
-  companyName: 'GestãoPro - Assistência Técnica & Vendas',
-  tradeName: 'GestãoPro ERP',
+  companyName: 'FIRE GESTÃO - Assistência Técnica & Vendas',
+  tradeName: 'FIRE GESTÃO',
   cnpj: '',
   ie: '',
   im: '',
@@ -262,113 +262,49 @@ export const initialChecklistTemplates: ChecklistTemplate[] = [];
 
 export const themeDefinitions: ThemeDefinition[] = [
   {
-    id: 'classico',
-    name: 'MP Piscina Clássico',
-    subtitle: 'Vinho Nobre & Grafite Urbano',
-    description: 'Identidade visual original com tons nobres de vinho, grafite, sálvia e canvas clean.',
-    swatches: ['#53383e', '#363739', '#c2bfb0', '#d8d8d8', '#f4f5f6'],
+    id: 'fire_gestao',
+    name: 'Fire Gestão · Chama Alegre',
+    subtitle: 'Laranja Chama, Amarelo Solar, Verde Petróleo & Menta',
+    description:
+      'Paleta oficial inspirada no favicon do FIRE GESTÃO: combina laranja vibrante (#EA580C) e amarelo solar alegre (#FACC15 / #F59E0B) com tons harmoniosos de verde petróleo (#0D9488), esmeralda (#059669), grafite quente (#231914) e fundo marfim suave (#FAF7F2) para conforto visual durante todo o expediente.',
+    swatches: ['#EA580C', '#F59E0B', '#FACC15', '#0D9488', '#059669', '#231914', '#FAF7F2'],
     colors: {
-      primary: '#53383e',
-      primaryHover: '#422c31',
-      secondary: '#363739',
-      accent: '#2563eb',
-      canvas: '#f4f5f6',
+      primary: '#EA580C',
+      primaryHover: '#C2410C',
+      secondary: '#F59E0B',
+      accent: '#0D9488',
+      canvas: '#FAF7F2',
       surface: '#ffffff',
-      sidebarBg: '#53383e',
-      sidebarText: '#ffffff',
-      headerBg: '#53383e',
-      headerText: '#ffffff',
-      badgeBg: '#e8e5dc',
-      badgeText: '#53383e',
-      border: '#e2e8f0'
-    }
-  },
-  {
-    id: 'terracota_mineral',
-    name: 'Terracota & Ardósia Mineral',
-    subtitle: 'Paleta Anexada (#615F6D / #A67153 / #594A3C / #26241E / #F2E6D8)',
-    description: 'Tema calibrado com todas as cores da paleta fornecida: estrutura em grafite ônix e café bronze (#26241E / #594A3C), terracota nobre vibrante (#A67153), ardósia violeta (#615F6D) e canvas em linho areia claro (#F2E6D8).',
-    swatches: ['#26241E', '#594A3C', '#A67153', '#615F6D', '#F2E6D8'],
-    colors: {
-      primary: '#A67153',
-      primaryHover: '#8d5b3f',
-      secondary: '#594A3C',
-      accent: '#615F6D',
-      canvas: '#F8F3ED',
-      surface: '#ffffff',
-      sidebarBg: '#26241E',
-      sidebarText: '#F2E6D8',
+      sidebarBg: '#231914',
+      sidebarText: '#FEF3C7',
       headerBg: '#ffffff',
-      headerText: '#26241E',
-      badgeBg: '#F2E6D8',
-      badgeText: '#A67153',
-      border: '#dfd3c3'
+      headerText: '#1C1917',
+      badgeBg: '#FFF3E0',
+      badgeText: '#C2410C',
+      border: '#EDE4D8'
     }
   },
   {
     id: 'solar_vivido',
-    name: 'Solar & Cobalto Alegre',
-    subtitle: 'Cores Vívidas, Convencional & Agradável',
-    description: 'Layout vibrante, altamente convencional e agradável para uso diário. Estrutura em azul cobalto dinâmico (#1D4ED8), toques quentes em âmbar solar (#F59E0B) e coral (#EA580C), verde esmeralda (#10B981) e canvas limpo (#F8FAFC).',
-    swatches: ['#1D4ED8', '#F59E0B', '#EA580C', '#10B981', '#0EA5E9', '#F8FAFC'],
+    name: 'Azul Cobalto',
+    subtitle: 'Azul Profissional, Celeste, Esmeralda & Canvas Limpo',
+    description:
+      'Tema azul clássico e agradável para uso diário: azul cobalto dinâmico (#1D4ED8), menu lateral azul-marinho profundo (#0F172A), detalhes em azul celeste (#0EA5E9), verde esmeralda (#10B981) e fundo neutro claro (#F8FAFC).',
+    swatches: ['#1D4ED8', '#0EA5E9', '#0F172A', '#10B981', '#F59E0B', '#F8FAFC'],
     colors: {
       primary: '#1D4ED8',
-      primaryHover: '#1e40af',
-      secondary: '#F59E0B',
-      accent: '#EA580C',
+      primaryHover: '#1E40AF',
+      secondary: '#0EA5E9',
+      accent: '#10B981',
       canvas: '#F8FAFC',
       surface: '#ffffff',
       sidebarBg: '#0F172A',
       sidebarText: '#F8FAFC',
       headerBg: '#ffffff',
       headerText: '#0F172A',
-      badgeBg: '#FEF3C7',
-      badgeText: '#B45309',
+      badgeBg: '#EFF6FF',
+      badgeText: '#1D4ED8',
       border: '#E2E8F0'
-    }
-  },
-  {
-    id: 'terra_oliva',
-    name: 'Terra & Oliva Vibrante',
-    subtitle: 'Paleta Terrosa (#50231D / #76321A / #9C5C26 / #6C6643 / #E8D1A7)',
-    description: 'Cores quentes e terrosas vibrantes combinadas com oliva floresta e marfim suave.',
-    swatches: ['#50231D', '#76321A', '#9C5C26', '#633C2C', '#6C6643', '#9C9167', '#E8D1A7'],
-    colors: {
-      primary: '#50231D',
-      primaryHover: '#3c1a15',
-      secondary: '#76321A',
-      accent: '#9C5C26',
-      canvas: '#FBF8F3',
-      surface: '#ffffff',
-      sidebarBg: '#50231D',
-      sidebarText: '#FBF8F3',
-      headerBg: '#50231D',
-      headerText: '#ffffff',
-      badgeBg: '#E8D1A7',
-      badgeText: '#50231D',
-      border: '#ebdcc5'
-    }
-  },
-  {
-    id: 'claro_ouro',
-    name: 'Claro & Suave com Cores Vibrantes',
-    subtitle: 'Paleta Solar (#3F3F3D / #985B4A / #DBA159 / #778489 / #F2E8DF)',
-    description: 'Visual claro, suave e contemporâneo com destaque para ouro vibrante solar, ardósia mineral e linho claro.',
-    swatches: ['#3F3F3D', '#985B4A', '#9C7A4E', '#DBA159', '#778489', '#9AA8A4', '#F2E8DF'],
-    colors: {
-      primary: '#3F3F3D',
-      primaryHover: '#2a2a29',
-      secondary: '#985B4A',
-      accent: '#DBA159',
-      canvas: '#F9F6F0',
-      surface: '#ffffff',
-      sidebarBg: '#3F3F3D',
-      sidebarText: '#F2E8DF',
-      headerBg: '#3F3F3D',
-      headerText: '#ffffff',
-      badgeBg: '#faebd7',
-      badgeText: '#985B4A',
-      border: '#e4dcd3'
     }
   }
 ];
@@ -378,7 +314,7 @@ export const initialAuthUsers: AuthUser[] = [
     id: 'usr-admin',
     username: 'admin',
     name: 'Administrador',
-    email: 'admin@gestaopro.com.br',
+    email: 'admin@firegestao.com.br',
     active: true,
     role: 'admin',
     roleBadge: 'Administrador Geral'
