@@ -3414,24 +3414,27 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
 
     const autoEntries: GeneralExpense[] = [];
 
-    // 1. Contas Recorrentes, Parceladas & Custos Cadastrados (Aluguel, Telefone, Internet, Materiais, etc.)
+    // 1. Contas Recorrentes, Parceladas, Pontuais & Custos Cadastrados (Aluguel, Telefone, Internet, Materiais, etc.)
     setupCosts.forEach(item => {
       if (item.syncWithGeneralExpenses === false) return;
-      if (item.status === 'quitado') return;
+      if (item.status === 'planejado') return;
 
       const isRecurrent = item.costType === 'recorrente' || item.isRecurring === true;
       const isInstallment = item.costType === 'parcelado';
-      if (!isRecurrent && !isInstallment) return;
+      const isOneTime = !isRecurrent && !isInstallment;
+
+      if ((isRecurrent || isInstallment) && item.status === 'quitado') return;
+
+      let dueDate = item.dueDate || item.date || `${monthYear}-${String(item.dueDay || 10).padStart(2, '0')}`;
+      if ((isRecurrent || isInstallment) && !dueDate.startsWith(monthYear) && item.dueDay) {
+        dueDate = `${monthYear}-${String(item.dueDay).padStart(2, '0')}`;
+      }
+      if (isOneTime && !dueDate.startsWith(monthYear)) return;
 
       const cost = isInstallment
         ? (item.installmentValue || (item.installmentsCount ? item.actualCost / item.installmentsCount : item.actualCost))
         : (item.installmentValue || item.actualCost || 0);
       if (cost <= 0) return;
-
-      let dueDate = item.dueDate || `${monthYear}-${String(item.dueDay || 10).padStart(2, '0')}`;
-      if (!dueDate.startsWith(monthYear) && item.dueDay) {
-        dueDate = `${monthYear}-${String(item.dueDay).padStart(2, '0')}`;
-      }
 
       const expenseDescription = isInstallment
         ? `${item.name} (Parc. ${(item.paidInstallments || 0) + 1}/${item.installmentsCount || 1})`
@@ -3455,7 +3458,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         description: expenseDescription,
         cost: Number(cost.toFixed(2)),
         dueDate,
-        isPaid: prevEntry?.isPaid ?? false,
+        isPaid: prevEntry?.isPaid ?? (isOneTime && item.status === 'quitado'),
         paymentDate: prevEntry?.paymentDate,
         supplier: item.creditor || 'Contas da Empresa',
         isRecurring: isRecurrent

@@ -56,6 +56,7 @@ type SettingsTab =
   | 'sequences'
   | 'warranty'
   | 'themes'
+  | 'audit'
   | 'cardRates' 
   | 'fiscal' 
   | 'whatsapp'
@@ -95,7 +96,8 @@ export const SystemSettingsView: React.FC = () => {
     lookupCnpj,
     currentTheme,
     setTheme,
-    themeDefinitions
+    themeDefinitions,
+    auditLogs
   } = useApp();
 
   // MySQL Integration & Dump state
@@ -108,6 +110,8 @@ export const SystemSettingsView: React.FC = () => {
   const [copiedMysqlDump, setCopiedMysqlDump] = useState(false);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('company');
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditRoleFilter, setAuditRoleFilter] = useState<string>('todos');
   const [formData, setFormData] = useState<CompanySettings>({ ...companySettings });
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
@@ -542,6 +546,7 @@ export const SystemSettingsView: React.FC = () => {
     { id: 'fiscal', label: 'Ambiente Fiscal & NF-e', icon: FileText },
     { id: 'users', label: 'Usuários & Acessos', icon: UserCog },
     { id: 'permissions', label: 'Matriz de Permissões (RBAC)', icon: Lock },
+    { id: 'audit', label: 'Logs & Auditoria', icon: Shield },
     { id: 'backup', label: 'Gestão de Dados, Limpeza & Restauração', icon: Database }
   ];
 
@@ -1518,7 +1523,7 @@ export const SystemSettingsView: React.FC = () => {
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-start gap-3">
             <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold text-slate-800">Dica de Produtividade:</span> Você também pode trocar o tema a qualquer momento diretamente no cabeçalho superior através do botão <strong className="text-slate-800">Tema</strong>, ou na própria tela inicial de login com usuário e senha.
+              <span className="font-bold text-slate-800">Dica de Produtividade:</span> Você pode trocar o tema a qualquer momento nesta aba <strong className="text-slate-800">Temas &amp; Identidade Visual</strong> em Configurações, ou na tela inicial de login com usuário e senha.
             </div>
           </div>
         </div>
@@ -2131,6 +2136,99 @@ export const SystemSettingsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* TAB: LOGS & AUDITORIA */}
+      {activeTab === 'audit' && (() => {
+        const filteredLogs = auditLogs.filter(log => {
+          const matchesRole = auditRoleFilter === 'todos' || log.userRole === auditRoleFilter;
+          const q = auditSearch.trim().toLowerCase();
+          const matchesText =
+            !q ||
+            log.action.toLowerCase().includes(q) ||
+            log.details.toLowerCase().includes(q) ||
+            log.userName.toLowerCase().includes(q);
+          return matchesRole && matchesText;
+        });
+
+        return (
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-indigo-600" />
+                  <h2 className="text-base font-bold text-slate-900">
+                    Logs de Auditoria &amp; Monitor de Segurança
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Histórico imutável de ações críticas, alterações de status de O.S., exclusões, movimentações financeiras e importações.
+                </p>
+              </div>
+              <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 self-start sm:self-auto">
+                {filteredLogs.length} / {auditLogs.length} registros
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  placeholder="Filtrar logs por ação, descrição ou usuário..."
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+              <select
+                value={auditRoleFilter}
+                onChange={(e) => setAuditRoleFilter(e.target.value)}
+                aria-label="Filtrar logs por perfil"
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                <option value="todos">Todos os Perfis</option>
+                <option value="admin">Administrador</option>
+                <option value="colaborador">Colaborador</option>
+                <option value="vendedor">Vendedor</option>
+                <option value="tecnico">Técnico</option>
+                <option value="contador">Contador</option>
+                <option value="cliente">Cliente</option>
+              </select>
+            </div>
+
+            <div className="space-y-2.5 max-h-[560px] overflow-y-auto pr-1">
+              {filteredLogs.length === 0 ? (
+                <div className="text-center py-10 text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                  Nenhum registro de auditoria encontrado para os filtros aplicados.
+                </div>
+              ) : (
+                filteredLogs.map(log => (
+                  <div key={log.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">{log.action}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold uppercase bg-indigo-100 text-indigo-800">
+                          {log.userRole}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[11px] text-slate-500 flex items-center gap-1 tabular-nums">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        {log.timestamp}
+                      </span>
+                    </div>
+                    <p className="text-slate-700 text-xs leading-relaxed">
+                      {log.details}
+                    </p>
+                    <div className="text-[11px] text-slate-500 font-medium">
+                      Usuário responsável: <strong className="text-slate-700">{log.userName}</strong>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL: CRIAR / EDITAR POLÍTICA DE GARANTIA */}
       {isWarrantyModalOpen && (

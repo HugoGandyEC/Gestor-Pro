@@ -22,7 +22,6 @@ import { GoogleDriveView } from './components/GoogleDriveView';
 import { GoogleCalendarView } from './components/GoogleCalendarView';
 import { SystemSettingsView } from './components/SystemSettingsView';
 import { SystemDocumentationModal } from './components/SystemDocumentationModal';
-import { AuditLogsModal } from './components/AuditLogsModal';
 import { SystemHelpModal } from './components/SystemHelpModal';
 import { SystemManualView } from './components/SystemManualView';
 import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
@@ -77,7 +76,6 @@ const MainLayout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
-  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   const handleSetActiveTab = React.useCallback((tab: ActiveTab) => {
@@ -200,7 +198,6 @@ const MainLayout: React.FC = () => {
         }}
         onOpenPdv={() => handleSetActiveTab('pdv')}
         onOpenDoc={() => setIsDocModalOpen(true)}
-        onOpenAuditLogs={() => setIsAuditModalOpen(true)}
         onOpenHelp={() => setIsHelpModalOpen(true)}
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
@@ -242,12 +239,6 @@ const MainLayout: React.FC = () => {
       <SystemDocumentationModal 
         isOpen={isDocModalOpen}
         onClose={() => setIsDocModalOpen(false)}
-      />
-
-      {/* Audit Logs Modal */}
-      <AuditLogsModal
-        isOpen={isAuditModalOpen}
-        onClose={() => setIsAuditModalOpen(false)}
       />
 
       {/* Logout Confirmation Modal */}

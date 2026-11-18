@@ -307,28 +307,18 @@ const FlexibleChartCard: React.FC<FlexibleChartCardProps> = ({
               {summaryRight}
             </span>
           )}
-          <div className="hidden md:inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-            {CHART_MODELS.map((m) => {
-              const Icon = m.icon;
-              const isSelected = activeModel === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onOverrideChange(id, m.id)}
-                  title={`Modelo: ${m.label}`}
-                  aria-label={`${title} - ${m.label}`}
-                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#53383e] text-white font-semibold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                </button>
-              );
-            })}
-          </div>
+          <select
+            value={activeModel}
+            onChange={(e) => onOverrideChange(id, e.target.value as ChartModelType)}
+            aria-label={`Modelo do gráfico ${title}`}
+            className="hidden md:block px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 cursor-pointer"
+          >
+            {CHART_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

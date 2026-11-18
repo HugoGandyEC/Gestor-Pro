@@ -50,6 +50,7 @@ import {
   ServiceOrderStatus, 
   ServiceItem, 
   PartItem, 
+  Product,
   PaymentMethod, 
   ChecklistItem, 
   PaymentSplit, 
@@ -61,7 +62,7 @@ import { ServiceOrderPrintTemplate } from './ServiceOrderPrintTemplate';
 import { getScopedServiceOrders } from '../security/secureDataAccess';
 import { WhatsAppModal } from './WhatsAppModal';
 import { TablePagination } from './TablePagination';
-import { LiveSearchInput } from './LiveSearchInput';
+import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
 import { useRowHoverTooltip } from './RowHoverTooltip';
@@ -319,6 +320,12 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [customServiceCategory, setCustomServiceCategory] = useState('Serviço Geral');
   const [customServiceHours, setCustomServiceHours] = useState<number>(1);
   const [customServicePrice, setCustomServicePrice] = useState<number | ''>('');
+
+  // Stock Products / Parts Search & Add in OS State
+  const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedPartQty, setSelectedPartQty] = useState<number>(1);
+  const [partFeedback, setPartFeedback] = useState<string | null>(null);
 
   // States for 'novo_vinculado': Criar Serviço e Checklist simultaneamente e vinculá-los
   const [newServiceName, setNewServiceName] = useState('');
@@ -579,8 +586,45 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const handleAddPart = () => {
     setParts(prev => [
       ...prev,
-      { id: String(Date.now()), name: '', cost: 50, price: 120, quantity: 1, unit: 'PC' }
+      { id: `part-avulso-${Date.now()}`, name: '', cost: 0, price: 0, quantity: 1, unit: 'UN' }
     ]);
+  };
+
+  const handleAddRegisteredProduct = (product: Product, qtyInput?: number) => {
+    const selectedClientObj = clients.find(c => c.id === clientId);
+    const isWholesale = selectedClientObj?.customerType === 'atacado';
+    const unitPrice = isWholesale
+      ? Number(product.wholesalePrice || product.retailPrice || 0)
+      : Number(product.retailPrice || 0);
+    const qtyToAdd = Math.max(1, Number(qtyInput ?? selectedPartQty) || 1);
+
+    setParts(prev => {
+      const cleaned = prev.filter(p => p.name.trim() !== '');
+      const existingIdx = cleaned.findIndex(p => p.productId === product.id);
+      if (existingIdx >= 0) {
+        return cleaned.map((p, i) =>
+          i === existingIdx ? { ...p, quantity: Number(p.quantity || 0) + qtyToAdd } : p
+        );
+      }
+      return [
+        ...cleaned,
+        {
+          id: `part-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          productId: product.id,
+          name: product.name,
+          cost: Number(product.costPrice || 0),
+          price: unitPrice,
+          quantity: qtyToAdd,
+          unit: product.unit || 'UN'
+        }
+      ];
+    });
+
+    setPartSearchTerm('');
+    setSelectedProductId('');
+    setSelectedPartQty(1);
+    setPartFeedback(`Produto "${product.name}" (${qtyToAdd} ${product.unit || 'UN'}) adicionado à OS!`);
+    setTimeout(() => setPartFeedback(null), 3500);
   };
 
   const addDaysIso = (baseIso: string, days: number): string => {
@@ -830,6 +874,10 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
         amount: modalGrandTotal
       })
     ]);
+    setPartSearchTerm('');
+    setSelectedProductId('');
+    setSelectedPartQty(1);
+    setPartFeedback(null);
     setIsNewModalOpen(true);
   };
 
@@ -891,6 +939,10 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     setCalcEntryAmount('');
     setCalcEntryDate(today);
     setCalcFirstDueDate(today);
+    setPartSearchTerm('');
+    setSelectedProductId('');
+    setSelectedPartQty(1);
+    setPartFeedback(null);
     setIsNewModalOpen(true);
   };
 
@@ -3506,87 +3558,229 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
               {/* Peças e Materiais Aplicados */}
               <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
                       <Layers className="w-4 h-4" />
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Peças & Materiais Aplicados</h4>
-                      <p className="text-[11px] text-slate-500">Componentes e produtos instalados na manutenção</p>
+                      <p className="text-[11px] text-slate-500">Busque produtos cadastrados no estoque ou adicione peças avulsas</p>
                     </div>
                   </div>
                   <button 
                     type="button" 
                     onClick={handleAddPart} 
-                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs self-start sm:self-auto"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Adicionar Peça
+                    <Plus className="w-3.5 h-3.5" /> Peça Avulsa
                   </button>
                 </div>
+
+                {/* Busca e Seleção de Produtos Cadastrados no Estoque */}
+                {(() => {
+                  const selectedClientObj = clients.find(c => c.id === clientId);
+                  const isWholesaleClient = selectedClientObj?.customerType === 'atacado';
+                  const sortedProducts = [...products].sort((a, b) => a.name.localeCompare(b.name));
+                  const chosenProduct = products.find(p => p.id === selectedProductId);
+
+                  return (
+                    <div className="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                          <Search className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Buscar &amp; Incluir Produto Cadastrado no Estoque</span>
+                        </label>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {products.length} item(ns) · Tabela {isWholesaleClient ? 'Atacado' : 'Varejo'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                        <div className="md:col-span-5">
+                          <LiveSearchInput<Product>
+                            value={partSearchTerm}
+                            onChange={setPartSearchTerm}
+                            minChars={1}
+                            maxResults={20}
+                            clearOnSelect
+                            placeholder="Buscar produto por nome, código, SKU, marca ou código de barras..."
+                            emptyLabel="Nenhum produto encontrado"
+                            inputClassName="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white"
+                            getOptions={(query): LiveSearchOption<Product>[] => {
+                              const q = query.trim().toLowerCase();
+                              return sortedProducts
+                                .filter(p =>
+                                  p.name.toLowerCase().includes(q) ||
+                                  (p.code || '').toLowerCase().includes(q) ||
+                                  (p.sku || '').toLowerCase().includes(q) ||
+                                  (p.barcode || '').toLowerCase().includes(q) ||
+                                  (p.brand || '').toLowerCase().includes(q) ||
+                                  (p.category || '').toLowerCase().includes(q) ||
+                                  (p.tags || []).some(t => t.toLowerCase().includes(q))
+                                )
+                                .map((prod) => {
+                                  const unitPrice = isWholesaleClient
+                                    ? Number(prod.wholesalePrice || prod.retailPrice || 0)
+                                    : Number(prod.retailPrice || 0);
+                                  return {
+                                    id: prod.id,
+                                    title: prod.name,
+                                    subtitle: `${prod.code || prod.sku || 'S/C'}${prod.brand ? ` · ${prod.brand}` : ''} · Estoque: ${prod.currentStock} ${prod.unit}`,
+                                    priceText: formatBRL(unitPrice),
+                                    thumbnailUrl: prod.photos?.[0],
+                                    badgeText: isWholesaleClient ? 'Atacado' : 'Varejo',
+                                    badgeClassName: isWholesaleClient
+                                      ? 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800'
+                                      : 'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700',
+                                    data: prod
+                                  };
+                                });
+                            }}
+                            onSelect={(opt) => handleAddRegisteredProduct(opt.data, selectedPartQty)}
+                          />
+                        </div>
+
+                        <div className="md:col-span-4">
+                          <select
+                            value={selectedProductId}
+                            onChange={(e) => setSelectedProductId(e.target.value)}
+                            aria-label="Selecionar produto cadastrado do estoque"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:bg-white"
+                          >
+                            <option value="">-- Ou escolha na lista do Estoque ({products.length}) --</option>
+                            {sortedProducts.map(prod => {
+                              const unitPrice = isWholesaleClient
+                                ? Number(prod.wholesalePrice || prod.retailPrice || 0)
+                                : Number(prod.retailPrice || 0);
+                              return (
+                                <option key={prod.id} value={prod.id}>
+                                  {prod.name} ({prod.code || prod.sku || 'S/C'}) — {formatBRL(unitPrice)} · Est: {prod.currentStock} {prod.unit}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        <div className="md:col-span-3 flex items-center gap-2">
+                          <div className="flex items-center gap-1 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200 shrink-0">
+                            <span className="text-[10px] text-slate-500 font-mono">Qtd:</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={selectedPartQty}
+                              onChange={(e) => setSelectedPartQty(Math.max(1, Number(e.target.value) || 1))}
+                              className="w-12 text-xs font-mono font-bold text-center bg-transparent"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!chosenProduct}
+                            onClick={() => chosenProduct && handleAddRegisteredProduct(chosenProduct, selectedPartQty)}
+                            className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-xs whitespace-nowrap"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Incluir</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {partFeedback && (
+                        <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{partFeedback}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="space-y-2">
                   {parts.length === 0 ? (
                     <div className="p-3 text-center text-xs text-slate-400 bg-white rounded-lg border border-dashed border-slate-300">
-                      Nenhuma peça vinculada a esta OS. Clique no botão acima para adicionar peças do estoque ou avulsas.
+                      Nenhuma peça vinculada a esta OS. Busque acima no estoque ou clique em &quot;Peça Avulsa&quot;.
                     </div>
                   ) : (
-                    parts.map((prt, idx) => (
-                      <div key={prt.id || idx} className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="Nome / Descrição da peça aplicada"
-                          value={prt.name}
-                          onChange={(e) => {
-                            const up = [...parts];
-                            up[idx].name = e.target.value;
-                            setParts(up);
-                          }}
-                          className="flex-1 p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium"
-                        />
-                        <div className="flex items-center gap-2 self-end sm:self-auto">
-                          <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                            <span className="text-[10px] text-slate-400 font-mono">Qtd:</span>
+                    parts.map((prt, idx) => {
+                      const linkedProd = prt.productId ? products.find(p => p.id === prt.productId) : undefined;
+                      return (
+                        <div key={prt.id || idx} className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span
+                              className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                prt.productId
+                                  ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-200'
+                              }`}
+                            >
+                              {prt.productId ? 'Estoque' : 'Avulsa'}
+                            </span>
                             <input
-                              type="number"
-                              min="1"
-                              placeholder="1"
-                              value={prt.quantity}
+                              type="text"
+                              placeholder="Nome / Descrição da peça aplicada"
+                              value={prt.name}
                               onChange={(e) => {
                                 const up = [...parts];
-                                up[idx].quantity = Number(e.target.value);
+                                up[idx] = { ...up[idx], name: e.target.value };
                                 setParts(up);
                               }}
-                              className="w-12 text-xs font-mono font-semibold text-center bg-transparent"
+                              className="flex-1 min-w-0 p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium"
                             />
+                            {linkedProd && (
+                              <span className="hidden lg:inline text-[10px] font-mono text-slate-400 shrink-0">
+                                Est: {linkedProd.currentStock} {linkedProd.unit}
+                              </span>
+                            )}
                           </div>
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-400 font-mono">Qtd:</span>
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="1"
+                                value={prt.quantity}
+                                onChange={(e) => {
+                                  const up = [...parts];
+                                  up[idx] = { ...up[idx], quantity: Math.max(1, Number(e.target.value) || 1) };
+                                  setParts(up);
+                                }}
+                                className="w-12 text-xs font-mono font-semibold text-center bg-transparent"
+                              />
+                            </div>
 
-                          <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                            <span className="text-[10px] text-slate-400 font-mono">R$:</span>
-                            <input
-                              type="number"
-                              placeholder="0,00"
-                              value={prt.price}
-                              onChange={(e) => {
-                                const up = [...parts];
-                                up[idx].price = Number(e.target.value);
-                                setParts(up);
-                              }}
-                              className="w-20 text-xs font-mono font-bold text-slate-900 bg-transparent"
-                            />
+                            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-400 font-mono">R$:</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                placeholder="0,00"
+                                value={prt.price}
+                                onChange={(e) => {
+                                  const up = [...parts];
+                                  up[idx] = { ...up[idx], price: Number(e.target.value) || 0 };
+                                  setParts(up);
+                                }}
+                                className="w-20 text-xs font-mono font-bold text-slate-900 bg-transparent"
+                              />
+                            </div>
+
+                            <span className="text-[11px] font-mono font-bold text-slate-700 w-20 text-right tabular-nums">
+                              {formatBRL(Number(prt.price || 0) * Number(prt.quantity || 1))}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => setParts(prev => prev.filter((_, i) => i !== idx))}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Remover peça"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setParts(prev => prev.filter((_, i) => i !== idx))}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Remover peça"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

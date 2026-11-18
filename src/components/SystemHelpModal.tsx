@@ -497,10 +497,9 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           icon: Palette,
           badge: 'Personalização Visual',
           objective: 'Alternar entre as identidades visuais do sistema: Clássico, Terra & Oliva, Claro Ouro, Terracota Mineral e Solar Alegre.',
-          summary: 'Permite selecionar a paleta visual ideal com 1 clique diretamente pelo menu superior ou nas configurações.',
+          summary: 'Permite selecionar a paleta visual ideal com 1 clique diretamente nas configurações do sistema.',
           howToUse: [
-            'Clique no botão de paleta "Tema" no canto superior direito do cabeçalho.',
-            'Ou acesse "Configurações" e clique na aba "Temas & Cores".',
+            'Acesse "Configurações" no menu lateral e clique na aba "Temas & Identidade Visual".',
             'Escolha entre o Clássico, as paletas minerais terrosas (#615F6D/#A67153/#594A3C/#26241E/#F2E6D8) ou o tema Solar Cobalto vívido e alegre.',
             'O sistema atualiza instantaneamente todo o layout sem necessidade de recarregar.'
           ],
@@ -636,9 +635,8 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           objective: 'Alternar instantaneamente as cores do sistema entre 3 temas desenhados com alto contraste e elegância.',
           summary: 'Tema MP Piscina Clássico, Tema Terra & Oliva Vibrante (Paleta 1) e Tema Claro & Suave com Ouro Vibrante (Paleta 2).',
           howToUse: [
-            'Clique no botão "Tema" com o ícone da paleta de cores no cabeçalho superior.',
-            'Ou acesse a aba "Temas & Cores" dentro de Configurações.',
-            'Escolha entre os 3 temas disponíveis com amostra das cores oficiais.',
+            'Acesse "Configurações" no menu lateral e clique na aba "Temas & Identidade Visual".',
+            'Escolha entre os temas disponíveis com amostra das cores oficiais.',
             'A aplicação atualiza as cores de menus, botões, tabelas e cabeçalhos imediatamente.'
           ],
           tips: 'O tema Claro & Suave com Ouro Vibrante oferece leitura agradável para atendimentos diurnos.',
@@ -669,12 +667,12 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           objective: 'Rastrear todas as ações realizadas no sistema (quem alterou, o que alterou, data e horário).',
           summary: 'Histórico imutável de cadastros de clientes, emissão de OSs, baixas no PDV e alterações de garantias.',
           howToUse: [
-            'Clique no botão "Auditoria" no cabeçalho superior.',
+            'Acesse "Configurações" no menu lateral e clique na aba "Logs & Auditoria".',
             'Consulte a listagem de eventos com data, hora, usuário responsável e descrição da ação.',
-            'Filtre por tipo de ação para investigações e conferência.'
+            'Filtre por perfil ou palavra-chave para investigações e conferência.'
           ],
           tips: 'Excelente ferramenta para controle interno e prevenção contra exclusões indevidas.',
-          targetTab: 'dashboard'
+          targetTab: 'configuracoes'
         }
       ]
     }

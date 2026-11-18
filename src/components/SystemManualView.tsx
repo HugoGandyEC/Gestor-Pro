@@ -254,7 +254,7 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
       steps: [
         'Acesse a tela "Google Drive" no menu lateral para autenticar e exportar backups automáticos dos seus dados.',
         'O sistema mantém controle de versão oficial visível no rodapé de todas as telas.',
-        'Acesse os "Logs de Auditoria" no cabeçalho para auditar qualquer criação, edição ou exclusão de dados feita pelos usuários.',
+        'Acesse "Configurações > Logs & Auditoria" no menu lateral para auditar qualquer criação, edição ou exclusão de dados feita pelos usuários.',
         'Você pode baixar o arquivo zip completo do sistema a qualquer momento para backup local offline.'
       ],
       tips: [

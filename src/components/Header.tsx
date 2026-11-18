@@ -13,20 +13,17 @@ import {
   User,
   Menu,
   X,
-  Palette,
   LogOut,
-  ChevronDown,
   HelpCircle,
   Store
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { UserRole, AppTheme } from '../types';
+import { UserRole } from '../types';
 
 interface HeaderProps {
   onOpenNewOS: () => void;
   onOpenPdv?: () => void;
   onOpenDoc: () => void;
-  onOpenAuditLogs: () => void;
   onOpenHelp?: () => void;
   isMobileMenuOpen?: boolean;
   onToggleMobileMenu?: () => void;
@@ -36,7 +33,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewOS, 
   onOpenPdv,
   onOpenDoc, 
-  onOpenAuditLogs,
   onOpenHelp,
   isMobileMenuOpen = false,
   onToggleMobileMenu
@@ -50,13 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
     currentUser,
     logout,
     openLogoutModal,
-    companySettings,
-    currentTheme,
-    setTheme,
-    themeDefinitions
+    companySettings
   } = useApp();
-
-  const [isThemeMenuOpen, setIsThemeMenuOpen] = React.useState(false);
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
@@ -178,102 +169,6 @@ export const Header: React.FC<HeaderProps> = ({
               </select>
             </div>
           )}
-
-          {/* Audit Logs button (para admin/contador) */}
-          {(currentRole === 'admin' || currentRole === 'contador') && (
-            <button
-              onClick={onOpenAuditLogs}
-              className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors"
-              title="Ver logs de auditoria e segurança"
-            >
-              <span>Logs / Auditoria</span>
-            </button>
-          )}
-
-
-          {/* Theme Switcher in Header (somente desktop/tablet) */}
-          <div className="relative hidden md:block">
-            <button
-              type="button"
-              onClick={() => setIsThemeMenuOpen(prev => !prev)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#d8d8d8] bg-white hover:bg-[#f4f5f6] text-xs font-semibold text-[#363739] shadow-xs cursor-pointer transition-colors"
-              title="Trocar tema de cores do sistema"
-            >
-              <Palette className="w-3.5 h-3.5 text-[#53383e]" />
-              <div className="flex -space-x-1 items-center">
-                {themeDefinitions.find(t => t.id === currentTheme)?.swatches.slice(0, 3).map((sw, i) => (
-                  <span
-                    key={i}
-                    className="w-2.5 h-2.5 rounded-full border border-white"
-                    style={{ backgroundColor: sw }}
-                  />
-                ))}
-              </div>
-              <span className="hidden xl:inline text-[11px]">Tema</span>
-              <ChevronDown className="w-3 h-3 text-[#707174]" />
-            </button>
-
-            {isThemeMenuOpen && (
-              <div 
-                className="absolute right-0 mt-2 w-80 max-h-[82vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-[#d8d8d8] p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#d8d8d8]">
-                  <span className="text-xs font-extrabold text-[#363739] flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5 text-[#53383e]" />
-                    Paletas do Sistema
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsThemeMenuOpen(false)}
-                    className="text-[11px] text-[#707174] hover:text-[#363739] font-bold cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="space-y-1.5">
-                  {themeDefinitions.map((th) => {
-                    const isSelected = currentTheme === th.id;
-                    return (
-                      <button
-                        key={th.id}
-                        type="button"
-                        onClick={() => {
-                          setTheme(th.id);
-                          setIsThemeMenuOpen(false);
-                        }}
-                        className={`w-full p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                          isSelected
-                            ? 'border-[#53383e] bg-[#f6eff1] ring-1 ring-[#53383e]/20'
-                            : 'border-transparent hover:border-[#d8d8d8] hover:bg-[#f4f5f6]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-[#363739]">
-                            {th.name}
-                          </span>
-                          {isSelected && (
-                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-[#53383e] text-white">
-                              Ativo
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {th.swatches.map((color, idx) => (
-                            <div
-                              key={idx}
-                              className="flex-1 h-3.5 rounded-xs border border-black/10"
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* User Profile & Logout */}
           <div className="flex items-center gap-1.5 md:pl-2 md:border-l md:border-[#d8d8d8]">
