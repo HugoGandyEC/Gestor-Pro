@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Store,
   CreditCard,
@@ -92,7 +92,11 @@ const BRANDS: { id: CardBrand; label: string }[] = [
   { id: 'outra', label: 'Outra' }
 ];
 
-export const PdvView: React.FC = () => {
+interface PdvViewProps {
+  externalSaleTrigger?: { saleId: string; seq: number } | null;
+}
+
+export const PdvView: React.FC<PdvViewProps> = ({ externalSaleTrigger }) => {
   const {
     serviceOrders,
     directSales,
@@ -589,6 +593,49 @@ export const PdvView: React.FC = () => {
       ]);
     }
   };
+
+  const handledExternalSeqRef = useRef<number>(0);
+  useEffect(() => {
+    if (!externalSaleTrigger || externalSaleTrigger.seq === handledExternalSeqRef.current) return;
+    const sale = directSales.find(s => s.id === externalSaleTrigger.saleId);
+    if (!sale) return;
+    handledExternalSeqRef.current = externalSaleTrigger.seq;
+
+    if (sale.status === 'cancelada') {
+      setSubTab('vendas');
+      setPdvActionToast(`A venda ${sale.code} está cancelada.`);
+      return;
+    }
+
+    const alreadyPaid = getPaidAmountForSource('venda', sale.id);
+    const orderTotal = Number(sale.total || 0);
+    const remaining = Math.max(0, Number((orderTotal - alreadyPaid).toFixed(2)));
+    if (sale.paymentStatus === 'pago' && remaining <= 0) {
+      setSubTab('vendas');
+      setPdvActionToast(`A venda ${sale.code} já foi totalmente liquidada no caixa.`);
+      return;
+    }
+
+    setSubTab('fila');
+    openCheckoutForTarget({
+      kind: 'sale',
+      id: sale.id,
+      code: sale.code,
+      clientId: sale.clientId,
+      clientName: sale.clientName,
+      total: remaining > 0 ? remaining : orderTotal,
+      orderTotal,
+      alreadyPaid,
+      terminalName: sale.pdvTerminal || TERMINALS[0],
+      summaryLines: (sale.items || []).map(it => ({
+        label: it.name,
+        qty: it.quantity,
+        total: Number(it.price || 0) * Number(it.quantity || 1)
+      })),
+      plannedSplits: sale.payments,
+      saleObj: sale
+    });
+  }, [externalSaleTrigger, directSales]);
 
   // Effective amount being settled in current checkout
   const effectiveCheckoutAmount = useMemo(() => {

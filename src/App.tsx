@@ -76,6 +76,7 @@ const MainLayout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState(false);
   const [ordersStatusFilterTrigger, setOrdersStatusFilterTrigger] = useState<{ status: string; seq: number } | undefined>(undefined);
+  const [pdvSaleTrigger, setPdvSaleTrigger] = useState<{ saleId: string; seq: number } | null>(null);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
@@ -139,7 +140,7 @@ const MainLayout: React.FC = () => {
       case 'agenda':
         return <GoogleCalendarView />;
       case 'pdv':
-        return <PdvView />;
+        return <PdvView externalSaleTrigger={pdvSaleTrigger} />;
       case 'orders':
         return (
           <ServiceOrdersView 
@@ -167,7 +168,14 @@ const MainLayout: React.FC = () => {
       case 'accounting':
         return <AccountingClosingView />;
       case 'sales':
-        return <SalesView />;
+        return (
+          <SalesView
+            onSendToPdvAndNavigate={(saleId) => {
+              setPdvSaleTrigger(prev => ({ saleId, seq: (prev?.seq || 0) + 1 }));
+              handleSetActiveTab('pdv');
+            }}
+          />
+        );
       case 'profitability':
         return <EmployeeProfitabilityReportView />;
       case 'fleet':
