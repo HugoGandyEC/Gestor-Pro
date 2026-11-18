@@ -17,6 +17,7 @@ import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { GeneralExpense, ExpenseCategory } from '../types';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
 import { useRowHoverTooltip } from './RowHoverTooltip';
+import { getMonthLabelBR, getTodayISODate } from '../utils/financialHelpers';
 
 export const OperationalCostsView: React.FC = () => {
   const { 
@@ -37,7 +38,7 @@ export const OperationalCostsView: React.FC = () => {
   const [category, setCategory] = useState<ExpenseCategory>('aluguel');
   const [description, setDescription] = useState('');
   const [cost, setCost] = useState<number>(0);
-  const [dueDate, setDueDate] = useState('2026-10-15');
+  const [dueDate, setDueDate] = useState(() => getTodayISODate());
   const [isPaid, setIsPaid] = useState(true);
   const [employeeId, setEmployeeId] = useState('');
   const [supplier, setSupplier] = useState('');
@@ -69,11 +70,11 @@ export const OperationalCostsView: React.FC = () => {
   };
 
   const monthExpenses = generalExpenses.filter(e => e.dueDate.startsWith(selectedMonthYear));
-  const totalMonthCosts = monthExpenses.reduce((a, b) => a + b.cost, 0);
-  const totalPaid = monthExpenses.filter(e => e.isPaid).reduce((a, b) => a + b.cost, 0);
-  const totalPending = monthExpenses.filter(e => !e.isPaid).reduce((a, b) => a + b.cost, 0);
+  const totalMonthCosts = monthExpenses.reduce((a, b) => a + Number(b.cost || 0), 0);
+  const totalPaid = monthExpenses.filter(e => e.isPaid).reduce((a, b) => a + Number(b.cost || 0), 0);
+  const totalPending = monthExpenses.filter(e => !e.isPaid).reduce((a, b) => a + Number(b.cost || 0), 0);
 
-  const filteredList = generalExpenses.filter(e => {
+  const filteredList = monthExpenses.filter(e => {
     if (filterCategory === 'todos') return true;
     return e.category === filterCategory;
   });
@@ -125,7 +126,7 @@ export const OperationalCostsView: React.FC = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
-          <span className="text-xs font-medium text-slate-500">Total Custos Operacionais ({selectedMonthYear})</span>
+          <span className="text-xs font-medium text-slate-500">Total Custos Operacionais ({getMonthLabelBR(selectedMonthYear)})</span>
           <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
             {formatBRL(totalMonthCosts)}
           </div>

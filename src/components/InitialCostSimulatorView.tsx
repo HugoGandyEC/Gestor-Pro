@@ -165,9 +165,9 @@ export const InitialCostSimulatorView: React.FC = () => {
   const [costType, setCostType] = useState<CostRecurrenceType>('recorrente');
   const [installmentsCount, setInstallmentsCount] = useState<number>(12);
   const [paidInstallments, setPaidInstallments] = useState<number>(0);
-  const [installmentValue, setInstallmentValue] = useState<number>(3850);
-  const [actualCost, setActualCost] = useState<number>(3850);
-  const [estimatedCost, setEstimatedCost] = useState<number>(3850);
+  const [installmentValue, setInstallmentValue] = useState<number>(0);
+  const [actualCost, setActualCost] = useState<number>(0);
+  const [estimatedCost, setEstimatedCost] = useState<number>(0);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [dueDay, setDueDay] = useState<number>(10);
@@ -176,10 +176,10 @@ export const InitialCostSimulatorView: React.FC = () => {
   const [syncWithGeneralExpenses, setSyncWithGeneralExpenses] = useState<boolean>(true);
   const [notes, setNotes] = useState('');
 
-  // Break-even simulator parameters
-  const [averageOSTicket, setAverageOSTicket] = useState(1400); // Ticket médio por OS
-  const [partsCostPercentage, setPartsCostPercentage] = useState(30); // 30% em peças/insumos
-  const [targetProfit, setTargetProfit] = useState(15000); // Meta de lucro líquido mensal
+  // Break-even simulator parameters (inicia zerado para simulação real do usuário)
+  const [averageOSTicket, setAverageOSTicket] = useState(0);
+  const [partsCostPercentage, setPartsCostPercentage] = useState(30);
+  const [targetProfit, setTargetProfit] = useState(0);
 
   // Open modal in create mode
   const handleOpenCreateModal = (defaultType?: CostRecurrenceType) => {
@@ -189,9 +189,9 @@ export const InitialCostSimulatorView: React.FC = () => {
     setCostType(defaultType || 'recorrente');
     setInstallmentsCount(12);
     setPaidInstallments(0);
-    setInstallmentValue(500);
-    setActualCost(500);
-    setEstimatedCost(500);
+    setInstallmentValue(0);
+    setActualCost(0);
+    setEstimatedCost(0);
     const today = new Date().toISOString().split('T')[0];
     setDate(today);
     setDueDate(today);
@@ -356,10 +356,8 @@ export const InitialCostSimulatorView: React.FC = () => {
     };
   }, [setupCosts]);
 
-  // Break-even Calculations based on registered real costs
-  const realMonthlyFixedCost = calculations.totalMonthlyCommitment > 0 
-    ? calculations.totalMonthlyCommitment 
-    : 16000; // Fallback se nada cadastrado
+  // Break-even Calculations 100% baseado nos custos reais cadastrados (R$ 0,00 se nada cadastrado)
+  const realMonthlyFixedCost = calculations.totalMonthlyCommitment;
 
   const grossMarginPerOS = averageOSTicket * (1 - partsCostPercentage / 100);
   const breakEvenOSCount = grossMarginPerOS > 0 ? Math.ceil(realMonthlyFixedCost / grossMarginPerOS) : 0;

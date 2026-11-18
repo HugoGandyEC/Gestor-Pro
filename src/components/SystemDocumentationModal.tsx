@@ -91,7 +91,7 @@ export const SystemDocumentationModal: React.FC<SystemDocumentationModalProps> =
                   Ordem de Serviço (OS), Busca no Estoque & Status Unificados
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Ciclo completo com nomenclatura idêntica em tabela, cards do Painel e Portal (<em>Orçamento, Aguardando Aprovação, Aguardando Peça, Em Andamento, Concluída, Entregue, Pago, Cancelada</em>). Busca direta de itens do Estoque, checklist com fotos, assinatura touch e termo de garantia.
+                  Ciclo completo com nomenclatura idêntica em tabela, cards do Painel e Portal (<em>Orçamento Aberto, Aguardando Aprovação, Aprovada / Em Andamento, Aguardando Peças, Concluída (Aguardando Retirada), Entregue / Finalizada, Cancelada</em>). Busca direta de itens do Estoque, checklist com fotos, assinatura touch e termo de garantia.
                 </p>
               </div>
 

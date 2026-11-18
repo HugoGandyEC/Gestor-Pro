@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
+import { getAvailableMonths } from '../utils/financialHelpers';
 
 interface HeaderProps {
   onOpenNewOS: () => void;
@@ -40,14 +41,25 @@ export const Header: React.FC<HeaderProps> = ({
   const { 
     selectedMonthYear, 
     setSelectedMonthYear, 
-    resetToDefaults, 
+    serviceOrders,
+    directSales,
+    generalExpenses,
     currentRole, 
     setCurrentRole,
     currentUser,
-    logout,
     openLogoutModal,
     companySettings
   } = useApp();
+
+  const availableMonths = React.useMemo(
+    () =>
+      getAvailableMonths(selectedMonthYear, [
+        ...serviceOrders.map(o => o.completionDate || o.openDate),
+        ...directSales.map(s => s.date),
+        ...generalExpenses.map(e => e.dueDate)
+      ]),
+    [selectedMonthYear, serviceOrders, directSales, generalExpenses]
+  );
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
@@ -162,10 +174,11 @@ export const Header: React.FC<HeaderProps> = ({
                 onChange={(e) => setSelectedMonthYear(e.target.value)}
                 className="text-xs font-semibold text-[#363739] bg-transparent border-0 focus:ring-0 cursor-pointer pr-2"
               >
-                <option value="2026-10">Outubro / 2026</option>
-                <option value="2026-09">Setembro / 2026</option>
-                <option value="2026-08">Agosto / 2026</option>
-                <option value="2026-11">Novembro / 2026</option>
+                {availableMonths.map(m => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
               </select>
             </div>
           )}

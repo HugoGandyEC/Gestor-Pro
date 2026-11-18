@@ -23,10 +23,15 @@ import {
   Receipt
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
-import { computeEmployeeNominalPay } from '../utils/employeeRemuneration';
 import { LiveSearchInput } from './LiveSearchInput';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
 import { useRowHoverTooltip } from './RowHoverTooltip';
+import {
+  computeServiceOrderFinancials,
+  getMonthLabelBR,
+  isAutoPayrollExpense,
+  isServiceOrderReceivable
+} from '../utils/financialHelpers';
 
 export const FinancialView: React.FC = () => {
   const { 
@@ -34,8 +39,6 @@ export const FinancialView: React.FC = () => {
     directSales, 
     generalExpenses, 
     vehicleExpenses, 
-    vehicles, 
-    employees, 
     setupCosts,
     selectedMonthYear, 
     monthlyFinancialSummary,
@@ -43,6 +46,7 @@ export const FinancialView: React.FC = () => {
     toggleServiceOrderPayment,
     toggleGeneralExpensePayment,
     getReceiptsForSource,
+    getPaidAmountForSource,
     openReceiptModal
   } = useApp();
 
@@ -57,9 +61,10 @@ export const FinancialView: React.FC = () => {
   const [payableFilter, setPayableFilter] = useState<'todos' | 'pendente' | 'pago'>('todos');
   const [payableSearch, setPayableSearch] = useState('');
 
-  // 1. Contas a Receber no Mês (Ordens de Serviço e Vendas Diretas)
+  // 1. Contas a Receber no Mês (Ordens de Serviço válidas e Vendas Diretas ativas)
   const monthOrders = useMemo(() => {
     return serviceOrders.filter(o => {
+      if (!isServiceOrderReceivable(o)) return false;
       const d = o.completionDate || o.openDate;
       return d.startsWith(selectedMonthYear);
     });
@@ -80,17 +85,21 @@ export const FinancialView: React.FC = () => {
     paymentMethod: string;
     paymentStatus: 'pago' | 'pendente';
     total: number;
+    paidAmount: number;
+    remainingAmount: number;
     description: string;
   }
 
   const unifiedReceivables = useMemo<UnifiedReceivableItem[]>(() => {
     const list: UnifiedReceivableItem[] = [];
 
-    // Service Orders
+    // Service Orders (exclui canceladas e orçamentos abertos)
     monthOrders.forEach(os => {
-      const total = os.services.reduce((a, b) => a + Number(b.price || 0), 0) + 
-                    os.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0) +
-                    Number(os.visitFee || 0) - Number(os.calculatedDiscount || 0);
+      const fin = computeServiceOrderFinancials(os);
+      const total = fin.netTotal;
+      const isPaid = os.paymentStatus === 'pago';
+      const paidSoFar = isPaid ? total : Math.min(total, getPaidAmountForSource('os', os.id));
+      const remaining = isPaid ? 0 : Math.max(0, Number((total - paidSoFar).toFixed(2)));
 
       list.push({
         id: os.id,
@@ -100,14 +109,21 @@ export const FinancialView: React.FC = () => {
         date: os.openDate,
         dueDate: os.forecastDate || os.openDate,
         paymentMethod: os.paymentMethod || 'pix',
-        paymentStatus: os.paymentStatus === 'pago' ? 'pago' : 'pendente',
+        paymentStatus: isPaid ? 'pago' : 'pendente',
         total,
+        paidAmount: paidSoFar,
+        remainingAmount: remaining,
         description: os.description || 'Ordem de Serviço de Campo'
       });
     });
 
     // Direct Sales
     monthSales.forEach(s => {
+      const total = Math.max(0, Number(s.total || 0));
+      const isPaid = s.paymentStatus === 'pago';
+      const paidSoFar = isPaid ? total : Math.min(total, getPaidAmountForSource('venda', s.id));
+      const remaining = isPaid ? 0 : Math.max(0, Number((total - paidSoFar).toFixed(2)));
+
       list.push({
         id: s.id,
         type: 'venda',
@@ -116,14 +132,16 @@ export const FinancialView: React.FC = () => {
         date: s.date,
         dueDate: s.date,
         paymentMethod: s.paymentMethod || 'pix',
-        paymentStatus: s.paymentStatus === 'pago' ? 'pago' : 'pendente',
-        total: s.total,
+        paymentStatus: isPaid ? 'pago' : 'pendente',
+        total,
+        paidAmount: paidSoFar,
+        remainingAmount: remaining,
         description: `Venda Direta: ${s.items.length} item(ns)`
       });
     });
 
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [monthOrders, monthSales]);
+  }, [monthOrders, monthSales, getPaidAmountForSource]);
 
   // Filtered Receivables
   const filteredReceivables = useMemo(() => {
@@ -139,13 +157,8 @@ export const FinancialView: React.FC = () => {
     });
   }, [unifiedReceivables, receivableFilter, receivableSearch]);
 
-  const totalReceivablePending = unifiedReceivables
-    .filter(i => i.paymentStatus === 'pendente')
-    .reduce((acc, i) => acc + i.total, 0);
-
-  const totalReceivablePaid = unifiedReceivables
-    .filter(i => i.paymentStatus === 'pago')
-    .reduce((acc, i) => acc + i.total, 0);
+  const totalReceivablePending = unifiedReceivables.reduce((acc, i) => acc + i.remainingAmount, 0);
+  const totalReceivablePaid = unifiedReceivables.reduce((acc, i) => acc + i.paidAmount, 0);
 
   // 2. Contas a Pagar no Mês (Despesas Gerais, Frota e Dívidas de Setup)
   interface UnifiedPayableItem {
@@ -249,49 +262,87 @@ export const FinancialView: React.FC = () => {
     .filter(i => i.isPaid)
     .reduce((acc, i) => acc + i.cost, 0);
 
-  // 3. DRE Breakdown
+  // 3. DRE Breakdown — 100% alimentado pela fonte única oficial (monthlyFinancialSummary)
   const {
+    ordersGrossServices,
+    ordersGrossParts,
+    ordersDiscounts,
+    ordersServicesRevenue,
+    ordersPartsRevenue,
+    salesRevenue,
     totalRevenue,
+    ordersPartsCost,
+    salesCost,
     totalPartsCost,
     grossMargin,
+    baseSalaries,
+    benefitsCharges,
+    commissions,
     totalPersonnelCost,
+    totalVehicleProrated,
     totalVehicleCost,
+    unsyncedDebtInstallments,
     totalOperationalCost,
     totalCardFees,
-    netProfit
+    netProfit,
+    netMarginPercent
   } = monthlyFinancialSummary;
 
-  // Detailed sub-aggregations for DRE
-  const finishedOrders = monthOrders.filter(o => o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada');
-  
-  const revenueServices = finishedOrders.reduce((acc, o) => 
-    acc + o.services.reduce((a, b) => a + Number(b.price || 0), 0) + Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0), 0
+  const monthFuelVehicleExpenses = vehicleExpenses
+    .filter(e => e.date.startsWith(selectedMonthYear) && e.category === 'combustivel')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
+
+  const monthMaintVehicleExpenses = vehicleExpenses
+    .filter(e => e.date.startsWith(selectedMonthYear) && e.category !== 'combustivel')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
+
+  // Particionamento exaustivo e mutuamente exclusivo das despesas operacionais (sem omitir nenhuma categoria!)
+  const monthOperationalExpenses = generalExpenses.filter(
+    e => e.dueDate.startsWith(selectedMonthYear) && !isAutoPayrollExpense(e)
   );
+  const rentTotal = monthOperationalExpenses
+    .filter(e => e.category === 'aluguel' || e.category === 'aluguel_loja')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
+  const internetPhoneTotal = monthOperationalExpenses
+    .filter(e => e.category === 'internet' || e.category === 'celular')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
+  const materialsPurchaseTotal = monthOperationalExpenses
+    .filter(e => e.category === 'compra_materiais' || e.category === 'compra_produtos_xml')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
+  const mealsTotal = monthOperationalExpenses
+    .filter(e => e.category === 'alimentacao')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
+  const dasMeiTotal = monthOperationalExpenses
+    .filter(e => e.category === 'das_mei' || e.category === 'impostos')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
+  const companyDebtsTotal =
+    monthOperationalExpenses
+      .filter(e => e.category === 'divida_empresa')
+      .reduce((a, b) => a + Number(b.cost || 0), 0) + unsyncedDebtInstallments;
+  const utilitiesTotal = monthOperationalExpenses
+    .filter(e => e.category === 'energia_agua')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
+  const softwareAccountantTotal = monthOperationalExpenses
+    .filter(e => e.category === 'software_contabilidade')
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
 
-  const revenuePartsOS = finishedOrders.reduce((acc, o) => 
-    acc + o.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0), 0
-  );
-
-  const revenueDirectSales = monthSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
-
-  const costPartsOS = finishedOrders.reduce((acc, o) => 
-    acc + o.parts.reduce((a, b) => a + (Number(b.cost || 0) * Number(b.quantity || 1)), 0), 0
-  );
-
-  const costDirectSales = monthSales.reduce((acc, s) => 
-    acc + s.items.reduce((a, b) => a + ((b.cost || 0) * (b.quantity || 1)), 0), 0
-  );
-
-  // Operational items (excluding auto-emp- payroll entries which are shown in section 4)
-  const monthGeneralExpenses = generalExpenses.filter(e => e.dueDate.startsWith(selectedMonthYear) && !e.id.startsWith('auto-emp-'));
-  const rentTotal = monthGeneralExpenses.filter(e => e.category === 'aluguel' || e.category === 'aluguel_loja').reduce((a, b) => a + b.cost, 0);
-  const internetPhoneTotal = monthGeneralExpenses.filter(e => e.category === 'internet' || e.category === 'celular').reduce((a, b) => a + b.cost, 0);
-  const materialsPurchaseTotal = monthGeneralExpenses.filter(e => e.category === 'compra_materiais' || e.category === 'compra_produtos_xml').reduce((a, b) => a + b.cost, 0);
-  const mealsTotal = monthGeneralExpenses.filter(e => e.category === 'alimentacao').reduce((a, b) => a + b.cost, 0);
-  const dasMeiTotal = monthGeneralExpenses.filter(e => e.category === 'das_mei' || e.category === 'impostos').reduce((a, b) => a + b.cost, 0);
-  const companyDebtsTotal = monthGeneralExpenses.filter(e => e.category === 'divida_empresa').reduce((a, b) => a + b.cost, 0);
-  const utilitiesTotal = monthGeneralExpenses.filter(e => e.category === 'energia_agua').reduce((a, b) => a + b.cost, 0);
-  const softwareAccountantTotal = monthGeneralExpenses.filter(e => e.category === 'software_contabilidade').reduce((a, b) => a + b.cost, 0);
+  const categorizedKeys = new Set([
+    'aluguel',
+    'aluguel_loja',
+    'internet',
+    'celular',
+    'compra_materiais',
+    'compra_produtos_xml',
+    'alimentacao',
+    'das_mei',
+    'impostos',
+    'divida_empresa',
+    'energia_agua',
+    'software_contabilidade'
+  ]);
+  const otherOperationalTotal = monthOperationalExpenses
+    .filter(e => !categorizedKeys.has(e.category))
+    .reduce((a, b) => a + Number(b.cost || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -303,7 +354,7 @@ export const FinancialView: React.FC = () => {
               Módulo Financeiro & DRE Gerencial de Precisão
             </h1>
             <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-              Competência {selectedMonthYear}
+              Competência {getMonthLabelBR(selectedMonthYear)}
             </span>
           </div>
           <p className="hidden md:block text-xs text-slate-500 mt-1">
@@ -352,19 +403,19 @@ export const FinancialView: React.FC = () => {
 
       {/* Top 4 Real Financial KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Receita Total Bruta */}
+        {/* Receita Líquida Operacional */}
         <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Receita Bruta Total</span>
+            <span className="text-xs font-medium">Receita Operacional Total</span>
             <DollarSign className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-bold font-mono text-slate-900">
             {formatBRL(totalRevenue)}
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-            <span>OS ({formatBRL(revenueServices + revenuePartsOS)})</span>
+            <span>OS ({formatBRL(ordersServicesRevenue + ordersPartsRevenue)})</span>
             <span>·</span>
-            <span>Vendas ({formatBRL(revenueDirectSales)})</span>
+            <span>Vendas ({formatBRL(salesRevenue)})</span>
           </div>
         </div>
 
@@ -402,14 +453,20 @@ export const FinancialView: React.FC = () => {
         <div className="p-4 rounded-xl bg-gradient-to-br from-slate-900 to-blue-950 text-white shadow-xs">
           <div className="flex items-center justify-between text-slate-300 mb-1">
             <span className="text-xs font-medium">Lucro Líquido DRE</span>
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
+            {netProfit >= 0 ? (
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <TrendingDown className="w-4 h-4 text-rose-400" />
+            )}
           </div>
-          <div className={`text-2xl font-bold font-mono ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <div className={`text-2xl font-bold font-mono ${netProfit > 0 ? 'text-emerald-400' : netProfit < 0 ? 'text-rose-400' : 'text-slate-200'}`}>
             {formatBRL(netProfit)}
           </div>
           <div className="text-[11px] text-slate-300 mt-1 flex items-center justify-between">
             <span>Margem Líquida Real:</span>
-            <strong className="text-emerald-300 font-mono">{monthlyFinancialSummary.netMarginPercent.toFixed(1)}%</strong>
+            <strong className={`font-mono ${netMarginPercent > 0 ? 'text-emerald-300' : netMarginPercent < 0 ? 'text-rose-300' : 'text-slate-300'}`}>
+              {netMarginPercent.toFixed(1)}%
+            </strong>
           </div>
         </div>
       </div>
@@ -420,38 +477,44 @@ export const FinancialView: React.FC = () => {
           <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
-                Demonstrativo do Resultado do Exercício (DRE) - {selectedMonthYear}
+                Demonstrativo do Resultado do Exercício (DRE) - {getMonthLabelBR(selectedMonthYear)}
               </h2>
               <p className="hidden md:block text-xs text-slate-500">
-                Estrutura analítica padrão contábil gerencial integrando serviços de campo, vendas de balcão, despesas operacionais e dívidas.
+                Estrutura analítica contábil gerencial integrando serviços concluídos, vendas ativas, folha ativa, frota, despesas e taxas.
               </p>
             </div>
             <div className="text-right shrink-0">
               <span className="hidden sm:inline text-xs text-slate-400">Resultado Líquido Operacional</span>
-              <div className={`text-base sm:text-lg font-black font-mono ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <div className={`text-base sm:text-lg font-black font-mono ${netProfit > 0 ? 'text-emerald-600' : netProfit < 0 ? 'text-rose-600' : 'text-slate-700'}`}>
                 {formatBRL(netProfit)}
               </div>
             </div>
           </div>
 
           <div className="p-3 sm:p-6 font-mono text-xs space-y-4">
-            {/* 1. Receita Bruta */}
+            {/* 1. Receita Operacional */}
             <div className="space-y-1.5">
               <div className="flex justify-between font-bold text-slate-900 text-sm border-b pb-1">
-                <span>(+) RECEITA BRUTA OPERACIONAL</span>
+                <span>(+) RECEITA OPERACIONAL LÍQUIDA DE DESCONTOS</span>
                 <span className="text-blue-700">{formatBRL(totalRevenue)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Serviços Executados em Ordens de Serviço (Mão de Obra + Visitas):</span>
-                <span>{formatBRL(revenueServices)}</span>
+                <span>{formatBRL(ordersGrossServices)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Peças & Insumos Aplicados em Ordens de Serviço:</span>
-                <span>{formatBRL(revenuePartsOS)}</span>
+                <span>{formatBRL(ordersGrossParts)}</span>
               </div>
+              {ordersDiscounts > 0 && (
+                <div className="flex justify-between pl-4 text-rose-700">
+                  <span>· (-) Descontos Concedidos em Ordens de Serviço:</span>
+                  <span>- {formatBRL(ordersDiscounts)}</span>
+                </div>
+              )}
               <div className="flex justify-between pl-4 text-slate-600">
-                <span>· Vendas Diretas & Balcão de Peças:</span>
-                <span>{formatBRL(revenueDirectSales)}</span>
+                <span>· Vendas Diretas & Balcão de Peças (Líquido):</span>
+                <span>{formatBRL(salesRevenue)}</span>
               </div>
             </div>
 
@@ -463,37 +526,39 @@ export const FinancialView: React.FC = () => {
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Custo de Aquisição de Peças para Ordens de Serviço:</span>
-                <span>{formatBRL(costPartsOS)}</span>
+                <span>{formatBRL(ordersPartsCost)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Custo de Mercadorias em Vendas Diretas:</span>
-                <span>{formatBRL(costDirectSales)}</span>
+                <span>{formatBRL(salesCost)}</span>
               </div>
             </div>
 
             {/* 3. Margem de Contribuição */}
             <div className="flex justify-between font-bold bg-slate-50 p-2.5 rounded-lg text-slate-900 text-sm border border-slate-200">
               <span>(=) MARGEM DE CONTRIBUIÇÃO BRUTA</span>
-              <span className="text-emerald-700">{formatBRL(grossMargin)}</span>
+              <span className={grossMargin > 0 ? 'text-emerald-700' : grossMargin < 0 ? 'text-rose-700' : 'text-slate-700'}>
+                {formatBRL(grossMargin)}
+              </span>
             </div>
 
             {/* 4. Custos com Pessoal */}
             <div className="space-y-1.5">
               <div className="flex justify-between font-bold text-rose-800 text-sm border-b pb-1">
-                <span>(-) CUSTOS COM PESSOAL & FOLHA DE PAGAMENTO (CLT + ENCARGOS)</span>
+                <span>(-) CUSTOS COM PESSOAL & FOLHA DE PAGAMENTO (EQUIPE ATIVA)</span>
                 <span>{formatBRL(totalPersonnelCost)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
-                <span>· Salários Base / Horas Trabalhadas da Equipe Operacional:</span>
-                <span>{formatBRL(employees.reduce((a, b) => a + computeEmployeeNominalPay(b), 0))}</span>
+                <span>· Salários Base / Horas Trabalhadas da Equipe Ativa:</span>
+                <span>{formatBRL(baseSalaries)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
-                <span>· Encargos Trabalhistas, FGTS & INSS (Funcionários Fichados):</span>
-                <span>{formatBRL(employees.reduce((a, b) => a + b.benefitsCharges, 0))}</span>
+                <span>· Encargos Trabalhistas, FGTS & INSS (Equipe Ativa):</span>
+                <span>{formatBRL(benefitsCharges)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Comissões Conquistadas sobre Atendimentos e Vendas:</span>
-                <span>{formatBRL(totalPersonnelCost - (employees.reduce((a, b) => a + computeEmployeeNominalPay(b) + b.benefitsCharges, 0)))}</span>
+                <span>{formatBRL(commissions)}</span>
               </div>
             </div>
 
@@ -505,15 +570,15 @@ export const FinancialView: React.FC = () => {
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Combustíveis da Frota Operacional (Gasolina/Etanol):</span>
-                <span>{formatBRL(vehicleExpenses.filter(e => e.date.startsWith(selectedMonthYear) && e.category === 'combustivel').reduce((a, b) => a + b.cost, 0))}</span>
+                <span>{formatBRL(monthFuelVehicleExpenses)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Manutenção Mecânica & Peças da Frota (Óleo, Pneus, Freios):</span>
-                <span>{formatBRL(vehicleExpenses.filter(e => e.date.startsWith(selectedMonthYear) && e.category !== 'combustivel').reduce((a, b) => a + b.cost, 0))}</span>
+                <span>{formatBRL(monthMaintVehicleExpenses)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Amortização Proporcional de IPVA & Seguros Anuais:</span>
-                <span>{formatBRL(vehicles.reduce((a, v) => a + ((v.annualIpvaValue + v.annualInsuranceValue) / 12), 0))}</span>
+                <span>{formatBRL(totalVehicleProrated)}</span>
               </div>
             </div>
 
@@ -540,7 +605,7 @@ export const FinancialView: React.FC = () => {
                 <span>{formatBRL(mealsTotal)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
-                <span>· Tributos e DAS do 'MEI' / Simples Nacional:</span>
+                <span>· Tributos e DAS do MEI / Simples Nacional:</span>
                 <span>{formatBRL(dasMeiTotal)}</span>
               </div>
               <div className="flex justify-between pl-4 text-slate-600">
@@ -554,6 +619,10 @@ export const FinancialView: React.FC = () => {
               <div className="flex justify-between pl-4 text-slate-600">
                 <span>· Contabilidade & Softwares de Gestão:</span>
                 <span>{formatBRL(softwareAccountantTotal)}</span>
+              </div>
+              <div className="flex justify-between pl-4 text-slate-600">
+                <span>· Outras Despesas Operacionais (Ferramental, Taxas & Diversos):</span>
+                <span>{formatBRL(otherOperationalTotal)}</span>
               </div>
             </div>
 
@@ -570,9 +639,17 @@ export const FinancialView: React.FC = () => {
             </div>
 
             {/* 8. Lucro Líquido Final */}
-            <div className="flex justify-between font-bold bg-emerald-50 border-2 border-emerald-300 p-4 rounded-xl text-slate-900 text-base">
+            <div
+              className={`flex justify-between font-bold border-2 p-4 rounded-xl text-slate-900 text-base ${
+                netProfit > 0
+                  ? 'bg-emerald-50 border-emerald-300'
+                  : netProfit < 0
+                  ? 'bg-rose-50 border-rose-300'
+                  : 'bg-slate-50 border-slate-300'
+              }`}
+            >
               <span>(=) LUCRO LÍQUIDO OPERACIONAL DO EXERCÍCIO</span>
-              <span className={`font-black text-lg ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+              <span className={`font-black text-lg ${netProfit > 0 ? 'text-emerald-700' : netProfit < 0 ? 'text-rose-700' : 'text-slate-700'}`}>
                 {formatBRL(netProfit)}
               </span>
             </div>

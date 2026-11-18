@@ -101,8 +101,19 @@ import {
   syncPaymentReceiptToCloud,
   deletePaymentReceiptFromCloud,
   bootstrapCloudDatabase,
-  testFirestoreConnection
+  testFirestoreConnection,
+  clearAllCloudCollections
 } from '../services/firestoreSyncService';
+import {
+  getCurrentMonthYear,
+  isActiveEmployee,
+  isServiceOrderFinishedForDRE,
+  isServiceOrderReceivable,
+  computeServiceOrderFinancials,
+  computeAbsorbedCardFees,
+  computeUnsyncedDebtInstallments,
+  isAutoPayrollExpense
+} from '../utils/financialHelpers';
 
 interface AppContextType {
   // Auth & Session
@@ -362,11 +373,26 @@ interface AppContextType {
   calculateEmployeeProfitability: (employeeId: string, monthYear: string) => EmployeeProfitabilityReport | null;
   getMonthlyProfitabilityAllEmployees: (monthYear: string) => EmployeeProfitabilityReport[];
   monthlyFinancialSummary: {
+    ordersGrossServices: number;
+    ordersGrossParts: number;
+    ordersDiscounts: number;
+    ordersServicesRevenue: number;
+    ordersPartsRevenue: number;
+    salesRevenue: number;
     totalRevenue: number;
+    ordersPartsCost: number;
+    salesCost: number;
     totalPartsCost: number;
     grossMargin: number;
+    baseSalaries: number;
+    benefitsCharges: number;
+    commissions: number;
     totalPersonnelCost: number;
+    totalVehicleDirect: number;
+    totalVehicleProrated: number;
     totalVehicleCost: number;
+    generalExpensesSum: number;
+    unsyncedDebtInstallments: number;
     totalOperationalCost: number;
     totalCardFees: number;
     totalCosts: number;
@@ -417,6 +443,63 @@ const KEYS = {
   PAYMENT_RECEIPTS: 'gestaopro_payment_receipts_v4',
   AUTH_USERS: 'gestaopro_auth_users_v4'
 };
+
+const ZERO_ABSOLUTO_MIGRATION_KEY = 'gestaopro_zero_absoluto_v2715';
+
+let pendingCloudZeroPurge = false;
+
+function runZeroAbsolutoMigrationOnce() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    if (localStorage.getItem(ZERO_ABSOLUTO_MIGRATION_KEY) === 'done') return;
+
+    const transactionalKeysToWipe = [
+      KEYS.CLIENTS,
+      KEYS.SUPPLIERS,
+      KEYS.PRODUCTS,
+      KEYS.STOCK,
+      KEYS.PAGBANK_TRANSACTIONS,
+      KEYS.TICKETS,
+      KEYS.LOGS,
+      KEYS.EMPLOYEES,
+      KEYS.VEHICLES,
+      KEYS.VEHICLE_EXPENSES,
+      KEYS.GENERAL_EXPENSES,
+      KEYS.SERVICE_ORDERS,
+      KEYS.DIRECT_SALES,
+      KEYS.SETUP_COSTS,
+      KEYS.APPOINTMENTS,
+      KEYS.CASH_SESSIONS,
+      KEYS.CASH_MOVEMENTS,
+      KEYS.PAYMENT_RECEIPTS,
+      KEYS.SERVICE_CATALOG,
+      KEYS.CHECKLIST_TEMPLATES,
+      KEYS.SEQUENCE_SETTINGS,
+      KEYS.SELECTED_MONTH,
+      KEYS.AUTH_USERS
+    ];
+
+    transactionalKeysToWipe.forEach(k => localStorage.removeItem(k));
+
+    // Se o usuário logado anteriormente era um usuário fictício de demonstração, volta para login limpo
+    const savedUser = localStorage.getItem(KEYS.AUTH_USER);
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && parsed.id && parsed.id !== 'usr-admin') {
+          localStorage.removeItem(KEYS.AUTH_USER);
+        }
+      } catch {
+        localStorage.removeItem(KEYS.AUTH_USER);
+      }
+    }
+
+    pendingCloudZeroPurge = true;
+    localStorage.setItem(ZERO_ABSOLUTO_MIGRATION_KEY, 'done');
+  } catch {}
+}
+
+runZeroAbsolutoMigrationOnce();
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
@@ -733,7 +816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!saved) return initialSetupCosts;
     try {
       const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialSetupCosts;
+      return Array.isArray(parsed) ? parsed : initialSetupCosts;
     } catch {
       return initialSetupCosts;
     }
@@ -756,7 +839,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [selectedMonthYear, setSelectedMonthYear] = useState<string>(() => {
     const saved = localStorage.getItem(KEYS.SELECTED_MONTH);
-    return saved || '2026-10';
+    return saved || getCurrentMonthYear();
   });
 
   const [cashSessions, setCashSessions] = useState<CashRegisterSession[]>(() => {
@@ -982,57 +1065,75 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
 
   // Real-time Cloud Synchronization between physical devices (PC <-> Celular) via Firestore
   useEffect(() => {
-    testFirestoreConnection();
+    let unsubscribeCloud: (() => void) | null = null;
+    let cancelled = false;
 
-    bootstrapCloudDatabase({
-      products,
-      clients,
-      suppliers,
-      serviceOrders,
-      directSales,
-      appointments
-    });
+    const startCloudSync = async () => {
+      testFirestoreConnection();
 
-    const unsubscribeCloud = subscribeToCloudSync({
-      onProductsSync: (cloudProducts) => {
-        setProducts(cloudProducts);
-      },
-      onClientsSync: (cloudClients) => {
-        setClients(cloudClients);
-      },
-      onSuppliersSync: (cloudSuppliers) => {
-        setSuppliers(cloudSuppliers);
-      },
-      onOrdersSync: (cloudOrders) => {
-        setServiceOrders(cloudOrders);
-      },
-      onDirectSalesSync: (cloudSales) => {
-        setDirectSales(cloudSales);
-      },
-      onAppointmentsSync: (cloudAppointments) => {
-        const samplesToPurge = cloudAppointments.filter(
-          a => a.isSample || String(a.id || '').startsWith('apt-sample-')
-        );
-        if (samplesToPurge.length > 0) {
-          samplesToPurge.forEach(a => deleteAppointmentFromCloud(a.id));
-        }
-        setAppointments(
-          cloudAppointments.filter(a => !a.isSample && !String(a.id || '').startsWith('apt-sample-'))
-        );
-      },
-      onCashSessionsSync: (cloudSessions) => {
-        setCashSessions(cloudSessions);
-      },
-      onCashMovementsSync: (cloudMovements) => {
-        setCashMovements(cloudMovements);
-      },
-      onPaymentReceiptsSync: (cloudReceipts) => {
-        setPaymentReceipts(cloudReceipts);
+      // Se esta sessão executou a migração Zero Absoluto pela 1ª vez, limpa também a nuvem antes de assinar
+      if (pendingCloudZeroPurge) {
+        pendingCloudZeroPurge = false;
+        await clearAllCloudCollections();
+      } else {
+        bootstrapCloudDatabase({
+          products,
+          clients,
+          suppliers,
+          serviceOrders,
+          directSales,
+          appointments
+        });
       }
-    });
+
+      if (cancelled) return;
+
+      unsubscribeCloud = subscribeToCloudSync({
+        onProductsSync: (cloudProducts) => {
+          setProducts(cloudProducts);
+        },
+        onClientsSync: (cloudClients) => {
+          setClients(cloudClients);
+        },
+        onSuppliersSync: (cloudSuppliers) => {
+          setSuppliers(cloudSuppliers);
+        },
+        onOrdersSync: (cloudOrders) => {
+          setServiceOrders(cloudOrders);
+        },
+        onDirectSalesSync: (cloudSales) => {
+          setDirectSales(cloudSales);
+        },
+        onAppointmentsSync: (cloudAppointments) => {
+          const samplesToPurge = cloudAppointments.filter(
+            a => a.isSample || String(a.id || '').startsWith('apt-sample-')
+          );
+          if (samplesToPurge.length > 0) {
+            samplesToPurge.forEach(a => deleteAppointmentFromCloud(a.id));
+          }
+          setAppointments(
+            cloudAppointments.filter(a => !a.isSample && !String(a.id || '').startsWith('apt-sample-'))
+          );
+        },
+        onCashSessionsSync: (cloudSessions) => {
+          setCashSessions(cloudSessions);
+        },
+        onCashMovementsSync: (cloudMovements) => {
+          setCashMovements(cloudMovements);
+        },
+        onPaymentReceiptsSync: (cloudReceipts) => {
+          setPaymentReceipts(cloudReceipts);
+        }
+      });
+    };
+
+    startCloudSync();
 
     return () => {
-      unsubscribeCloud();
+      cancelled = true;
+      if (unsubscribeCloud) {
+        unsubscribeCloud();
+      }
     };
   }, []);
 
@@ -1250,6 +1351,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setProducts(initialProducts);
     setStockMovements(initialStockMovements);
     setCardRates(initialCardRates);
+    setCardOperators(initialCardOperators);
+    setPagBankTransactions(initialPagBankTransactions);
     setCustomerTickets(initialCustomerTickets);
     setAuditLogs(initialAuditLogs);
     setEmployees(initialEmployees);
@@ -1260,10 +1363,14 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setDirectSales(initialDirectSales);
     setSetupCosts(initialSetupCosts);
     setAppointments(initialAppointments);
+    setCashSessions([]);
+    setCashMovements([]);
+    setPaymentReceipts([]);
     setAuthUsers(initialAuthUsers);
-    setSelectedMonthYear('2026-10');
+    setSelectedMonthYear(getCurrentMonthYear());
+    dismissedAutoExpenseIdsRef.current.clear();
+    clearAllCloudCollections();
     broadcastSync('FULL');
-    addAuditLog('Restauração de Sistema', 'Base de dados restaurada para o padrão inicial de fábrica.');
   };
 
   const loadDemoServiceOrdersData = (): { ordersAdded: number; receiptsAdded: number } => {
@@ -1352,13 +1459,21 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setDirectSales([]);
     setAppointments([]);
     setCustomerTickets([]);
+    setEmployees([]);
+    setVehicles([]);
     setVehicleExpenses([]);
     setGeneralExpenses([]);
     setSetupCosts([]);
+    setServiceCatalog([]);
+    setChecklistTemplates([]);
+    setPagBankTransactions([]);
     setCashSessions([]);
     setCashMovements([]);
     setPaymentReceipts([]);
+    setAuditLogs([]);
     setActiveReceiptModal(null);
+    dismissedAutoExpenseIdsRef.current.clear();
+    setSelectedMonthYear(getCurrentMonthYear());
     setSequenceSettings({
       serviceOrderNextNumber: 1,
       serviceOrderPrefix: '',
@@ -1370,8 +1485,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       budgetPrefix: 'ORC-',
       budgetDigits: 0
     });
+    clearAllCloudCollections();
     broadcastSync('FULL');
-    addAuditLog('Limpeza Geral do Sistema', 'Todos os dados transacionais e de exemplo foram zerados. O sistema está em branco para produção.');
   };
 
   // Live Lookups: ViaCEP
@@ -3653,8 +3768,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         });
         let commBase = 0;
         monthOrders.forEach(o => {
-          const srvTotal = o.services.reduce((acc, s) => acc + Number(s.price || 0), 0);
-          commBase += srvTotal - Number(o.calculatedDiscount || 0) + Number(o.visitFee || 0);
+          const fin = computeServiceOrderFinancials(o);
+          commBase += fin.netServicesAndVisit;
         });
         const monthSales = directSales.filter(
           s => s.employeeId === emp.id && s.date.startsWith(monthYear) && s.paymentStatus === 'pago' && s.status !== 'cancelada'
@@ -3759,7 +3874,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   const getEmployeeById = (id: string) => employees.find(e => e.id === id);
   const getVehicleById = (id: string) => vehicles.find(v => v.id === id);
 
-  // Profitability per Employee calculation
+  // Profitability per Employee calculation (alinhado 100% com o DRE)
   const calculateEmployeeProfitability = (employeeId: string, monthYear: string): EmployeeProfitabilityReport | null => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return null;
@@ -3768,8 +3883,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     const monthOrders = serviceOrders.filter(o => {
       if (o.employeeId !== employeeId) return false;
       const dateToCheck = o.completionDate || o.openDate;
-      const isFinished = o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada';
-      return dateToCheck.startsWith(monthYear) && isFinished;
+      return dateToCheck.startsWith(monthYear) && isServiceOrderFinishedForDRE(o);
     });
 
     let servicesRevenue = 0;
@@ -3778,14 +3892,14 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     let visitFeesRevenue = 0;
 
     monthOrders.forEach(o => {
-      const srvTotal = o.services.reduce((acc, s) => acc + Number(s.price || 0), 0);
-      const prtTotal = o.parts.reduce((acc, p) => acc + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
-      const prtCostTotal = o.parts.reduce((acc, p) => acc + (Number(p.cost || 0) * Number(p.quantity || 1)), 0);
-      
-      servicesRevenue += srvTotal - Number(o.calculatedDiscount || 0);
-      partsRevenue += prtTotal;
-      partsCost += prtCostTotal;
-      visitFeesRevenue += Number(o.visitFee || 0);
+      const fin = computeServiceOrderFinancials(o);
+      // Separa visitFee proporcionalmente sem nunca ficar negativo
+      const netVisit = Math.min(fin.visitFee, fin.netServicesAndVisit);
+      const netServicesOnly = Math.max(0, Number((fin.netServicesAndVisit - netVisit).toFixed(2)));
+      servicesRevenue += netServicesOnly;
+      visitFeesRevenue += netVisit;
+      partsRevenue += fin.netParts;
+      partsCost += fin.partsCost;
     });
 
     const monthSales = directSales.filter(s => {
@@ -3794,22 +3908,27 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
 
     let directSalesRevenue = 0;
     monthSales.forEach(s => {
-      directSalesRevenue += s.total;
-      const saleCost = s.items.reduce((acc, it) => acc + (it.cost * it.quantity), 0);
+      directSalesRevenue += Number(s.total || 0);
+      const saleCost = s.items.reduce((acc, it) => acc + (Number(it.cost || 0) * Number(it.quantity || 1)), 0);
       partsCost += saleCost;
     });
 
-    const totalRevenue = servicesRevenue + partsRevenue + directSalesRevenue + visitFeesRevenue;
-    const grossContribution = totalRevenue - partsCost;
+    const totalRevenue = Number((servicesRevenue + partsRevenue + directSalesRevenue + visitFeesRevenue).toFixed(2));
+    const grossContribution = Number((totalRevenue - partsCost).toFixed(2));
 
+    const isActive = isActiveEmployee(employee);
     const remunerationType = getEmployeeRemunerationType(employee);
-    const baseSalary = computeEmployeeNominalPay(employee);
-    const benefitsCharges = employee.benefitsCharges;
+    const baseSalary = isActive ? computeEmployeeNominalPay(employee) : 0;
+    const benefitsCharges = isActive ? Number(employee.benefitsCharges || 0) : 0;
     const commissionEarned = hasEmployeeCommission(employee)
-      ? ((servicesRevenue + visitFeesRevenue) * (employee.commissionRate / 100)) +
-        (directSalesRevenue * (employee.commissionRate / 100))
+      ? Number(
+          (
+            ((servicesRevenue + visitFeesRevenue) * (Number(employee.commissionRate || 0) / 100)) +
+            (directSalesRevenue * (Number(employee.commissionRate || 0) / 100))
+          ).toFixed(2)
+        )
       : 0;
-    const totalPersonnelCost = baseSalary + benefitsCharges + commissionEarned;
+    const totalPersonnelCost = Number((baseSalary + benefitsCharges + commissionEarned).toFixed(2));
 
     const assignedVehicle = vehicles.find(v => v.id === employee.assignedVehicleId || v.assignedEmployeeId === employee.id);
 
@@ -3820,7 +3939,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       if (assignedVehicle && ve.vehicleId === assignedVehicle.id) return true;
       return false;
     });
-    const fuelCost = fuelExpenses.reduce((acc, fe) => acc + fe.cost, 0);
+    const fuelCost = fuelExpenses.reduce((acc, fe) => acc + Number(fe.cost || 0), 0);
 
     const directVehicleExpenses = vehicleExpenses.filter(ve => {
       if (!ve.date.startsWith(monthYear)) return false;
@@ -3829,37 +3948,41 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       if (assignedVehicle && ve.vehicleId === assignedVehicle.id) return true;
       return false;
     });
-    const vehicleDirectMaintenanceCost = directVehicleExpenses.reduce((acc, ve) => acc + ve.cost, 0);
+    const vehicleDirectMaintenanceCost = directVehicleExpenses.reduce((acc, ve) => acc + Number(ve.cost || 0), 0);
 
     let vehicleProratedFixedCost = 0;
-    if (assignedVehicle) {
-      vehicleProratedFixedCost = (assignedVehicle.annualIpvaValue + assignedVehicle.annualInsuranceValue) / 12;
+    if (assignedVehicle && isActive) {
+      vehicleProratedFixedCost = (Number(assignedVehicle.annualIpvaValue || 0) + Number(assignedVehicle.annualInsuranceValue || 0)) / 12;
     }
 
     const mealsExpenses = generalExpenses.filter(ge => {
       return ge.category === 'alimentacao' && ge.employeeId === employeeId && ge.dueDate.startsWith(monthYear);
     });
-    const mealsCost = mealsExpenses.reduce((acc, me) => acc + me.cost, 0);
+    const mealsCost = mealsExpenses.reduce((acc, me) => acc + Number(me.cost || 0), 0);
 
     const cellphoneExpenses = generalExpenses.filter(ge => {
       return ge.category === 'celular' && ge.employeeId === employeeId && ge.dueDate.startsWith(monthYear);
     });
-    const cellphoneCost = cellphoneExpenses.reduce((acc, ce) => acc + ce.cost, 0);
+    const cellphoneCost = cellphoneExpenses.reduce((acc, ce) => acc + Number(ce.cost || 0), 0);
 
-    const totalDirectCosts = totalPersonnelCost + 
-                             fuelCost + 
-                             mealsCost + 
-                             vehicleDirectMaintenanceCost + 
-                             vehicleProratedFixedCost + 
-                             cellphoneCost;
+    const totalDirectCosts = Number((
+      totalPersonnelCost +
+      fuelCost +
+      mealsCost +
+      vehicleDirectMaintenanceCost +
+      vehicleProratedFixedCost +
+      cellphoneCost
+    ).toFixed(2));
 
-    const netProfit = grossContribution - totalDirectCosts;
+    const netProfit = Number((grossContribution - totalDirectCosts).toFixed(2));
     const netMarginPercent = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
     const roiMultiplier = totalDirectCosts > 0 ? totalRevenue / totalDirectCosts : 0;
 
-    let performanceTier: 'Excelente' | 'Bom' | 'Atenção' | 'Prejuízo' = 'Bom';
+    let performanceTier: 'Excelente' | 'Bom' | 'Atenção' | 'Prejuízo' = 'Atenção';
     if (netProfit < 0) {
       performanceTier = 'Prejuízo';
+    } else if (totalRevenue === 0 && totalDirectCosts === 0) {
+      performanceTier = 'Atenção';
     } else if (netMarginPercent > 35) {
       performanceTier = 'Excelente';
     } else if (netMarginPercent >= 15) {
@@ -3900,7 +4023,14 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   const getMonthlyProfitabilityAllEmployees = (monthYear: string): EmployeeProfitabilityReport[] => {
     return employees
       .map(emp => calculateEmployeeProfitability(emp.id, monthYear))
-      .filter((rep): rep is EmployeeProfitabilityReport => rep !== null)
+      .filter((rep): rep is EmployeeProfitabilityReport => {
+        if (!rep) return false;
+        // Oculta inativos que não tiveram nenhuma movimentação no período
+        if (!isActiveEmployee(rep.employee) && rep.ordersCount === 0 && rep.directSalesRevenue === 0) {
+          return false;
+        }
+        return true;
+      })
       .sort((a, b) => b.netProfit - a.netProfit);
   };
 
@@ -3984,120 +4114,146 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     return { count };
   };
 
-  // Company-wide monthly financial summary with full precision and zero data dropping
+  // Company-wide monthly financial summary (DRE Oficial) com precisão centavo a centavo
   const monthlyFinancialSummary = useMemo(() => {
     const allReports = getMonthlyProfitabilityAllEmployees(selectedMonthYear);
-    
-    // 1. Receitas de Ordens de Serviço faturadas/concluídas no mês
+
+    // 1. Receitas de Ordens de Serviço faturadas/concluídas no mês (desconto rateado sem jamais negativar serviços)
     const monthOrdersFinished = serviceOrders.filter(o => {
       const d = o.completionDate || o.openDate;
-      const isFin = o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada';
-      return d.startsWith(selectedMonthYear) && isFin;
+      return d.startsWith(selectedMonthYear) && isServiceOrderFinishedForDRE(o);
     });
 
-    const ordersServicesRevenue = monthOrdersFinished.reduce((acc, o) => 
-      acc + o.services.reduce((a, b) => a + Number(b.price || 0), 0) + Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0), 0
-    );
-    const ordersPartsRevenue = monthOrdersFinished.reduce((acc, o) => 
-      acc + o.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0), 0
-    );
-    const ordersPartsCost = monthOrdersFinished.reduce((acc, o) => 
-      acc + o.parts.reduce((a, b) => a + (Number(b.cost || 0) * Number(b.quantity || 1)), 0), 0
-    );
+    let ordersGrossServices = 0;
+    let ordersGrossParts = 0;
+    let ordersDiscounts = 0;
+    let ordersServicesRevenue = 0;
+    let ordersPartsRevenue = 0;
+    let ordersPartsCost = 0;
+    let orderCardFees = 0;
 
-    // 2. Receitas de Vendas Diretas no mês (incluindo vendas avulsas e de balcão ativas)
+    monthOrdersFinished.forEach(o => {
+      const fin = computeServiceOrderFinancials(o);
+      ordersGrossServices += fin.grossServices + fin.visitFee;
+      ordersGrossParts += fin.grossParts;
+      ordersDiscounts += fin.discount;
+      ordersServicesRevenue += fin.netServicesAndVisit;
+      ordersPartsRevenue += fin.netParts;
+      ordersPartsCost += fin.partsCost;
+      orderCardFees += fin.absorbedCardFees;
+    });
+
+    // 2. Receitas de Vendas Diretas ativas no mês
     const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.status !== 'cancelada');
-    const salesRevenue = monthSales.reduce((acc, s) => acc + Number(s.total || 0), 0);
-    const salesCost = monthSales.reduce((acc, s) => 
-      acc + s.items.reduce((a, b) => a + (Number(b.cost || 0) * Number(b.quantity || 1)), 0), 0
+    const salesRevenue = monthSales.reduce((acc, s) => acc + Math.max(0, Number(s.total || 0)), 0);
+    const salesCost = monthSales.reduce(
+      (acc, s) => acc + s.items.reduce((a, b) => a + (Number(b.cost || 0) * Number(b.quantity || 1)), 0),
+      0
     );
+    const salesCardFees = monthSales.reduce((acc, s) => acc + computeAbsorbedCardFees(s.payments), 0);
 
-    // Total de Faturamento e Custo de Mercadorias (CMV)
-    const totalRevenue = ordersServicesRevenue + ordersPartsRevenue + salesRevenue;
-    const totalPartsCost = ordersPartsCost + salesCost;
-    const grossMargin = totalRevenue - totalPartsCost;
+    // Total de Faturamento Líquido e CMV
+    const totalRevenue = Number((ordersServicesRevenue + ordersPartsRevenue + salesRevenue).toFixed(2));
+    const totalPartsCost = Number((ordersPartsCost + salesCost).toFixed(2));
+    const grossMargin = Number((totalRevenue - totalPartsCost).toFixed(2));
 
-    // 3. Custos com Pessoal (Salários, Horas Trabalhadas, Benefícios e Comissões)
-    const baseSalaries = employees.reduce((a, b) => a + computeEmployeeNominalPay(b), 0);
-    const benefitsCharges = employees.reduce((a, b) => a + Number(b.benefitsCharges || 0), 0);
-    const commissions = allReports.reduce((acc, r) => acc + r.commissionEarned, 0);
-    const totalPersonnelCost = baseSalaries + benefitsCharges + commissions;
+    // 3. Custos com Pessoal (Apenas colaboradores ativos + comissões apuradas no período)
+    const activeEmployees = employees.filter(isActiveEmployee);
+    const baseSalaries = Number(activeEmployees.reduce((a, b) => a + computeEmployeeNominalPay(b), 0).toFixed(2));
+    const benefitsCharges = Number(activeEmployees.reduce((a, b) => a + Number(b.benefitsCharges || 0), 0).toFixed(2));
+    const commissions = Number(allReports.reduce((acc, r) => acc + r.commissionEarned, 0).toFixed(2));
+    const totalPersonnelCost = Number((baseSalaries + benefitsCharges + commissions).toFixed(2));
 
     // 4. Custos com Frota & Veículos
     const monthVehicleExpenses = vehicleExpenses.filter(ve => ve.date.startsWith(selectedMonthYear));
-    const totalVehicleDirect = monthVehicleExpenses.reduce((acc, ve) => acc + ve.cost, 0);
-    const totalVehicleProrated = vehicles.reduce((acc, v) => acc + ((v.annualIpvaValue + v.annualInsuranceValue) / 12), 0);
-    const totalVehicleCost = totalVehicleDirect + totalVehicleProrated;
+    const totalVehicleDirect = Number(monthVehicleExpenses.reduce((acc, ve) => acc + Number(ve.cost || 0), 0).toFixed(2));
+    const totalVehicleProrated = Number(
+      vehicles.reduce((acc, v) => acc + ((Number(v.annualIpvaValue || 0) + Number(v.annualInsuranceValue || 0)) / 12), 0).toFixed(2)
+    );
+    const totalVehicleCost = Number((totalVehicleDirect + totalVehicleProrated).toFixed(2));
 
-    // 5. Custos Operacionais & Administrativos (Despesas Gerais + Dívidas/Parcelas do Mês, evitando dupla contagem da folha já apurada em totalPersonnelCost)
+    // 5. Custos Operacionais & Administrativos (exclui auto-emp-* já somado em totalPersonnelCost)
     const monthGeneralExpenses = generalExpenses.filter(ge => ge.dueDate.startsWith(selectedMonthYear));
-    const generalExpensesSum = monthGeneralExpenses
-      .filter(ge => !ge.id.startsWith('auto-emp-'))
-      .reduce((acc, ge) => acc + ge.cost, 0);
-    
-    // Soma de parcelas de dívidas ativas cadastradas em setupCosts (se não estiverem sincronizadas em generalExpenses)
-    const unsyncedDebtInstallments = setupCosts
-      .filter(s => s.costType === 'parcelado' && s.status !== 'quitado' && !s.syncWithGeneralExpenses)
-      .reduce((acc, s) => acc + (s.installmentValue || 0), 0);
+    const generalExpensesSum = Number(
+      monthGeneralExpenses
+        .filter(ge => !isAutoPayrollExpense(ge))
+        .reduce((acc, ge) => acc + Number(ge.cost || 0), 0)
+        .toFixed(2)
+    );
 
-    const totalOperationalCost = generalExpensesSum + unsyncedDebtInstallments;
+    // Parcelas de dívidas ativas ainda não quitadas e não sincronizadas em generalExpenses
+    const unsyncedDebtInstallments = computeUnsyncedDebtInstallments(setupCosts);
+    const totalOperationalCost = Number((generalExpensesSum + unsyncedDebtInstallments).toFixed(2));
 
-    // 6. Taxas de Operadoras de Cartão no mês
-    let totalCardFees = 0;
-    serviceOrders.forEach(o => {
-      if ((o.completionDate || o.openDate).startsWith(selectedMonthYear)) {
-        o.payments?.forEach(p => {
-          if (p.rateAmount) totalCardFees += p.rateAmount;
-        });
-      }
-    });
-    directSales.forEach(s => {
-      if (s.status === 'cancelada') return;
-      if (s.date.startsWith(selectedMonthYear)) {
-        s.payments?.forEach(p => {
-          if (p.rateAmount) totalCardFees += p.rateAmount;
-        });
-      }
-    });
+    // 6. Taxas de Operadoras de Cartão absorvidas pela empresa no mês (exclui canceladas, orçamentos e juros repassados ao cliente)
+    const totalCardFees = Number((orderCardFees + salesCardFees).toFixed(2));
 
-    const totalCosts = totalPartsCost + totalPersonnelCost + totalVehicleCost + totalOperationalCost + totalCardFees;
-    const netProfit = totalRevenue - totalCosts;
+    const totalCosts = Number((
+      totalPartsCost +
+      totalPersonnelCost +
+      totalVehicleCost +
+      totalOperationalCost +
+      totalCardFees
+    ).toFixed(2));
+    const netProfit = Number((totalRevenue - totalCosts).toFixed(2));
     const netMarginPercent = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-    // 7. Contas a Receber Pendentes no Mês
+    // 7. Contas a Receber Pendentes no Mês (exclui canceladas e orçamentos abertos; deduz pagamentos parciais já recebidos)
     const pendingOrdersReceivables = serviceOrders
-      .filter(o => (o.completionDate || o.openDate).startsWith(selectedMonthYear) && o.paymentStatus !== 'pago')
+      .filter(o => (o.completionDate || o.openDate).startsWith(selectedMonthYear) && isServiceOrderReceivable(o) && o.paymentStatus !== 'pago')
       .reduce((acc, o) => {
-        const tot = o.services.reduce((a, b) => a + Number(b.price || 0), 0) + 
-                    o.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0) + 
-                    Number(o.visitFee || 0) - Number(o.calculatedDiscount || 0);
-        return acc + tot;
+        const fin = computeServiceOrderFinancials(o);
+        const alreadyPaid = getPaidAmountForSource('os', o.id);
+        return acc + Math.max(0, Number((fin.netTotal - alreadyPaid).toFixed(2)));
       }, 0);
 
     const pendingSalesReceivables = directSales
       .filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus !== 'pago' && s.status !== 'cancelada')
-      .reduce((acc, s) => acc + Number(s.total || 0), 0);
+      .reduce((acc, s) => {
+        const alreadyPaid = getPaidAmountForSource('venda', s.id);
+        return acc + Math.max(0, Number((Number(s.total || 0) - alreadyPaid).toFixed(2)));
+      }, 0);
 
-    const totalPendingReceivables = pendingOrdersReceivables + pendingSalesReceivables;
+    const totalPendingReceivables = Number((pendingOrdersReceivables + pendingSalesReceivables).toFixed(2));
 
     // 8. Contas a Pagar Pendentes no Mês
     const pendingGeneralPayables = monthGeneralExpenses
       .filter(e => !e.isPaid)
-      .reduce((acc, e) => acc + e.cost, 0);
+      .reduce((acc, e) => acc + Number(e.cost || 0), 0);
 
-    const totalPendingPayables = pendingGeneralPayables + unsyncedDebtInstallments;
+    const totalPendingPayables = Number((pendingGeneralPayables + unsyncedDebtInstallments).toFixed(2));
 
     const completedOrders = monthOrdersFinished.length;
     const activeOrders = serviceOrders.filter(o => {
-      return o.status === 'orcamento_aberto' || o.status === 'aguardando_aprovacao' || o.status === 'aprovada_em_andamento' || o.status === 'aguardando_pecas';
+      return (
+        o.status === 'orcamento_aberto' ||
+        o.status === 'aguardando_aprovacao' ||
+        o.status === 'aprovada_em_andamento' ||
+        o.status === 'aguardando_pecas'
+      );
     }).length;
 
     return {
+      ordersGrossServices: Number(ordersGrossServices.toFixed(2)),
+      ordersGrossParts: Number(ordersGrossParts.toFixed(2)),
+      ordersDiscounts: Number(ordersDiscounts.toFixed(2)),
+      ordersServicesRevenue: Number(ordersServicesRevenue.toFixed(2)),
+      ordersPartsRevenue: Number(ordersPartsRevenue.toFixed(2)),
+      salesRevenue: Number(salesRevenue.toFixed(2)),
       totalRevenue,
+      ordersPartsCost: Number(ordersPartsCost.toFixed(2)),
+      salesCost: Number(salesCost.toFixed(2)),
       totalPartsCost,
       grossMargin,
+      baseSalaries,
+      benefitsCharges,
+      commissions,
       totalPersonnelCost,
+      totalVehicleDirect,
+      totalVehicleProrated,
       totalVehicleCost,
+      generalExpensesSum,
+      unsyncedDebtInstallments,
       totalOperationalCost,
       totalCardFees,
       totalCosts,
@@ -4108,7 +4264,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       ordersCompletedCount: completedOrders,
       ordersActiveCount: activeOrders
     };
-  }, [selectedMonthYear, employees, vehicles, vehicleExpenses, generalExpenses, serviceOrders, directSales, setupCosts]);
+  }, [selectedMonthYear, employees, vehicles, vehicleExpenses, generalExpenses, serviceOrders, directSales, setupCosts, paymentReceipts]);
 
   return (
     <AppContext.Provider

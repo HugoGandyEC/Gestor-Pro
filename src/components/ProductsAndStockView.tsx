@@ -2188,7 +2188,7 @@ export const ProductsAndStockView: React.FC = () => {
             .filter(p => p.productId === prod.id || p.name.toLowerCase() === prod.name.toLowerCase())
             .map(p => ({
               id: `os-${os.id}-${p.id}`,
-              date: os.openDate || '2026-10-01',
+              date: os.openDate || new Date().toISOString().split('T')[0],
               type: 'saida_os' as const,
               docCode: os.code,
               clientName: os.clientName,

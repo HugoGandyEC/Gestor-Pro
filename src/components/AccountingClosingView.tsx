@@ -13,10 +13,14 @@ import {
   HardDrive,
   CheckCircle2
 } from 'lucide-react';
-import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
-import { computeEmployeeNominalPay } from '../utils/employeeRemuneration';
+import { useApp, formatBRL } from '../context/AppContext';
 import { getAccessToken, googleSignIn } from '../services/googleAuthService';
 import { uploadTextToDrive } from '../services/googleDriveService';
+import {
+  getAvailableMonths,
+  getMonthLabelBR,
+  isServiceOrderFinishedForDRE
+} from '../utils/financialHelpers';
 
 export const AccountingClosingView: React.FC = () => {
   const [driveLoading, setDriveLoading] = React.useState(false);
@@ -29,52 +33,49 @@ export const AccountingClosingView: React.FC = () => {
     directSales, 
     generalExpenses, 
     monthlyFinancialSummary,
-    employees,
     companySettings 
   } = useApp();
 
+  const availableMonths = React.useMemo(
+    () =>
+      getAvailableMonths(selectedMonthYear, [
+        ...serviceOrders.map(o => o.completionDate || o.openDate),
+        ...directSales.map(s => s.date),
+        ...generalExpenses.map(e => e.dueDate)
+      ]),
+    [selectedMonthYear, serviceOrders, directSales, generalExpenses]
+  );
+
   const monthOrders = serviceOrders.filter(o => {
     const d = o.completionDate || o.openDate;
-    return d.startsWith(selectedMonthYear) && (o.status === 'concluida_aguardando_retirada' || o.status === 'entregue_finalizada');
+    return d.startsWith(selectedMonthYear) && isServiceOrderFinishedForDRE(o);
   });
 
-  const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.paymentStatus === 'pago' && s.status !== 'cancelada');
+  const monthSales = directSales.filter(s => s.date.startsWith(selectedMonthYear) && s.status !== 'cancelada');
 
-  // Revenue breakdown for taxes
-  const grossServicesRevenue = monthOrders.reduce((acc, o) => {
-    const srv = o.services.reduce((a, b) => a + Number(b.price || 0), 0) + Number(o.visitFee || 0);
-    return acc + srv - Number(o.calculatedDiscount || 0);
-  }, 0);
+  // Segregação tributária 100% alinhada com o DRE Oficial (sem receita negativa de serviços)
+  const grossServicesRevenue = monthlyFinancialSummary.ordersServicesRevenue;
+  const grossPartsRevenue = monthlyFinancialSummary.ordersPartsRevenue;
+  const grossDirectSalesRevenue = monthlyFinancialSummary.salesRevenue;
+  const totalGoodsRevenue = Number((grossPartsRevenue + grossDirectSalesRevenue).toFixed(2));
+  const totalGrossBilling = monthlyFinancialSummary.totalRevenue;
 
-  const grossPartsRevenue = monthOrders.reduce((acc, o) => {
-    return acc + o.parts.reduce((a, b) => a + (Number(b.price || 0) * Number(b.quantity || 1)), 0);
-  }, 0);
+  // Compras de Mercadorias & XMLs de Entrada no mês
+  const purchasesXml = generalExpenses.filter(
+    e =>
+      (e.category === 'compra_produtos_xml' || e.category === 'compra_materiais') &&
+      e.dueDate.startsWith(selectedMonthYear)
+  );
+  const totalPurchasesCost = purchasesXml.reduce((a, b) => a + Number(b.cost || 0), 0);
 
-  const grossDirectSalesRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
-  const totalGoodsRevenue = grossPartsRevenue + grossDirectSalesRevenue;
-  const totalGrossBilling = grossServicesRevenue + totalGoodsRevenue;
+  // Taxas de operadoras absorvidas pela empresa no mês (alinhado ao DRE)
+  const totalCardFees = monthlyFinancialSummary.totalCardFees;
 
-  // XML / Product purchases in month
-  const purchasesXml = generalExpenses.filter(e => e.category === 'compra_produtos_xml' && e.dueDate.startsWith(selectedMonthYear));
-  const totalPurchasesCost = purchasesXml.reduce((a, b) => a + b.cost, 0);
-
-  // Card machine fees deducted
-  let totalCardFees = 0;
-  monthOrders.forEach(o => {
-    o.payments?.forEach(p => {
-      if (p.rateAmount) totalCardFees += p.rateAmount;
-    });
-  });
-  monthSales.forEach(s => {
-    s.payments?.forEach(p => {
-      if (p.rateAmount) totalCardFees += p.rateAmount;
-    });
-  });
-
-  // Estimated Simples Nacional Tax (Annex III for Services ~6.0%, Annex I for Commerce ~4.0%)
-  const estimatedTaxServices = grossServicesRevenue * 0.06;
-  const estimatedTaxGoods = totalGoodsRevenue * 0.04;
-  const totalEstimatedTaxes = estimatedTaxServices + estimatedTaxGoods;
+  // Estimativa Simples Nacional (Anexo III Serviços 6,0% | Anexo I Comércio 4,0%)
+  const estimatedTaxServices = Number((grossServicesRevenue * 0.06).toFixed(2));
+  const estimatedTaxGoods = Number((totalGoodsRevenue * 0.04).toFixed(2));
+  const totalEstimatedTaxes = Number((estimatedTaxServices + estimatedTaxGoods).toFixed(2));
+  const effectiveTaxRatePercent = totalGrossBilling > 0 ? (totalEstimatedTaxes / totalGrossBilling) * 100 : 0;
 
   const handleSaveToDrive = async () => {
     setDriveLoading(true);
@@ -162,9 +163,11 @@ Salvo automaticamente via Google Drive pelo ERP GestãoPro.
               onChange={(e) => setSelectedMonthYear(e.target.value)}
               className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:ring-0 cursor-pointer"
             >
-              <option value="2026-10">Outubro / 2026</option>
-              <option value="2026-09">Setembro / 2026</option>
-              <option value="2026-08">Agosto / 2026</option>
+              {availableMonths.map(m => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -242,7 +245,7 @@ Salvo automaticamente via Google Drive pelo ERP GestãoPro.
               FECHAMENTO CONTÁBIL
             </div>
             <div className="text-xs font-semibold text-slate-700 mt-0.5">
-              Competência: {selectedMonthYear}
+              Competência: {getMonthLabelBR(selectedMonthYear)}
             </div>
             <div className="text-[10px] text-slate-400">
               Emissão: {new Date().toLocaleDateString('pt-BR')}
@@ -310,7 +313,9 @@ Salvo automaticamente via Google Drive pelo ERP GestãoPro.
               <tr className="bg-slate-100 font-bold">
                 <td className="p-2 font-sans">TOTAL DAS / IMPOSTOS ESTIMADOS DO MÊS</td>
                 <td className="p-2 text-right">{formatBRL(totalGrossBilling)}</td>
-                <td className="p-2 text-center">~5,1% Médio</td>
+                <td className="p-2 text-center">
+                  {effectiveTaxRatePercent.toFixed(2).replace('.', ',')}% Efetiva
+                </td>
                 <td className="p-2 text-right text-rose-700">{formatBRL(totalEstimatedTaxes)}</td>
               </tr>
             </tbody>
@@ -358,16 +363,16 @@ Salvo automaticamente via Google Drive pelo ERP GestãoPro.
 
           <div className="grid grid-cols-3 gap-3 font-mono">
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-sans">Salários / Horas Nominais:</span>
-              <div className="font-bold text-slate-900">{formatBRL(employees.reduce((a, b) => a + computeEmployeeNominalPay(b), 0))}</div>
+              <span className="text-[10px] text-slate-500 font-sans">Salários / Horas Nominais (Ativos):</span>
+              <div className="font-bold text-slate-900">{formatBRL(monthlyFinancialSummary.baseSalaries)}</div>
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-sans">Encargos Sociais:</span>
-              <div className="font-bold text-slate-900">{formatBRL(employees.reduce((a, b) => a + b.benefitsCharges, 0))}</div>
+              <span className="text-[10px] text-slate-500 font-sans">Encargos Sociais (Ativos):</span>
+              <div className="font-bold text-slate-900">{formatBRL(monthlyFinancialSummary.benefitsCharges)}</div>
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-[10px] text-slate-500 font-sans">Comissões Pagas:</span>
-              <div className="font-bold text-blue-700">{formatBRL(monthlyFinancialSummary.totalPersonnelCost - employees.reduce((a, b) => a + computeEmployeeNominalPay(b) + b.benefitsCharges, 0))}</div>
+              <span className="text-[10px] text-slate-500 font-sans">Comissões Apuradas:</span>
+              <div className="font-bold text-blue-700">{formatBRL(monthlyFinancialSummary.commissions)}</div>
             </div>
           </div>
         </div>
@@ -385,7 +390,7 @@ Salvo automaticamente via Google Drive pelo ERP GestãoPro.
 
           <div>
             <div className="border-t border-slate-400 pt-2 font-bold text-slate-900">
-              Escritório Contábil Progresso
+              Contabilidade Responsável
             </div>
             <div className="text-[10px] text-slate-400">Contador Responsável / CRC Ativo</div>
           </div>

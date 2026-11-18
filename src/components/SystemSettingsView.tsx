@@ -1959,23 +1959,22 @@ export const SystemSettingsView: React.FC = () => {
                 <span>Limpar Dados (Zerar Sistema)</span>
               </button>
 
-              {/* 2. Botão Restaurar Dados de Exemplo */}
+              {/* 2. Botão Restaurar Padrão Limpo de Fábrica */}
               <button
                 type="button"
                 onClick={() => {
                   resetToDefaults();
-                  loadDemoServiceOrdersData();
                   setFormData({ ...companySettings });
                   setRestoreFeedback({
                     type: 'success',
-                    message: 'Dados de exemplo restaurados com sucesso! Foram carregadas 5 O.S. completas com custos, entradas/saídas de estoque, despesas e recibos.'
+                    message: 'Sistema restaurado para o padrão limpo de fábrica (zero absoluto), sem dados fictícios.'
                   });
                 }}
                 className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                title="Recarregar dados de exemplo padrão de fábrica"
+                title="Restaurar configurações padrão de fábrica com a base 100% zerada"
               >
                 <RefreshCw className="w-4 h-4 text-white" />
-                <span>Restaurar Dados de Exemplo</span>
+                <span>Restaurar Padrão Limpo</span>
               </button>
 
               {/* 3. Botão Executar Restauração JSON */}

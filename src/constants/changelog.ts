@@ -16,6 +16,40 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.15',
+    date: '18/11/2026',
+    title: 'Zero Absoluto + Revisão Geral do DRE e de Todos os Demonstrativos Financeiros',
+    summary:
+      'Limpeza total de todos os dados pré-alimentados e valores fictícios em todo o sistema (localStorage, Firestore e telas), garantindo partida do zero absoluto (R$ 0,00) com apenas a conta admin preservada, somada a uma auditoria completa e correção de todas as fórmulas do DRE, Dashboard, Gráficos BI, Fechamento Contábil, Rentabilidade por Funcionário e Simuladores.',
+    highlights: [
+      'Zero Absoluto Real: remoção de todos os funcionários, investimentos, custos, históricos fictícios (2024/2025), logs iniciais, botões de exemplo e limpeza automática de coleções legadas no localStorage e Firestore',
+      'DRE 100% Reconciliado (Centavo por Centavo): rateio proporcional de descontos em O.S. (elimina receita negativa de serviços), inclusão de todas as categorias de despesas operacionais (sem valores órfãos) e parcelas de dívidas não sincronizadas',
+      'Precisão Contábil & Competência Dinâmica: exclusão de O.S. canceladas/não aprovadas e de funcionários inativos da folha/BI, taxas de cartão considerando somente taxas absorvidas pela empresa, saldo parcial em Contas a Receber e competência automática pelo mês/data atual'
+    ],
+    changes: [
+      {
+        category: 'Removido',
+        description:
+          'Removidos todos os dados pré-alimentados em mockData (funcionários, investimentos/setup, logs e usuários secundários), históricos fictícios de 2024/2025 no Dashboard, valores padrão artificiais no Simulador de Custos e Frota e botões de geração de dados de exemplo.'
+      },
+      {
+        category: 'Corrigido',
+        description:
+          'DRE (Financeiro) totalmente reconciliado com a fonte única de verdade: exibe Serviços Brutos, Peças Brutas, (-) Descontos em O.S. e Vendas Diretas fechando exatamente na Receita Bruta; despesas operacionais divididas em grupos mutuamente exclusivos com linha dedicada a Outras Despesas Operacionais e parcelas de dívidas.'
+      },
+      {
+        category: 'Corrigido',
+        description:
+          'Eliminadas divergências entre Dashboard, DRE, BI (Gráficos), Fechamento Contábil e Rentabilidade por Funcionário: comissões de funcionários agora entram no custo de pessoal do BI, O.S. canceladas e orçamentos pendentes não inflam receitas nem Contas a Receber, pagamentos parciais abatem o saldo devedor e taxas de cartão repassadas ao cliente não distorcem a margem.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Seletor de competência (Cabeçalho, Fechamento Contábil e Rentabilidade), datas padrão de lançamentos e calendários agora usam dinamicamente o mês e a data reais do sistema, além de migração única de limpeza total preservando configurações da empresa, taxas de cartão e conta admin.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.14',
     date: '17/11/2026',
     title: 'Vendas & PDV Multiformas/Bandeiras, Exclusão com Senha, Cancelamento, Busca de Produtos, OS & Manual Completo',

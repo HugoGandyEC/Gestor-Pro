@@ -28,6 +28,16 @@ import { ActiveTab } from './Sidebar';
 import { ServiceOrder, ServiceOrderStatus, DirectSale } from '../types';
 import { SERVICE_ORDER_STATUS_LIST } from '../utils/serviceOrderStatus';
 import { TechnicianDashboardView } from './TechnicianDashboardView';
+import {
+  computeServiceOrderFinancials,
+  getDaysInMonthYear,
+  getMonthLabelBR,
+  getMonthsOfYear,
+  getTodayISODate,
+  isActiveEmployee,
+  isAutoPayrollExpense,
+  isServiceOrderFinishedForDRE
+} from '../utils/financialHelpers';
 
 interface DashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
@@ -62,8 +72,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   const [activeRankTab, setActiveRankTab] = useState<'produtos' | 'servicos'>('produtos');
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
-  // Reference date for "today" in system context (October 2026)
-  const referenceToday = '2026-10-31';
+  // Data real de hoje para alertas de prazo
+  const referenceToday = getTodayISODate();
+  const selectedYear = Number((selectedMonthYear || '').slice(0, 4)) || new Date().getFullYear();
 
   // =========================================================================
   // 1. CÁLCULO DE STATUS DAS ORDENS DE SERVIÇO (Qualificação Oficial da OS)
@@ -157,129 +168,112 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   }, [serviceOrders, referenceToday]);
 
   // =========================================================================
-  // 2. DADOS AGRUPADOS POR PERÍODO (DIA, MÊS, ANO) PARA GRÁFICOS
+  // 2. DADOS AGRUPADOS POR PERÍODO (DIA, MÊS, ANO) PARA GRÁFICOS — 100% REAIS
   // =========================================================================
   const chartData = useMemo(() => {
+    const realizedOrders = serviceOrders.filter(isServiceOrderFinishedForDRE);
+
     if (periodMode === 'dia') {
-      // Agrupamento por dia dentro do mês selecionado (ex: 2026-10)
-      const daysInMonth = 31;
+      const daysInMonth = getDaysInMonthYear(selectedMonthYear);
       const days = [];
       for (let d = 1; d <= daysInMonth; d++) {
         const dayStr = d < 10 ? `0${d}` : `${d}`;
         const fullDate = `${selectedMonthYear}-${dayStr}`;
 
-        // Serviços no dia
         let servicesTotal = 0;
-        serviceOrders.forEach(os => {
+        let salesTotal = 0;
+
+        realizedOrders.forEach(os => {
           const dateMatch = os.completionDate === fullDate || (!os.completionDate && os.openDate === fullDate);
           if (dateMatch) {
-            servicesTotal += os.services.reduce((a, s) => a + s.price, 0) + (os.visitFee || 0);
+            const fin = computeServiceOrderFinancials(os);
+            servicesTotal += fin.netServicesAndVisit;
+            salesTotal += fin.netParts;
           }
         });
 
-        // Vendas no dia (diretas + peças aplicadas)
-        let salesTotal = 0;
         directSales.forEach(s => {
           if (s.status !== 'cancelada' && s.date === fullDate) {
-            salesTotal += s.total;
-          }
-        });
-        serviceOrders.forEach(os => {
-          const dateMatch = os.completionDate === fullDate || (!os.completionDate && os.openDate === fullDate);
-          if (dateMatch) {
-            salesTotal += os.parts.reduce((a, p) => a + (p.price * p.quantity), 0);
+            salesTotal += Math.max(0, Number(s.total || 0));
           }
         });
 
-        // Exibir dias com movimentação ou amostra espaçada para visual limpo
         days.push({
           label: `${dayStr}`,
           fullDate,
-          services: servicesTotal,
-          sales: salesTotal,
-          total: servicesTotal + salesTotal
+          services: Number(servicesTotal.toFixed(2)),
+          sales: Number(salesTotal.toFixed(2)),
+          total: Number((servicesTotal + salesTotal).toFixed(2))
         });
       }
       return days;
     } else if (periodMode === 'mes') {
-      // Agrupamento pelos meses do ano corrente (2026)
-      const months = [
-        { key: '2026-05', label: 'Mai' },
-        { key: '2026-06', label: 'Jun' },
-        { key: '2026-07', label: 'Jul' },
-        { key: '2026-08', label: 'Ago' },
-        { key: '2026-09', label: 'Set' },
-        { key: '2026-10', label: 'Out' },
-        { key: '2026-11', label: 'Nov' },
-        { key: '2026-12', label: 'Dez' }
-      ];
+      const months = getMonthsOfYear(selectedYear);
 
       return months.map(m => {
         let servicesTotal = 0;
         let salesTotal = 0;
 
-        serviceOrders.forEach(os => {
+        realizedOrders.forEach(os => {
           const osMonth = (os.completionDate || os.openDate).slice(0, 7);
           if (osMonth === m.key) {
-            servicesTotal += os.services.reduce((a, s) => a + s.price, 0) + (os.visitFee || 0);
-            salesTotal += os.parts.reduce((a, p) => a + (p.price * p.quantity), 0);
+            const fin = computeServiceOrderFinancials(os);
+            servicesTotal += fin.netServicesAndVisit;
+            salesTotal += fin.netParts;
           }
         });
 
         directSales.forEach(s => {
           if (s.status !== 'cancelada' && s.date.slice(0, 7) === m.key) {
-            salesTotal += s.total;
+            salesTotal += Math.max(0, Number(s.total || 0));
           }
         });
 
         return {
           label: m.label,
           fullDate: m.key,
-          services: servicesTotal,
-          sales: salesTotal,
-          total: servicesTotal + salesTotal
+          services: Number(servicesTotal.toFixed(2)),
+          sales: Number(salesTotal.toFixed(2)),
+          total: Number((servicesTotal + salesTotal).toFixed(2))
         };
       });
     } else {
-      // Agrupamento por ano
-      const years = ['2024', '2025', '2026', '2027'];
+      // Agrupamento anual 100% real (sem valores fictícios)
+      const years = [
+        String(selectedYear - 2),
+        String(selectedYear - 1),
+        String(selectedYear),
+        String(selectedYear + 1)
+      ];
       return years.map(yr => {
         let servicesTotal = 0;
         let salesTotal = 0;
 
-        serviceOrders.forEach(os => {
+        realizedOrders.forEach(os => {
           const osYear = (os.completionDate || os.openDate).slice(0, 4);
           if (osYear === yr) {
-            servicesTotal += os.services.reduce((a, s) => a + s.price, 0) + (os.visitFee || 0);
-            salesTotal += os.parts.reduce((a, p) => a + (p.price * p.quantity), 0);
+            const fin = computeServiceOrderFinancials(os);
+            servicesTotal += fin.netServicesAndVisit;
+            salesTotal += fin.netParts;
           }
         });
 
         directSales.forEach(s => {
           if (s.status !== 'cancelada' && s.date.slice(0, 4) === yr) {
-            salesTotal += s.total;
+            salesTotal += Math.max(0, Number(s.total || 0));
           }
         });
-
-        // Valores base de estimativa histórica para anos anteriores se não houver registros
-        if (yr === '2024') {
-          servicesTotal = 42800;
-          salesTotal = 31200;
-        } else if (yr === '2025') {
-          servicesTotal = 58900;
-          salesTotal = 46500;
-        }
 
         return {
           label: yr,
           fullDate: yr,
-          services: servicesTotal,
-          sales: salesTotal,
-          total: servicesTotal + salesTotal
+          services: Number(servicesTotal.toFixed(2)),
+          sales: Number(salesTotal.toFixed(2)),
+          total: Number((servicesTotal + salesTotal).toFixed(2))
         };
       });
     }
-  }, [periodMode, selectedMonthYear, serviceOrders, directSales]);
+  }, [periodMode, selectedMonthYear, selectedYear, serviceOrders, directSales]);
 
   // Max value for comparative chart scaling
   const maxChartValue = useMemo(() => {
@@ -288,13 +282,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   }, [chartData]);
 
   // =========================================================================
-  // 3. RANKING DE MAIS VENDIDOS (PRODUTOS & SERVIÇOS)
+  // 3. RANKING DE MAIS VENDIDOS (PRODUTOS & SERVIÇOS — SOMENTE OPERAÇÕES ATIVAS)
   // =========================================================================
   const topSellingProducts = useMemo(() => {
     const productMap = new Map<string, { id: string; name: string; quantity: number; totalRevenue: number; category: string }>();
 
-    // 1. Peças aplicadas em Ordens de Serviço
+    // 1. Peças aplicadas em Ordens de Serviço válidas (exclui canceladas e orçamentos abertos)
     serviceOrders.forEach(os => {
+      if (os.status === 'cancelada' || os.status === 'orcamento_aberto') return;
       os.parts.forEach(part => {
         const key = part.name.trim();
         const existing = productMap.get(key) || {
@@ -304,8 +299,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           totalRevenue: 0,
           category: 'Peças & Instalação'
         };
-        existing.quantity += part.quantity;
-        existing.totalRevenue += part.price * part.quantity;
+        existing.quantity += Number(part.quantity || 1);
+        existing.totalRevenue += Number(part.price || 0) * Number(part.quantity || 1);
         productMap.set(key, existing);
       });
     });
@@ -322,8 +317,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           totalRevenue: 0,
           category: 'Venda de Balcão'
         };
-        existing.quantity += item.quantity;
-        existing.totalRevenue += item.price * item.quantity;
+        existing.quantity += Number(item.quantity || 1);
+        existing.totalRevenue += Number(item.price || 0) * Number(item.quantity || 1);
         productMap.set(key, existing);
       });
     });
@@ -341,6 +336,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     const serviceMap = new Map<string, { id: string; name: string; executions: number; totalHours: number; totalRevenue: number }>();
 
     serviceOrders.forEach(os => {
+      if (os.status === 'cancelada' || os.status === 'orcamento_aberto') return;
       os.services.forEach(srv => {
         const key = srv.name.trim();
         const existing = serviceMap.get(key) || {
@@ -352,7 +348,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         };
         existing.executions += 1;
         existing.totalHours += srv.hours || 0;
-        existing.totalRevenue += srv.price;
+        existing.totalRevenue += Number(srv.price || 0);
         serviceMap.set(key, existing);
       });
     });
@@ -367,22 +363,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   }, [serviceOrders]);
 
   // =========================================================================
-  // 4. CUSTOS E RESUMO OPERACIONAL
+  // 4. CUSTOS E RESUMO OPERACIONAL (SEM DUPLA CONTAGEM DE FOLHA)
   // =========================================================================
   const totalFleetCost = useMemo(() => {
     return vehicleExpenses
       .filter(ve => ve.date.startsWith(selectedMonthYear))
-      .reduce((a, b) => a + b.cost, 0);
+      .reduce((a, b) => a + Number(b.cost || 0), 0);
   }, [vehicleExpenses, selectedMonthYear]);
 
   const totalFixedCost = useMemo(() => {
     return generalExpenses
-      .filter(ge => ge.dueDate.startsWith(selectedMonthYear))
-      .reduce((a, b) => a + b.cost, 0);
+      .filter(ge => ge.dueDate.startsWith(selectedMonthYear) && !isAutoPayrollExpense(ge))
+      .reduce((a, b) => a + Number(b.cost || 0), 0);
   }, [generalExpenses, selectedMonthYear]);
 
   const totalSalaries = useMemo(() => {
-    return employees.reduce((a, e) => a + computeEmployeeNominalPay(e) + e.benefitsCharges, 0);
+    return employees
+      .filter(isActiveEmployee)
+      .reduce((a, e) => a + computeEmployeeNominalPay(e) + Number(e.benefitsCharges || 0), 0);
   }, [employees]);
 
   // Alerta de manutenção de frota (óleo)
@@ -400,8 +398,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
               Visão Geral · Serviços & Vendas
             </span>
             <span className="text-xs text-[#d8d8d8]">
-              {periodMode === 'dia' && `Visualização Diária (${selectedMonthYear})`}
-              {periodMode === 'mes' && `Visualização Mensal Comparativa (Ano 2026)`}
+              {periodMode === 'dia' && `Visualização Diária (${getMonthLabelBR(selectedMonthYear)})`}
+              {periodMode === 'mes' && `Visualização Mensal Comparativa (Ano ${selectedYear})`}
               {periodMode === 'ano' && `Visualização Anual Consolidada`}
             </span>
           </div>

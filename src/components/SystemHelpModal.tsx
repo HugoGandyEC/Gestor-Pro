@@ -214,7 +214,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           howToUse: [
             'Ao criar ou editar uma OS, use o campo de busca inteligente para pesquisar qualquer produto ou serviço do Estoque.',
             'Selecione o item desejado na lista suspensa ou no seletor para adicioná-lo com preço e baixa automática ao concluir.',
-            'Os status oficiais ("Orçamento", "Aguardando Aprovação", "Aguardando Peça", "Em Andamento", "Concluída", "Entregue", "Pago" e "Cancelada") aparecem com exatamente o mesmo rótulo e cor nos cards do Painel e na listagem de OS.'
+            'Os status oficiais ("Orçamento Aberto", "Aguardando Aprovação", "Aprovada / Em Andamento", "Aguardando Peças", "Concluída (Aguardando Retirada)", "Entregue / Finalizada" e "Cancelada") aparecem com exatamente o mesmo rótulo e cor nos cards do Painel e na listagem de OS.'
           ],
           tips: 'Evita divergências de nomenclatura entre a equipe de campo, recepção e painel gerencial.',
           targetTab: 'orders'

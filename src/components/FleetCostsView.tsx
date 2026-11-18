@@ -17,6 +17,7 @@ import { Vehicle, VehicleMaintenance, PaymentMethod } from '../types';
 import { RecordDetailModal } from './RecordDetailModal';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
 import { useRowHoverTooltip } from './RowHoverTooltip';
+import { getTodayISODate } from '../utils/financialHelpers';
 
 export const FleetCostsView: React.FC = () => {
   const { 
@@ -42,21 +43,21 @@ export const FleetCostsView: React.FC = () => {
   const [category, setCategory] = useState<VehicleMaintenance['category']>('combustivel');
   const [description, setDescription] = useState('');
   const [cost, setCost] = useState<number>(0);
-  const [date, setDate] = useState('2026-10-28');
-  const [kmAtService, setKmAtService] = useState<number>(48900);
-  const [litersFuel, setLitersFuel] = useState<number>(45);
+  const [date, setDate] = useState(() => getTodayISODate());
+  const [kmAtService, setKmAtService] = useState<number>(0);
+  const [litersFuel, setLitersFuel] = useState<number>(0);
   const [workshopOrSupplier, setWorkshopOrSupplier] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cartao_debito');
 
   // New Vehicle Form State
   const [model, setModel] = useState('');
   const [plate, setPlate] = useState('');
-  const [year, setYear] = useState(2023);
-  const [currentKm, setCurrentKm] = useState(40000);
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [currentKm, setCurrentKm] = useState(0);
   const [assignedEmployeeId, setAssignedEmployeeId] = useState('');
-  const [nextOilChangeKm, setNextOilChangeKm] = useState(50000);
-  const [annualIpvaValue, setAnnualIpvaValue] = useState(1900);
-  const [annualInsuranceValue, setAnnualInsuranceValue] = useState(2400);
+  const [nextOilChangeKm, setNextOilChangeKm] = useState(10000);
+  const [annualIpvaValue, setAnnualIpvaValue] = useState(0);
+  const [annualInsuranceValue, setAnnualInsuranceValue] = useState(0);
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();

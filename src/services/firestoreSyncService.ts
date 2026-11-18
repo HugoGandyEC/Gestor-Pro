@@ -79,7 +79,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
   try {
     // 1. Produtos em tempo real
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-      if (!snapshot.empty) {
+      if (!snapshot.empty || !snapshot.metadata.fromCache) {
         const cloudProducts: Product[] = [];
         snapshot.forEach(docSnap => {
           cloudProducts.push(docSnap.data() as Product);
@@ -93,7 +93,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
 
     // 2. Clientes em tempo real
     const unsubClients = onSnapshot(collection(db, 'clients'), (snapshot) => {
-      if (!snapshot.empty) {
+      if (!snapshot.empty || !snapshot.metadata.fromCache) {
         const cloudClients: Client[] = [];
         snapshot.forEach(docSnap => {
           cloudClients.push(docSnap.data() as Client);
@@ -107,7 +107,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
 
     // 3. Fornecedores em tempo real
     const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
-      if (!snapshot.empty) {
+      if (!snapshot.empty || !snapshot.metadata.fromCache) {
         const cloudSuppliers: Supplier[] = [];
         snapshot.forEach(docSnap => {
           cloudSuppliers.push(docSnap.data() as Supplier);
@@ -121,7 +121,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
 
     // 4. Ordens de Serviço em tempo real
     const unsubOrders = onSnapshot(collection(db, 'serviceOrders'), (snapshot) => {
-      if (!snapshot.empty) {
+      if (!snapshot.empty || !snapshot.metadata.fromCache) {
         const cloudOrders: ServiceOrder[] = [];
         snapshot.forEach(docSnap => {
           cloudOrders.push(docSnap.data() as ServiceOrder);
@@ -135,7 +135,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
 
     // 5. Vendas Diretas em tempo real
     const unsubDirectSales = onSnapshot(collection(db, 'directSales'), (snapshot) => {
-      if (!snapshot.empty) {
+      if (!snapshot.empty || !snapshot.metadata.fromCache) {
         const cloudSales: DirectSale[] = [];
         snapshot.forEach(docSnap => {
           cloudSales.push(docSnap.data() as DirectSale);
@@ -149,7 +149,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
 
     // 6. Agendamentos em tempo real
     const unsubAppointments = onSnapshot(collection(db, 'appointments'), (snapshot) => {
-      if (!snapshot.empty) {
+      if (!snapshot.empty || !snapshot.metadata.fromCache) {
         const cloudAppointments: CompanyAppointment[] = [];
         snapshot.forEach(docSnap => {
           cloudAppointments.push(docSnap.data() as CompanyAppointment);
@@ -163,7 +163,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
 
     // 7. Sessões de Caixa PDV em tempo real
     const unsubCashSessions = onSnapshot(collection(db, 'cashSessions'), (snapshot) => {
-      if (!snapshot.empty) {
+      if (!snapshot.empty || !snapshot.metadata.fromCache) {
         const cloudSessions: CashRegisterSession[] = [];
         snapshot.forEach(docSnap => {
           cloudSessions.push(docSnap.data() as CashRegisterSession);
@@ -178,7 +178,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
 
     // 8. Movimentações de Caixa PDV em tempo real
     const unsubCashMovements = onSnapshot(collection(db, 'cashMovements'), (snapshot) => {
-      if (!snapshot.empty) {
+      if (!snapshot.empty || !snapshot.metadata.fromCache) {
         const cloudMovements: CashRegisterMovement[] = [];
         snapshot.forEach(docSnap => {
           cloudMovements.push(docSnap.data() as CashRegisterMovement);
@@ -195,7 +195,7 @@ export function subscribeToCloudSync(callbacks: SyncCallbacks): () => void {
     if (callbacks.onPaymentReceiptsSync) {
       const cb = callbacks.onPaymentReceiptsSync;
       const unsubReceipts = onSnapshot(collection(db, 'paymentReceipts'), (snapshot) => {
-        if (!snapshot.empty) {
+        if (!snapshot.empty || !snapshot.metadata.fromCache) {
           const cloudReceipts: PaymentReceipt[] = [];
           snapshot.forEach(docSnap => {
             cloudReceipts.push(docSnap.data() as PaymentReceipt);
@@ -394,3 +394,40 @@ export async function bootstrapCloudDatabase(initialData: {
     console.warn('Aviso no bootstrap do Firestore:', err);
   }
 }
+
+const CLOUD_COLLECTIONS = [
+  'products',
+  'clients',
+  'suppliers',
+  'serviceOrders',
+  'directSales',
+  'appointments',
+  'cashSessions',
+  'cashMovements',
+  'paymentReceipts'
+] as const;
+
+/**
+ * Remove todos os documentos de todas as coleções sincronizadas no Firestore
+ * para garantir o "Zero Absoluto" também na nuvem e em outros dispositivos.
+ */
+export async function clearAllCloudCollections(): Promise<void> {
+  try {
+    for (const colName of CLOUD_COLLECTIONS) {
+      const snap = await getDocs(collection(db, colName));
+      if (snap.empty) continue;
+
+      // Firestore writeBatch suporta até 500 operações por lote
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 400) {
+        const chunk = docs.slice(i, i + 400);
+        const batch = writeBatch(db);
+        chunk.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+  } catch (err) {
+    console.warn('Erro ao limpar coleções na nuvem (Firestore):', err);
+  }
+}
+

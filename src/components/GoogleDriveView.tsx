@@ -39,6 +39,7 @@ import {
 import { useApp, formatBRL } from '../context/AppContext';
 import { GoogleIntegrationModal } from './GoogleIntegrationModal';
 import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
+import { SYSTEM_VERSION } from '../constants/version';
 
 export const GoogleDriveView: React.FC = () => {
   const { 
@@ -523,11 +524,11 @@ Documento gerado e salvo automaticamente no Google Drive pelo ERP GestãoPro.
                   Pacote ZIP Completo de Todos os Arquivos do Sistema
                 </h3>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-bold">
-                  ZIP Compactado (~592 KB)
+                  Pacote Atualizado {SYSTEM_VERSION} (.ZIP)
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-                Arquivo compactado com todo o código-fonte (React, TypeScript, Tailwind CSS), configurações, regras fiscais, temas e dados do ERP prontos para download no seu computador ou arquivamento em nuvem no seu Google Drive.
+                Arquivo compactado atualizado com todo o código-fonte (React, TypeScript, Tailwind CSS), configurações, regras fiscais, temas e dados do ERP prontos para download, deploy na VPS ou arquivamento em nuvem no Google Drive.
               </p>
             </div>
           </div>

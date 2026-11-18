@@ -1,6 +1,34 @@
 # Histórico de Versões e Alterações — GestãoPro ERP
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.13`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **GestãoPro ERP** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.15`).
+
+---
+
+## [v2.7.15] — 18/11/2026
+**Zero Absoluto + Revisão Geral do DRE e de Todos os Demonstrativos Financeiros**
+
+### Removido (Zero Absoluto)
+- **Base 100% Limpa (`mockData`, `AppContext`, `firestoreSyncService`)**: esvaziamento completo de funcionários, custos de implantação, logs iniciais e usuários de teste (mantendo apenas o login `admin`), com rotina única de limpeza do `localStorage` e do Firestore (`clearAllCloudCollections`) preservando configurações da empresa, tema, taxas de cartão e políticas de garantia.
+- **Fim de Dados Fictícios em Telas**: removidos faturamentos fictícios de 2024/2025 no Painel Principal (`DashboardView`), fallback artificial de R$ 16.000 e defaults fixos no Simulador de Custos Iniciais (`InitialCostSimulatorView`), valores pré-preenchidos na Frota (`FleetCostsView`) e botões de gerar/carregar exemplos em Ordens de Serviço e Configurações.
+
+### Corrigido (DRE & Demonstrativos Financeiros)
+- **DRE 100% Reconciliado (`FinancialView`, `AppContext`, `financialHelpers`)**: rateio proporcional de descontos em O.S. (impedindo receita negativa de serviços), abertura da Seção 1 em Serviços Brutos + Peças Brutas − Descontos + Vendas Diretas e agrupamento mutuamente exclusivo das despesas operacionais (incluindo Outras Despesas Operacionais e parcelas de dívidas não sincronizadas) fechando exatamente centavo por centavo.
+- **Unificação entre DRE, BI, Dashboard, Contabilidade e Rentabilidade**: O.S. canceladas e orçamentos não aprovados excluídos das receitas, gráficos, rankings e Contas a Receber; funcionários inativos excluídos da folha, BI e relatórios sem atividade no mês; comissões integradas ao custo de pessoal no BI; cálculo exato apenas de taxas de cartão absorvidas pela empresa; pagamentos parciais descontados corretamente no Contas a Receber; alíquota efetiva real no Fechamento Contábil e cores semânticas (verde/vermelho/neutro) para lucro e margem negativos/zerados.
+- **Competência & Datas Dinâmicas**: mês selecionado, datas padrão de despesas/frota, cabeçalho, fechamento fiscal e rentabilidade agora acompanham automaticamente a data real e todos os meses com movimentação.
+
+---
+
+## [v2.7.14] — 17–18/11/2026
+**PDV & Vendas Multi-Bandeiras, Cancelamento vs Exclusão por Senha, Status Unificados OS, Integração de Custos, Agenda Limpa & Manual v2.7.14**
+
+### Adicionado & Alterado
+- **PDV / Frente de Caixa (`PdvView`)**: suporte a múltiplas formas de pagamento com operadora, bandeira de cartão e parcelamento independentes por linha; botão **Cancelar Venda** aberto a qualquer operador com estorno de estoque (`ajuste`) e exclusão definitiva (**Excluir Venda**) protegida pela senha do Administrador ou usuário autorizado (`canDeletePdvSales`).
+- **Vendas Diretas (`SalesView`)**: abertura limpa (lista vazia e campos numéricos sem zeros fixos), **Busca Rápida** unificada de produtos do Estoque e serviços (mais seletor agrupado e Item Avulso), remoção de qualquer item (inclusive o último), cancelamento antes/depois de adicionar, múltiplas formas/bandeiras e botão **Enviar e Finalizar no PDV**.
+- **Ordens de Serviço (`ServiceOrdersView` & `DashboardView`)**: busca inteligente integrada a todos os produtos cadastrados no Estoque e padronização exata dos status em tabela, cards do Painel, Portal e documentos.
+- **Integração Automática de Custos, Comboboxes & Estoque**: folha salarial/horas trabalhadas/comissões, compras de materiais (manuais ou XML NF-e) e custos recorrentes sincronizados no Contas a Pagar e DRE sem duplicidade; combobox de Forma de Remuneração; filtros em combobox no BI, Central de Cadastros e módulo renomeado para **Estoque**.
+- **Configurações Unificadas (`Header` & `SystemSettingsView`)**: menus de **Temas & Identidade Visual** e **Logs & Auditoria** movidos do topo para dentro de Configurações, junto à configuração da senha mestra de exclusão de vendas no PDV/Vendas.
+- **Google Agenda (`GoogleCalendarView`, `mockData`, `AppContext`)**: remoção definitiva dos dados fictícios de exemplo da agenda, limpeza automática na carga/nuvem e retirada dos botões e banners de limpar/restaurar exemplos.
+- **Manual, Documentação & Pacote VPS**: atualização completa do Manual do Sistema (17 capítulos), Ajuda Rápida por Módulos, Especificação Técnica e regeneração do pacote `public/gestaopro-sistema-completo.zip` com o código-fonte atual.
 
 ---
 

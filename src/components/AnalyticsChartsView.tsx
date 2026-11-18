@@ -26,6 +26,13 @@ import {
   getEmployeeRemunerationType,
   REMUNERATION_TYPE_LABELS
 } from '../utils/employeeRemuneration';
+import {
+  computeAbsorbedCardFees,
+  computeUnsyncedDebtInstallments,
+  isActiveEmployee,
+  isAutoPayrollExpense,
+  isServiceOrderFinishedForDRE
+} from '../utils/financialHelpers';
 
 export type ChartModelType = 'colunas' | 'barras' | 'linha' | 'rosca' | 'empilhado';
 
@@ -717,6 +724,7 @@ export const AnalyticsChartsView: React.FC = () => {
     generalExpenses,
     vehicleExpenses,
     vehicles,
+    setupCosts,
     selectedMonthYear,
     setSelectedMonthYear
   } = useApp();
@@ -1038,7 +1046,7 @@ export const AnalyticsChartsView: React.FC = () => {
       lineCounts[linha] = (lineCounts[linha] || 0) + 1;
     });
 
-    const topLine = Object.entries(lineCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Tanques & Peças';
+    const topLine = Object.entries(lineCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
 
     const openBySupplierMap: Record<string, number> = {};
     pendingExpenses.forEach(e => {
@@ -1076,14 +1084,15 @@ export const AnalyticsChartsView: React.FC = () => {
   }, [suppliers, generalExpenses, resolvedPeriod]);
 
   // =========================================================================
-  // 3. INDICADORES DE FOLHA / FUNCIONÁRIOS
+  // 3. INDICADORES DE FOLHA / FUNCIONÁRIOS (APENAS COLABORADORES ATIVOS)
   // =========================================================================
   const payrollMetrics = useMemo(() => {
-    const salariosBaseNominais = employees.reduce((acc, e) => acc + computeEmployeeNominalPay(e), 0);
-    const encargosBeneficios = employees.reduce((acc, e) => acc + Number(e.benefitsCharges || 0), 0);
+    const activeEmployees = employees.filter(isActiveEmployee);
+    const salariosBaseNominais = activeEmployees.reduce((acc, e) => acc + computeEmployeeNominalPay(e), 0);
+    const encargosBeneficios = activeEmployees.reduce((acc, e) => acc + Number(e.benefitsCharges || 0), 0);
     const custoTotalFolhaMensal = salariosBaseNominais + encargosBeneficios;
 
-    const perEmployeeChart: ChartDatum[] = employees.map((emp, i) => {
+    const perEmployeeChart: ChartDatum[] = activeEmployees.map((emp, i) => {
       const nominal = computeEmployeeNominalPay(emp);
       const remLabel = REMUNERATION_TYPE_LABELS[getEmployeeRemunerationType(emp)];
       return {
@@ -1237,10 +1246,10 @@ export const AnalyticsChartsView: React.FC = () => {
       timelineMap[b.sortKey].expenses += amount;
     };
 
-    // Processa Ordens de Serviço
+    // Processa Ordens de Serviço concluídas/faturadas (alinhado ao DRE Oficial)
     if (channelFilter === 'todos' || channelFilter === 'os') {
       serviceOrders.forEach(o => {
-        if (o.status === 'cancelada') return;
+        if (!isServiceOrderFinishedForDRE(o)) return;
         const osDate = (o.completionDate || o.openDate || '').slice(0, 10);
         if (!inResolvedPeriod(osDate)) return;
         if (!matchesClient(o.clientId, o.clientName)) return;
@@ -1250,7 +1259,7 @@ export const AnalyticsChartsView: React.FC = () => {
         const osPrtFull = o.parts.reduce((a, b) => a + Number(b.price || 0) * Number(b.quantity || 1), 0);
         const osVisit = Number(o.visitFee || 0);
         const osSubtotal = osSrvFull + osPrtFull + osVisit;
-        const osDisc = Number(o.calculatedDiscount || 0);
+        const osDisc = Math.min(osSubtotal, Math.max(0, Number(o.calculatedDiscount || 0)));
         const osNetTotal = Math.max(0, osSubtotal - osDisc);
 
         const matchedServices = o.services.filter(sv => matchesServiceItem(sv.name));
@@ -1261,7 +1270,7 @@ export const AnalyticsChartsView: React.FC = () => {
 
         let effectiveOsRevenue = osNetTotal;
         let effectiveOsCost = o.parts.reduce((a, p) => a + Number(p.cost || 0) * Number(p.quantity || 1), 0);
-        let effectiveOsFees = (o.payments || []).reduce((a, p) => a + Number(p.rateAmount || 0), 0);
+        let effectiveOsFees = computeAbsorbedCardFees(o.payments);
 
         if (hasItemFilter) {
           let itemGross = 0;
@@ -1367,7 +1376,7 @@ export const AnalyticsChartsView: React.FC = () => {
 
         let effectiveSaleRevenue = saleNetTotal;
         let effectiveSaleCost = s.items.reduce((a, it) => a + Number(it.cost || 0) * Number(it.quantity || 1), 0);
-        let effectiveSaleFees = (s.payments || []).reduce((a, p) => a + Number(p.rateAmount || 0), 0);
+        let effectiveSaleFees = computeAbsorbedCardFees(s.payments);
 
         if (selectedProductKey !== 'todos') {
           const itemsGross = matchedItems.reduce((a, it) => a + Number(it.price || 0) * Number(it.quantity || 1), 0);
@@ -1428,20 +1437,28 @@ export const AnalyticsChartsView: React.FC = () => {
 
     // Despesas Operacionais & Frota no período (evita dupla contagem de auto-emp- já apurado em Folha / Pessoal)
     const expensesScope = generalExpenses.filter(g => {
-      if (g.id.startsWith('auto-emp-')) return false;
+      if (isAutoPayrollExpense(g)) return false;
       if (!inResolvedPeriod(g.dueDate)) return false;
       if (paymentStatusFilter === 'pago') return g.isPaid;
       if (paymentStatusFilter === 'pendente') return !g.isPaid;
       return true;
     });
+
+    // Comissões apuradas automaticamente no período (antes descartadas!)
+    const periodCommissions = generalExpenses
+      .filter(g => g.id.startsWith('auto-emp-comm-') && inResolvedPeriod(g.dueDate))
+      .reduce((a, g) => a + Number(g.cost || 0), 0);
+
     const fleetScope = vehicleExpenses.filter(v => inResolvedPeriod(v.date));
 
     expensesScope.forEach(e => addTimelineExp(e.dueDate, Number(e.cost || 0)));
     fleetScope.forEach(f => addTimelineExp(f.date, Number(f.cost || 0)));
 
+    const unsyncedDebtInstallments = computeUnsyncedDebtInstallments(setupCosts) * monthFactor;
+
     const totalOperationalCost = hasEntityFilter
       ? 0
-      : expensesScope.reduce((a, g) => a + Number(g.cost || 0), 0);
+      : expensesScope.reduce((a, g) => a + Number(g.cost || 0), 0) + unsyncedDebtInstallments;
 
     const fleetDirectCost = hasEntityFilter
       ? 0
@@ -1457,7 +1474,7 @@ export const AnalyticsChartsView: React.FC = () => {
 
     const totalPersonnelCost = hasEntityFilter
       ? 0
-      : payrollMetrics.custoTotalFolhaMensal * monthFactor;
+      : payrollMetrics.custoTotalFolhaMensal * monthFactor + periodCommissions;
 
     const totalRevenue = osPaidValue + osPendingValue + salesPaidValue + salesPendingValue;
     const receivedTotal = osPaidValue + salesPaidValue;
@@ -1465,16 +1482,17 @@ export const AnalyticsChartsView: React.FC = () => {
 
     const totalCosts =
       totalPartsCost + totalPersonnelCost + totalVehicleCost + totalOperationalCost + totalCardFees;
-    const grossContribution = totalRevenue - totalPartsCost - totalCardFees;
+    const grossContribution = totalRevenue - totalPartsCost;
     const netProfit = totalRevenue - totalCosts;
     const netMarginPercent = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
     const payablesPaid = generalExpenses
       .filter(e => inResolvedPeriod(e.dueDate) && e.isPaid)
       .reduce((a, e) => a + Number(e.cost || 0), 0);
-    const payablesPending = generalExpenses
-      .filter(e => inResolvedPeriod(e.dueDate) && !e.isPaid)
-      .reduce((a, e) => a + Number(e.cost || 0), 0);
+    const payablesPending =
+      generalExpenses
+        .filter(e => inResolvedPeriod(e.dueDate) && !e.isPaid)
+        .reduce((a, e) => a + Number(e.cost || 0), 0) + unsyncedDebtInstallments;
 
     const paymentMethodsChart: ChartDatum[] = Object.entries(paymentMethodTotals)
       .sort((a, b) => b[1] - a[1])
@@ -1633,6 +1651,7 @@ export const AnalyticsChartsView: React.FC = () => {
     generalExpenses,
     vehicleExpenses,
     vehicles,
+    setupCosts,
     payrollMetrics.custoTotalFolhaMensal
   ]);
 

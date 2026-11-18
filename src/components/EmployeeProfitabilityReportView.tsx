@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL } from '../context/AppContext';
 import { EmployeeProfitabilityReport } from '../types';
+import { getAvailableMonths } from '../utils/financialHelpers';
 
 export const EmployeeProfitabilityReportView: React.FC = () => {
   const { 
@@ -30,6 +31,16 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
   } = useApp();
 
   const [selectedEmployeeForDetail, setSelectedEmployeeForDetail] = useState<EmployeeProfitabilityReport | null>(null);
+
+  const availableMonths = React.useMemo(
+    () =>
+      getAvailableMonths(selectedMonthYear, [
+        ...serviceOrders.map(o => o.completionDate || o.openDate),
+        ...vehicleExpenses.map(v => v.date),
+        ...generalExpenses.map(e => e.dueDate)
+      ]),
+    [selectedMonthYear, serviceOrders, vehicleExpenses, generalExpenses]
+  );
 
   const reports = getMonthlyProfitabilityAllEmployees(selectedMonthYear);
 
@@ -149,10 +160,11 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
               onChange={(e) => setSelectedMonthYear(e.target.value)}
               className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:ring-0 cursor-pointer"
             >
-              <option value="2026-10">Outubro / 2026</option>
-              <option value="2026-09">Setembro / 2026</option>
-              <option value="2026-08">Agosto / 2026</option>
-              <option value="2026-11">Novembro / 2026</option>
+              {availableMonths.map(m => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
             </select>
           </div>
 
