@@ -29,6 +29,7 @@ import {
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
 import { ActiveTab } from './Sidebar';
 import { ServiceOrder, ServiceOrderStatus } from '../types';
+import { SERVICE_ORDER_STATUS_LIST, getServiceOrderStatusMeta } from '../utils/serviceOrderStatus';
 import { getTechnicianEmployeeId } from '../security/rbac';
 import { LiveSearchInput } from './LiveSearchInput';
 
@@ -82,8 +83,8 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
 
   const activeTechnician = employees.find(e => e.id === effectiveTechId) || technicianEmployees[0];
 
-  // Filtros
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendentes' | 'em_andamento' | 'concluidos'>('todos');
+  // Filtros (usando a qualificação oficial de status da OS)
+  const [statusFilter, setStatusFilter] = useState<'todos' | ServiceOrderStatus>('todos');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Ordens de serviço do técnico selecionado (isolamento estrito)
@@ -162,14 +163,7 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
         os.clientAddress.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (os.equipmentType && os.equipmentType.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      let matchesStatus = true;
-      if (statusFilter === 'pendentes') {
-        matchesStatus = os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao' || os.status === 'aguardando_pecas';
-      } else if (statusFilter === 'em_andamento') {
-        matchesStatus = os.status === 'aprovada_em_andamento';
-      } else if (statusFilter === 'concluidos') {
-        matchesStatus = os.status === 'concluida_aguardando_retirada' || os.status === 'entregue_finalizada';
-      }
+      const matchesStatus = statusFilter === 'todos' || os.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
@@ -295,7 +289,7 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
             {pendingOrders.length}
           </div>
           <div className="text-[11px] text-amber-700 font-semibold mt-1">
-            {pendingOrders.filter(o => o.status === 'aprovada_em_andamento').length} em andamento hoje
+            {pendingOrders.filter(o => o.status === 'aprovada_em_andamento').length} em Aprovada / Em Andamento
           </div>
         </div>
 
@@ -373,25 +367,24 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { id: 'todos', label: `Todos (${techOrders.length})` },
-            { id: 'pendentes', label: `Pendentes (${pendingOrders.length})` },
-            { id: 'em_andamento', label: 'Em Andamento' },
-            { id: 'concluidos', label: `Concluídos (${completedOrders.length})` }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id as any)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                statusFilter === tab.id 
-                  ? 'bg-slate-900 text-white font-semibold shadow-xs' 
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 shrink-0">
+          <Filter className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as 'todos' | ServiceOrderStatus)}
+            aria-label="Filtrar OS do técnico por status"
+            className="px-3 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-slate-700 cursor-pointer"
+          >
+            <option value="todos">Todos os Status ({techOrders.length})</option>
+            {SERVICE_ORDER_STATUS_LIST.map(st => {
+              const count = techOrders.filter(o => o.status === st.value).length;
+              return (
+                <option key={st.value} value={st.value}>
+                  {st.label} ({count})
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>
 
@@ -427,19 +420,19 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
               >
                 {/* Header do Card */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <span className="font-mono font-bold text-base text-blue-600">
                       {os.code}
                     </span>
-                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                      isDone 
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                        : os.status === 'aprovada_em_andamento'
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200 animate-pulse'
-                        : 'bg-amber-100 text-amber-800 border border-amber-200'
-                    }`}>
-                      {os.status.replace(/_/g, ' ')}
-                    </span>
+                    {(() => {
+                      const statusMeta = getServiceOrderStatusMeta(os.status);
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-md font-bold border ${statusMeta.badgeClass}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClass}`} />
+                          {statusMeta.label}
+                        </span>
+                      );
+                    })()}
                     <span className="text-xs text-slate-500 font-mono hidden md:inline">
                       Previsão: {formatDateBR(os.forecastDate)}
                     </span>

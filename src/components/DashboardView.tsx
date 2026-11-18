@@ -25,17 +25,19 @@ import {
 import { useApp, formatBRL } from '../context/AppContext';
 import { computeEmployeeNominalPay } from '../utils/employeeRemuneration';
 import { ActiveTab } from './Sidebar';
-import { ServiceOrder, DirectSale } from '../types';
+import { ServiceOrder, ServiceOrderStatus, DirectSale } from '../types';
+import { SERVICE_ORDER_STATUS_LIST } from '../utils/serviceOrderStatus';
 import { TechnicianDashboardView } from './TechnicianDashboardView';
 
 interface DashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
   onOpenNewOS: () => void;
+  onOpenOrdersByStatus?: (status: ServiceOrderStatus | 'todas') => void;
 }
 
 type PeriodMode = 'dia' | 'mes' | 'ano';
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenNewOS }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenNewOS, onOpenOrdersByStatus }) => {
   const { 
     monthlyFinancialSummary, 
     selectedMonthYear, 
@@ -64,27 +66,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   const referenceToday = '2026-10-31';
 
   // =========================================================================
-  // 1. CÁLCULO DE STATUS DAS ORDENS DE SERVIÇO
+  // 1. CÁLCULO DE STATUS DAS ORDENS DE SERVIÇO (Qualificação Oficial da OS)
   // =========================================================================
   const osMetrics = useMemo(() => {
     let emAtrasoCount = 0;
     let emAtrasoValue = 0;
     const emAtrasoList: ServiceOrder[] = [];
 
-    let emAndamentoCount = 0;
-    let emAndamentoValue = 0;
+    let abertasCount = 0;
+    let abertasValue = 0;
 
-    let faturadasCount = 0;
-    let faturadasValue = 0;
+    let concluidasCount = 0;
+    let concluidasValue = 0;
 
     let pagasCount = 0;
     let pagasValue = 0;
+
+    let totalValue = 0;
+
+    const byStatus: Record<ServiceOrderStatus, { count: number; value: number }> = {
+      orcamento_aberto: { count: 0, value: 0 },
+      aguardando_aprovacao: { count: 0, value: 0 },
+      aprovada_em_andamento: { count: 0, value: 0 },
+      aguardando_pecas: { count: 0, value: 0 },
+      concluida_aguardando_retirada: { count: 0, value: 0 },
+      entregue_finalizada: { count: 0, value: 0 },
+      cancelada: { count: 0, value: 0 }
+    };
 
     serviceOrders.forEach(os => {
       // Calculate total order value
       const srvTotal = os.services.reduce((a, s) => a + s.price, 0);
       const prtTotal = os.parts.reduce((a, p) => a + (p.price * p.quantity), 0);
       const osTotal = Math.max(0, (srvTotal + prtTotal + (os.visitFee || 0)) - (os.calculatedDiscount || 0));
+
+      totalValue += osTotal;
+
+      if (byStatus[os.status]) {
+        byStatus[os.status].count += 1;
+        byStatus[os.status].value += osTotal;
+      }
 
       const isCompleted = os.status === 'entregue_finalizada' || os.status === 'concluida_aguardando_retirada';
       const isCancelled = os.status === 'cancelada';
@@ -98,16 +119,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         emAtrasoList.push(os);
       }
 
-      // 2. Em Andamento
+      // 2. Carteira em Aberto (Orçamentos + Execução)
       if (os.status === 'aprovada_em_andamento' || os.status === 'aguardando_pecas' || os.status === 'aguardando_aprovacao' || os.status === 'orcamento_aberto') {
-        emAndamentoCount++;
-        emAndamentoValue += osTotal;
+        abertasCount++;
+        abertasValue += osTotal;
       }
 
-      // 3. Faturadas / Concluídas
+      // 3. Concluídas & Entregues
       if (isCompleted) {
-        faturadasCount++;
-        faturadasValue += osTotal;
+        concluidasCount++;
+        concluidasValue += osTotal;
       }
 
       // 4. Pagas / Liquidadas
@@ -123,13 +144,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       emAtrasoCount,
       emAtrasoValue,
       emAtrasoList,
-      emAndamentoCount,
-      emAndamentoValue,
-      faturadasCount,
-      faturadasValue,
+      emAndamentoCount: abertasCount,
+      emAndamentoValue: abertasValue,
+      faturadasCount: concluidasCount,
+      faturadasValue: concluidasValue,
       pagasCount,
       pagasValue,
-      totalOrders
+      totalOrders,
+      totalValue,
+      byStatus
     };
   }, [serviceOrders, referenceToday]);
 
@@ -386,7 +409,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             Controle Executivo de Operações & Vendas
           </h1>
           <p className="hidden md:block text-xs text-[#d8d8d8] mt-1 max-w-2xl leading-relaxed">
-            Painel limpo com indicadores de Ordens de Serviço (em atraso, em andamento, faturadas e pagas), faturamento de serviços vs vendas e ranking dos produtos mais vendidos.
+            Painel executivo com os status das Ordens de Serviço conforme qualificação oficial da OS, alertas de prazo, faturamento de serviços vs vendas e ranking dos produtos mais vendidos.
           </p>
         </div>
 
@@ -438,18 +461,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       </div>
 
       {/* =========================================================================
-          4 CARDS DE STATUS DAS ORDENS DE SERVIÇO: EM ATRASO, EM ANDAMENTO, FATURADOS, PAGOS
+          4 CARDS EXECUTIVOS DE RESUMO OPERACIONAL & FINANCEIRO DAS OS
           ========================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. EM ATRASO */}
         <div 
-          onClick={() => onNavigate('orders')}
+          onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('todas') : onNavigate('orders'))}
           className="bg-white p-4 rounded-xl border border-rose-200 hover:border-rose-300 shadow-2xs transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
-              OS em Atraso
+              OS com Prazo Vencido
             </span>
             <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center group-hover:scale-105 transition-transform">
               <AlertCircle className="w-4 h-4" />
@@ -460,7 +483,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             <span className="text-2xl font-bold font-mono text-rose-700">
               {osMetrics.emAtrasoCount}
             </span>
-            <span className="text-xs text-rose-600 font-medium">ordem(ns) vencida(s)</span>
+            <span className="text-xs text-rose-600 font-medium">ordem(ns) em atraso</span>
           </div>
 
           <div className="mt-2 pt-2 border-t border-rose-100 flex items-center justify-between text-[11px]">
@@ -469,15 +492,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           </div>
         </div>
 
-        {/* 2. EM ANDAMENTO */}
+        {/* 2. CARTEIRA EM ABERTO */}
         <div 
-          onClick={() => onNavigate('orders')}
+          onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('aprovada_em_andamento') : onNavigate('orders'))}
           className="bg-white p-4 rounded-xl border border-amber-200 hover:border-amber-300 shadow-2xs transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-              Em Andamento
+              Carteira em Aberto
             </span>
             <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Clock className="w-4 h-4" />
@@ -488,7 +511,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             <span className="text-2xl font-bold font-mono text-amber-900">
               {osMetrics.emAndamentoCount}
             </span>
-            <span className="text-xs text-amber-700 font-medium">em execução técnica</span>
+            <span className="text-xs text-amber-700 font-medium">orçamentos e execução</span>
           </div>
 
           <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[11px]">
@@ -497,15 +520,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           </div>
         </div>
 
-        {/* 3. FATURADOS / CONCLUÍDOS */}
+        {/* 3. CONCLUÍDAS / ENTREGUES */}
         <div 
-          onClick={() => onNavigate('orders')}
+          onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('entregue_finalizada') : onNavigate('orders'))}
           className="bg-white p-4 rounded-xl border border-[#d8d8d8] hover:border-slate-400 shadow-2xs transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#363739] flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-[#53383e]"></span>
-              Faturadas / Prontas
+              Concluídas & Entregues
             </span>
             <div className="w-7 h-7 rounded-lg bg-[#f6eff1] text-[#53383e] flex items-center justify-center group-hover:scale-105 transition-transform">
               <CheckCircle className="w-4 h-4" />
@@ -516,7 +539,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             <span className="text-2xl font-bold font-mono text-[#363739]">
               {osMetrics.faturadasCount}
             </span>
-            <span className="text-xs text-slate-500 font-medium">OS concluídas</span>
+            <span className="text-xs text-slate-500 font-medium">prontas ou entregues</span>
           </div>
 
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
@@ -551,6 +574,96 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             <span className="text-slate-500">Total Liquidado:</span>
             <span className="font-mono font-bold text-emerald-800">{formatBRL(osMetrics.pagasValue)}</span>
           </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          CARDS DE STATUS DAS ORDENS DE SERVIÇO (EXATAMENTE COMO QUALIFICADO NA OS)
+          ========================================================================= */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#d8d8d8] shadow-xs space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-[#f6eff1] text-[#53383e]">
+              <Wrench className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-bold text-[#363739] text-sm">
+                Status das Ordens de Serviço (Qualificação na OS)
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Clique em qualquer card para abrir as Ordens de Serviço filtradas exatamente pelo mesmo status cadastrado na OS.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('todas') : onNavigate('orders'))}
+            className="text-xs font-semibold text-[#53383e] hover:text-[#432c32] flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+          >
+            <span>Ver Todas ({osMetrics.totalOrders})</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {SERVICE_ORDER_STATUS_LIST.map((st) => {
+            const metric = osMetrics.byStatus[st.value] || { count: 0, value: 0 };
+            return (
+              <button
+                key={st.value}
+                type="button"
+                onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus(st.value) : onNavigate('orders'))}
+                className={`text-left bg-slate-50/50 hover:bg-white p-3.5 rounded-xl border transition-all cursor-pointer group ${st.cardBorderClass}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-md border ${st.badgeClass}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dotClass}`} />
+                    <span className="truncate">{st.label}</span>
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                </div>
+
+                <div className="flex items-baseline justify-between gap-2 mt-2.5">
+                  <div>
+                    <span className={`text-xl font-bold font-mono ${st.textClass}`}>
+                      {metric.count}
+                    </span>
+                    <span className="text-[11px] text-slate-500 ml-1">OS</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-slate-800">
+                    {formatBRL(metric.value)}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Card Totalizador para fechar grade 4x2 equilibrada */}
+          <button
+            type="button"
+            onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('todas') : onNavigate('orders'))}
+            className="text-left bg-[#f6eff1]/60 hover:bg-[#f6eff1] p-3.5 rounded-xl border border-[#d8d8d8] hover:border-[#53383e]/40 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-md border bg-white text-[#53383e] border-[#d8d8d8]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#53383e]" />
+                Todas as Ordens de Serviço
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-[#53383e] group-hover:translate-x-0.5 transition-transform shrink-0" />
+            </div>
+
+            <div className="flex items-baseline justify-between gap-2 mt-2.5">
+              <div>
+                <span className="text-xl font-bold font-mono text-[#53383e]">
+                  {osMetrics.totalOrders}
+                </span>
+                <span className="text-[11px] text-slate-600 ml-1">OS no total</span>
+              </div>
+              <span className="font-mono text-xs font-bold text-[#363739]">
+                {formatBRL(osMetrics.totalValue)}
+              </span>
+            </div>
+          </button>
         </div>
       </div>
 

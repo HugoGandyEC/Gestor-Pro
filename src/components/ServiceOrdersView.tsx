@@ -66,15 +66,18 @@ import { LiveSearchInput, LiveSearchOption } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
 import { ViewModeToggle, ViewMode } from './ViewModeToggle';
 import { useRowHoverTooltip } from './RowHoverTooltip';
+import { SERVICE_ORDER_STATUS_LIST, getServiceOrderStatusMeta } from '../utils/serviceOrderStatus';
 
 interface ServiceOrdersViewProps {
   isNewModalOpen: boolean;
   setIsNewModalOpen: (open: boolean) => void;
+  externalStatusFilter?: { status: string; seq: number };
 }
 
 export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({ 
   isNewModalOpen, 
-  setIsNewModalOpen 
+  setIsNewModalOpen,
+  externalStatusFilter
 }) => {
   const { 
     serviceOrders, 
@@ -112,6 +115,12 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todas');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+
+  React.useEffect(() => {
+    if (externalStatusFilter?.status) {
+      setStatusFilter(externalStatusFilter.status);
+    }
+  }, [externalStatusFilter]);
   const [selectedOSForDetail, setSelectedOSForDetail] = useState<ServiceOrder | null>(null);
   const [modalOSInfo, setModalOSInfo] = useState<ServiceOrder | null>(null);
   const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
@@ -1674,22 +1683,14 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
   }, [filteredOrders, currentPage, itemsPerPage]);
 
   const getCompactStatusMeta = (st: ServiceOrderStatus) => {
-    switch (st) {
-      case 'orcamento_aberto':
-        return { label: 'Orçamento', className: 'text-indigo-700' };
-      case 'aguardando_aprovacao':
-        return { label: 'Aprovação', className: 'text-amber-700' };
-      case 'aprovada_em_andamento':
-        return { label: 'Em Andamento', className: 'text-blue-700' };
-      case 'aguardando_pecas':
-        return { label: 'Aguard. Peças', className: 'text-purple-700' };
-      case 'concluida_aguardando_retirada':
-        return { label: 'Concluída', className: 'text-cyan-700' };
-      case 'entregue_finalizada':
-        return { label: 'Finalizada', className: 'text-emerald-700' };
-      case 'cancelada':
-        return { label: 'Cancelada', className: 'text-rose-700' };
-    }
+    const meta = getServiceOrderStatusMeta(st);
+    return {
+      label: meta.label,
+      className: meta.textClass,
+      badgeClass: meta.badgeClass,
+      selectClass: meta.selectClass,
+      dotClass: meta.dotClass
+    };
   };
 
   return (
@@ -1781,7 +1782,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   return {
                     id: o.id,
                     title: `OS ${o.code} · ${o.clientName}`,
-                    subtitle: `${o.equipmentType || o.description || 'Atendimento Técnico'}`,
+                    subtitle: `${getServiceOrderStatusMeta(o.status).label} · ${o.equipmentType || o.description || 'Atendimento Técnico'}`,
                     priceText: formatBRL(total),
                     badgeText: o.paymentStatus === 'pago' ? 'Pago' : 'Pendente',
                     badgeClassName:
@@ -1796,30 +1797,24 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
           />
         </div>
 
-        {/* Status segmented tabs & ViewModeToggle */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          <div className="flex items-center gap-1 overflow-x-auto">
-            {[
-              { id: 'todas', label: 'Todas' },
-              { id: 'orcamento_aberto', label: 'Orçamentos' },
-              { id: 'aguardando_aprovacao', label: 'Aprovação' },
-              { id: 'aprovada_em_andamento', label: 'Em Andamento' },
-              { id: 'aguardando_pecas', label: 'Aguard. Peças' },
-              { id: 'concluida_aguardando_retirada', label: 'Concluídas' },
-              { id: 'entregue_finalizada', label: 'Finalizadas' },
-              { id: 'cancelada', label: 'Canceladas' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-colors cursor-pointer ${
-                  statusFilter === tab.id ? 'bg-[#53383e] text-white shadow-2xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* Combobox de Status (mesma qualificação da OS) & ViewModeToggle */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filtrar Ordens de Serviço por status"
+            className="px-3 py-1.5 text-xs font-semibold bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg text-[#363739] focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white cursor-pointer"
+          >
+            <option value="todas">Todos os Status ({scopedOrders.length})</option>
+            {SERVICE_ORDER_STATUS_LIST.map(st => {
+              const count = scopedOrders.filter(o => o.status === st.value).length;
+              return (
+                <option key={st.value} value={st.value}>
+                  {st.label} ({count})
+                </option>
+              );
+            })}
+          </select>
           <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         </div>
       </div>
@@ -1916,18 +1911,19 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                                 updateServiceOrder(os.id, { status: nextSt });
                               }
                             }}
-                            className={`bg-slate-50 hover:bg-white border border-slate-200 rounded-md px-2 py-1 text-xs font-semibold cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-[#53383e] ${statusMeta.className}`}
+                            className={`border rounded-md px-2 py-1 text-xs font-semibold cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-[#53383e] ${statusMeta.selectClass}`}
                           >
-                            <option value="orcamento_aberto">Orçamento</option>
-                            <option value="aguardando_aprovacao">Aprovação</option>
-                            <option value="aprovada_em_andamento">Em Andamento</option>
-                            <option value="aguardando_pecas">Aguard. Peças</option>
-                            <option value="concluida_aguardando_retirada">Concluída</option>
-                            <option value="entregue_finalizada">Finalizada</option>
-                            <option value="cancelada">Cancelada</option>
+                            {SERVICE_ORDER_STATUS_LIST.map(st => (
+                              <option key={st.value} value={st.value}>
+                                {st.label}
+                              </option>
+                            ))}
                           </select>
                         ) : (
-                          <span className={`font-semibold ${statusMeta.className}`}>{statusMeta.label}</span>
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-xs font-semibold ${statusMeta.badgeClass}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClass}`} />
+                            {statusMeta.label}
+                          </span>
                         )}
                       </td>
                       <td className="hidden md:table-cell font-mono text-slate-600 tabular-nums">{formatDateBR(os.openDate)}</td>
@@ -2048,18 +2044,19 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                               updateServiceOrder(os.id, { status: nextSt });
                             }
                           }}
-                          className={`bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs font-semibold cursor-pointer ${statusMeta.className}`}
+                          className={`border rounded-md px-2 py-1 text-xs font-semibold cursor-pointer max-w-full ${statusMeta.selectClass}`}
                         >
-                          <option value="orcamento_aberto">Orçamento</option>
-                          <option value="aguardando_aprovacao">Aprovação</option>
-                          <option value="aprovada_em_andamento">Em Andamento</option>
-                          <option value="aguardando_pecas">Aguard. Peças</option>
-                          <option value="concluida_aguardando_retirada">Concluída</option>
-                          <option value="entregue_finalizada">Finalizada</option>
-                          <option value="cancelada">Cancelada</option>
+                          {SERVICE_ORDER_STATUS_LIST.map(st => (
+                            <option key={st.value} value={st.value}>
+                              {st.label}
+                            </option>
+                          ))}
                         </select>
                       ) : (
-                        <span className={`text-xs font-semibold ${statusMeta.className}`}>{statusMeta.label}</span>
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-xs font-semibold ${statusMeta.badgeClass}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClass}`} />
+                          {statusMeta.label}
+                        </span>
                       )}
 
                       {canEditStatus ? (
@@ -2235,13 +2232,11 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                           }}
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
                         >
-                          <option value="orcamento_aberto">Orçamento Aberto</option>
-                          <option value="aguardando_aprovacao">Aguardando Aprovação</option>
-                          <option value="aprovada_em_andamento">Aprovada / Em Andamento</option>
-                          <option value="aguardando_pecas">Aguardando Peças</option>
-                          <option value="concluida_aguardando_retirada">Concluída (Aguard. Retirada)</option>
-                          <option value="entregue_finalizada">Entregue / Finalizada</option>
-                          <option value="cancelada">Cancelada</option>
+                          {SERVICE_ORDER_STATUS_LIST.map(st => (
+                            <option key={st.value} value={st.value}>
+                              {st.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div className="sm:col-span-3">
@@ -2916,13 +2911,11 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                       }}
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 text-xs"
                     >
-                      <option value="orcamento_aberto">Orçamento Aberto</option>
-                      <option value="aguardando_aprovacao">Aguardando Aprovação</option>
-                      <option value="aprovada_em_andamento">Aprovada / Em Andamento</option>
-                      <option value="aguardando_pecas">Aguardando Peças</option>
-                      <option value="concluida_aguardando_retirada">Concluída (Aguardando Retirada)</option>
-                      <option value="entregue_finalizada">Entregue / Finalizada</option>
-                      <option value="cancelada">Cancelada</option>
+                      {SERVICE_ORDER_STATUS_LIST.map(st => (
+                        <option key={st.value} value={st.value}>
+                          {st.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -4614,13 +4607,11 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   }}
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold text-slate-900"
                 >
-                  <option value="orcamento_aberto">Orçamento Aberto</option>
-                  <option value="aguardando_aprovacao">Aguardando Aprovação</option>
-                  <option value="aprovada_em_andamento">Aprovada / Em Andamento</option>
-                  <option value="aguardando_pecas">Aguardando Peças</option>
-                  <option value="concluida_aguardando_retirada">Concluída (Aguardando Retirada)</option>
-                  <option value="entregue_finalizada">Entregue / Finalizada</option>
-                  <option value="cancelada">Cancelada</option>
+                  {SERVICE_ORDER_STATUS_LIST.map(st => (
+                    <option key={st.value} value={st.value}>
+                      {st.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 

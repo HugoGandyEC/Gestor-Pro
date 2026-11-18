@@ -31,6 +31,7 @@ import {
   User
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
+import { getServiceOrderStatusMeta } from '../utils/serviceOrderStatus';
 import {
   CardBrand,
   CashRegisterMovement,
@@ -438,7 +439,7 @@ export const PdvView: React.FC = () => {
           alreadyPaid,
           sentToPdvAt: o.sentToPdvAt,
           pdvTerminal: o.pdvTerminal,
-          statusLabel: o.type === 'orcamento' ? 'Orçamento' : 'Ordem de Serviço',
+          statusLabel: `${o.type === 'orcamento' ? 'Orçamento' : 'Ordem de Serviço'} · ${getServiceOrderStatusMeta(o.status).label}`,
           summaryLines: lines,
           plannedSplits: o.payments,
           rawOrder: o

@@ -38,6 +38,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
+import { getServiceOrderStatusMeta } from '../utils/serviceOrderStatus';
 import { CustomerPortalTicket, ServiceOrder, DirectSale, Client, ClientAddress } from '../types';
 import { getTenantClientId } from '../security/rbac';
 import { getScopedServiceOrders, getScopedDirectSales, getScopedCustomerTickets } from '../security/secureDataAccess';
@@ -653,9 +654,15 @@ export const CustomerPortalView: React.FC = () => {
                       <span className="font-mono font-bold text-sm text-blue-600">
                         {order.code}
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded font-semibold bg-slate-100 text-slate-700">
-                        {order.status.replace(/_/g, ' ').toUpperCase()}
-                      </span>
+                      {(() => {
+                        const statusMeta = getServiceOrderStatusMeta(order.status);
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-md font-semibold border ${statusMeta.badgeClass}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClass}`} />
+                            {statusMeta.label}
+                          </span>
+                        );
+                      })()}
                       {order.equipmentType && (
                         <span className="text-xs text-slate-600 font-medium hidden md:inline">
                           · {order.equipmentType}

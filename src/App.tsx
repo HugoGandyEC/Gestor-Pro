@@ -75,6 +75,7 @@ const MainLayout: React.FC = () => {
   const [activeTab, setActiveTabState] = useState<ActiveTab>(getInitialTab);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState(false);
+  const [ordersStatusFilterTrigger, setOrdersStatusFilterTrigger] = useState<{ status: string; seq: number } | undefined>(undefined);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
@@ -128,7 +129,11 @@ const MainLayout: React.FC = () => {
         return (
           <DashboardView 
             onNavigate={(tab) => handleSetActiveTab(tab)} 
-            onOpenNewOS={() => setIsNewOSModalOpen(true)} 
+            onOpenNewOS={() => setIsNewOSModalOpen(true)}
+            onOpenOrdersByStatus={(status) => {
+              setOrdersStatusFilterTrigger(prev => ({ status, seq: (prev?.seq || 0) + 1 }));
+              handleSetActiveTab('orders');
+            }}
           />
         );
       case 'agenda':
@@ -140,6 +145,7 @@ const MainLayout: React.FC = () => {
           <ServiceOrdersView 
             isNewModalOpen={isNewOSModalOpen}
             setIsNewModalOpen={setIsNewOSModalOpen}
+            externalStatusFilter={ordersStatusFilterTrigger}
           />
         );
       case 'customerPortal':
@@ -182,7 +188,11 @@ const MainLayout: React.FC = () => {
         return (
           <DashboardView 
             onNavigate={(tab) => handleSetActiveTab(tab)} 
-            onOpenNewOS={() => setIsNewOSModalOpen(true)} 
+            onOpenNewOS={() => setIsNewOSModalOpen(true)}
+            onOpenOrdersByStatus={(status) => {
+              setOrdersStatusFilterTrigger(prev => ({ status, seq: (prev?.seq || 0) + 1 }));
+              handleSetActiveTab('orders');
+            }}
           />
         );
     }
