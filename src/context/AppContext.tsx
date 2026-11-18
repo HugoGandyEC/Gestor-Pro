@@ -73,8 +73,7 @@ import {
   initialProductSubcategories,
   initialProductBrands,
   initialProductTags,
-  initialAppointments,
-  createSampleAppointments
+  initialAppointments
 } from '../mockData';
 import { buildDemoServiceOrdersDataset } from '../data/demoServiceOrdersDataset';
 import { 
@@ -352,8 +351,6 @@ interface AppContextType {
   addAppointment: (item: Omit<CompanyAppointment, 'id' | 'createdAt'>) => void;
   updateAppointment: (id: string, updates: Partial<CompanyAppointment>) => void;
   deleteAppointment: (id: string) => void;
-  clearSampleAppointments: () => void;
-  restoreSampleAppointments: () => void;
   clearAllSystemData: () => void;
   loadDemoServiceOrdersData: () => { ordersAdded: number; receiptsAdded: number };
 
@@ -747,7 +744,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (a: CompanyAppointment) => !a?.isSample && !String(a?.id || '').startsWith('apt-sample-')
+          );
+        }
       } catch {}
     }
     return initialAppointments;
@@ -1009,7 +1010,15 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         setDirectSales(cloudSales);
       },
       onAppointmentsSync: (cloudAppointments) => {
-        setAppointments(cloudAppointments);
+        const samplesToPurge = cloudAppointments.filter(
+          a => a.isSample || String(a.id || '').startsWith('apt-sample-')
+        );
+        if (samplesToPurge.length > 0) {
+          samplesToPurge.forEach(a => deleteAppointmentFromCloud(a.id));
+        }
+        setAppointments(
+          cloudAppointments.filter(a => !a.isSample && !String(a.id || '').startsWith('apt-sample-'))
+        );
       },
       onCashSessionsSync: (cloudSessions) => {
         setCashSessions(cloudSessions);
@@ -1332,20 +1341,6 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setAppointments(prev => prev.filter(a => a.id !== id));
     deleteAppointmentFromCloud(id);
     addAuditLog('Exclusão de Agendamento', `Agendamento excluído da agenda.`);
-  };
-
-  const clearSampleAppointments = () => {
-    setAppointments(prev => prev.filter(a => !a.isSample));
-    addAuditLog('Limpeza de Dados de Exemplo', 'Todos os agendamentos fictícios de exemplo foram removidos.');
-  };
-
-  const restoreSampleAppointments = () => {
-    const freshSamples = createSampleAppointments();
-    setAppointments(prev => {
-      const nonSamples = prev.filter(a => !a.isSample);
-      return [...freshSamples, ...nonSamples];
-    });
-    addAuditLog('Restauração de Dados de Exemplo', 'Dados fictícios de exemplo do Google Agenda foram recarregados.');
   };
 
   const clearAllSystemData = () => {
@@ -4271,8 +4266,6 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         addAppointment,
         updateAppointment,
         deleteAppointment,
-        clearSampleAppointments,
-        restoreSampleAppointments,
         clearAllSystemData,
         loadDemoServiceOrdersData,
         resetToDefaults,

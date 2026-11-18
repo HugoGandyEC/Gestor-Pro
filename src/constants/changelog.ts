@@ -16,6 +16,46 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.14',
+    date: '17/11/2026',
+    title: 'Vendas & PDV Multiformas/Bandeiras, Exclusão com Senha, Cancelamento, Busca de Produtos, OS & Manual Completo',
+    summary:
+      'Atualização abrangente dos módulos de Vendas, PDV, Ordens de Serviço, Estoque, BI, Financeiro e Configurações, incluindo múltiplas formas de pagamento com bandeiras de cartão diferentes, exclusão protegida por senha de administrador/funcionário autorizado, cancelamento aberto, busca de produtos/serviços com limpeza de campos, integração automática de custos e atualização completa do Manual do Sistema.',
+    highlights: [
+      'PDV & Vendas com Múltiplas Formas e Bandeiras Diferentes: combine Dinheiro, PIX, Crédito (1x–12x) e Débito com bandeiras independentes por cartão e cálculo automático de taxas e líquido',
+      'Segurança em Vendas & PDV: Cancelar Venda livre para operadores com acesso ao módulo (estorna estoque e preserva auditoria) e Excluir Venda protegido por senha do Administrador ou funcionário autorizado',
+      'Tela de Vendas Ágil: busca ao vivo de produtos do estoque e serviços, exclusão livre de qualquer item deixando campos limpos, botão Cancelar Venda antes de adicionar e envio direto ao PDV para finalizar e receber',
+      'Integração Total de Custos, Comboboxes & Organização: remuneração por tipo (Salário, Hora Trabalhada, Comissão), filtros em combobox no BI/Estoque/Cadastros, Status unificados nas O.S., Temas/Auditoria movidos para Configurações e Manual do Sistema 100% atualizado'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Múltiplas formas de pagamento com seleção independente de bandeira de cartão (Visa, Mastercard, Elo, Hipercard, Outra) e parcelas (1x a 12x) tanto no Checkout do PDV quanto na criação, edição e cobrança de Vendas.'
+      },
+      {
+        category: 'Segurança',
+        description:
+          'Botão Excluir Venda no PDV e em Vendas protegido por senha: valida a Senha Mestra do PDV (Configurações → Empresa) ou a senha de Administrador / funcionário com permissão concedida pelo Administrador (Configurações → Usuários). Botão Cancelar Venda disponível para qualquer usuário com acesso ao módulo.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Na tela de Vendas: busca dinâmica de produtos e serviços, exclusão individual ou em lote (Limpar Lista) deixando os campos limpos sem valores residuais, botão Cancelar Venda antes da inclusão e botão Enviar e Finalizar no PDV para abrir o checkout direto no caixa.'
+      },
+      {
+        category: 'Corrigido',
+        description:
+          'Corrigida a busca e inclusão de produtos cadastrados em Ordens de Serviço e padronizados todos os status de OS entre painel principal, cards, técnico, portal do cliente e PDV.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Integração automática de folha salarial, horas trabalhadas, comissões, compras e custos recorrentes no Financeiro/DRE; seleção de remuneração de funcionários, filtros do BI, Central de Cadastros e Estoque organizados em comboboxes; menus de Tema e Logs/Auditoria movidos do topo para Configurações; Manual do Sistema atualizado com todos os fluxos.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.13',
     date: '15/11/2026',
     title: 'Recibo de Pagamento Automático Integrado ao PDV, Vendas, O.S. e Financeiro',

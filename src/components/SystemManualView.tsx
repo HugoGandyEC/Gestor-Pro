@@ -25,7 +25,14 @@ import {
   Database,
   Store,
   History,
-  Download
+  Download,
+  Receipt,
+  BarChart3,
+  KeyRound,
+  Sliders,
+  UserCheck,
+  Truck,
+  Layers
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 import { SYSTEM_VERSION, SYSTEM_BUILD, SYSTEM_RELEASE_DATE } from '../constants/version';
@@ -62,305 +69,367 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
       badge: 'Arquitetura',
       icon: TrendingUp,
       targetTab: 'dashboard',
-      summary: 'Entenda como o sistema interliga Vendas, Ordens de Serviço, Estoque, Contas a Pagar, Contas a Receber e DRE com precisão matemática.',
+      summary: 'Entenda como o sistema interliga Vendas, Ordens de Serviço, PDV, Recibos, Estoque, Equipe, Contas a Pagar/Receber, BI e DRE com precisão matemática.',
       steps: [
-        'Abertura de Ordem de Serviço ou Venda: O cliente e os itens são selecionados; se houver peças aplicadas, o estoque é reservado ou baixado.',
-        'Faturamento e Formas de Pagamento: Ao definir a forma de pagamento (Dinheiro, PIX, Cartão Débito ou Crédito com parcelas), as taxas da operadora são calculadas automaticamente.',
-        'Contas a Receber: Todas as OSs e Vendas Faturadas entram imediatamente no Contas a Receber (Financeiro) para controle de status PENDENTE ou PAGO.',
-        'Custos Iniciais e Despesas: Contas recorrentes (salários, aluguel, internet, DAS MEI) e parcelamentos de dívidas alimentam as Contas a Pagar e o Simulador de Break-Even.',
-        'DRE e Lucratividade: O sistema calcula a Receita Bruta, subtrai o Custo das Mercadorias (CMV) e todas as despesas fixas para gerar o Lucro Líquido Real.'
+        'Abertura de Ordem de Serviço ou Venda: O cliente e os produtos/serviços são buscados na base; itens do estoque têm baixa e estorno automáticos por movimentação Kardex.',
+        'Envio ao PDV & Formas de Pagamento: Tanto O.S. quanto Vendas podem ser enviadas ao PDV ou baixadas com uma ou múltiplas formas de pagamento e bandeiras de cartão diferentes (ex.: PIX + Crédito Visa 3x + Débito Mastercard).',
+        'Emissão Automática de Recibo: Todo pagamento confirmado no PDV/Caixa, O.S., Venda ou Financeiro gera na hora o Recibo de Pagamento com controle de saldo parcial ou carimbo de QUITADO.',
+        'Integração Automática de Custos: Salários, horas trabalhadas, comissões, compras de materiais/XML e contas recorrentes ou parceladas alimentam automaticamente Contas a Pagar, DRE e BI sem duplicidade.',
+        'DRE, BI e Painéis: Os dados consolidam a Receita Bruta, deduzem CMV, taxas de cartão, folha, frota e custos fixos para apurar o Lucro Líquido Real em tempo real.'
       ],
       tips: [
-        'Acesse a tela "Visão Geral" (Dashboard) para ter um panorama instantâneo de faturamento, margens, OSs em andamento e contas pendentes do mês.',
-        'Sempre selecione a competência (Mês/Ano) no topo da tela para visualizar os relatórios e DRE do período desejado.'
+        'Acesse "Visão Geral" (Dashboard) para acompanhar faturamento, margens, cards de O.S. com status padronizados e pendências do mês.',
+        'Vendas e movimentações canceladas são excluídas automaticamente dos totalizadores do Dashboard, BI, DRE e fechamento contábil, mantendo o registro apenas na auditoria.'
       ],
       rules: [
-        'Vendas Diretas e Ordens de Serviço faturadas no mesmo mês são consolidadas na Receita Bruta.',
-        'Nenhum dado financeiro é descartado: vendas avulsas de balcão entram 100% no faturamento do DRE.'
+        'Vendas Diretas ativas e Ordens de Serviço faturadas no período são consolidadas na Receita Bruta.',
+        'Todos os módulos operam sincronizados em tempo real com a nuvem (PC ↔ Celular).'
       ]
     },
     {
       id: 'ordens_servico',
-      title: '2. Módulo de Ordens de Serviço (OS) & Campo',
+      title: '2. Ordens de Serviço (OS), Status Unificados & Busca no Estoque',
       badge: 'Operações',
       icon: ClipboardList,
       targetTab: 'orders',
-      summary: 'Guia completo para abertura de OS, laudo técnico, checklists inteligentes, serviços avulsos ou do catálogo, fotos e assinatura digital.',
+      summary: 'Abertura completa de O.S. e Orçamentos com busca ao vivo de produtos cadastrados no Estoque, status idênticos em todo o sistema, deslocamento por KM, checklists, fotos e assinatura digital.',
       steps: [
-        'Clique em "+ Nova Ordem de Serviço" no canto superior da tela.',
-        'Selecione o Cliente (ou cadastre um novo cliente rapidamente sem obrigatoriedade de CPF).',
-        'Selecione Serviços do Catálogo ou adicione Serviços Avulsos personalizados.',
-        'Selecione o Checklist Inteligente: os checklists anexados ao serviço são carregados automaticamente para conferência estrutural e elétrica.',
-        'Adicione Peças e Insumos necessários: o sistema buscará o preço de venda e o custo do estoque.',
-        'Anexe Fotos de Entrada e Fotos de Saída para comprovação técnica antes e depois do serviço.',
-        'Colete a Assinatura Digital Touch do cliente direto na tela do celular, tablet ou computador.',
-        'Finalize a OS: o sistema gera o documento oficial padrão A4 para impressão ou envio em PDF.'
+        'Clique em "+ Nova Ordem de Serviço" no topo da tela ou na aba Ordens de Serviço.',
+        'Selecione o Cliente (ou cadastre rapidamente sem obrigatoriedade de CPF) e escolha o endereço de atendimento.',
+        'Status Padronizados: Escolha o estágio da O.S. ("Orçamento Aberto", "Aguardando Aprovação", "Aprovada / Em Andamento", "Aguardando Peças", "Concluída (Aguardando Retirada)", "Entregue / Finalizada" ou "Cancelada"). O mesmo nome e cor aparecem na O.S., nos cards, no Dashboard, no Painel do Técnico, no Portal do Cliente e no PDV.',
+        'Busca e Inclusão de Produtos do Estoque: Use o campo de busca ao vivo (nome, código, SKU, marca, categoria ou código de barras) ou a lista suspensa para incluir peças cadastradas com aplicação automática de preço Varejo ou Atacado.',
+        'Serviços, Checklists, Fotos e Assinatura: Adicione serviços do catálogo ou avulsos, preencha checklists inteligentes, anexe fotos de entrada/saída e colete a assinatura digital na tela.',
+        'Deslocamento e Despesas de Campo: Para atendimentos externos, informe a quilometragem (calculada automaticamente sobre R$ 1,80/km ida e volta) e despesas de viagem (pedágio, alimentação, estacionamento) para apurar lucro ou prejuízo real da O.S.',
+        'Envio ao PDV & Impressão A4: Envie a O.S. para o PDV pelo botão "Cobrar (PDV)" ou imprima/salve em PDF padrão A4.'
       ],
       tips: [
-        'Serviços criados em campo podem ser salvos imediatamente no catálogo com checklist vinculado.',
-        'O número da OS segue a numeração automática configurada em Configurações do Sistema.'
+        'No Dashboard, clicar em qualquer card ou status de O.S. filtra automaticamente a tela de Ordens de Serviço no status correspondente.',
+        'Em Configurações > Gestão de Dados você pode carregar a massa de exemplos realistas de O.S. (com cenários lucrativos e de prejuízo) para demonstrações.'
       ],
       rules: [
-        'Ao marcar a OS como concluída/entregue, as peças aplicadas são movimentadas no estoque.',
-        'Se o pagamento não foi quitado na entrega, o saldo restante fica registrado como A RECEBER no Financeiro.'
+        'As peças aplicadas na O.S. movimentam o Estoque e compõem o Custo de Mercadorias Vendidas (CMV).',
+        'O rótulo e a cor de cada status são centralizados em uma única fonte de verdade para evitar divergências entre telas.'
       ]
     },
     {
       id: 'vendas_diretas',
-      title: '3. Módulo de Vendas Diretas & Balcão de Peças',
+      title: '3. Vendas & Balcão: Busca de Itens, Múltiplas Bandeiras, Cancelamento & Envio ao PDV',
       badge: 'Vendas',
       icon: ShoppingBag,
       targetTab: 'sales',
-      summary: 'Registro ágil de vendas de balcão, cálculo de margens de varejo e atacado, desconto e baixa automática de estoque.',
+      summary: 'Criação ágil de vendas com campos limpos na abertura, busca ao vivo de produtos e serviços, múltiplas formas/bandeiras de cartão, cancelamento antes ou depois de salvar, exclusão por senha e envio direto ao PDV.',
       steps: [
-        'Clique em "Nova Venda Direta" na tela de Vendas.',
-        'Informe o Cliente (opcional para vendas rápidas de balcão) e o Vendedor.',
-        'Adicione os produtos ao carrinho escolhendo entre Preço de Varejo ou Preço de Atacado.',
-        'Aplique desconto em valor (R$) ou percentual (%), caso necessário.',
-        'Escolha a forma de pagamento (Dinheiro, PIX, Cartão Débito ou Cartão Crédito em até 12x).',
-        'Confirme a venda: o estoque é baixado instantaneamente e a receita é lançada no Financeiro.'
+        'Abertura Limpa: Ao clicar em "Nova Venda / Balcão", a lista de itens abre vazia e sem valores pré-preenchidos. Selecione o cliente (ou deixe como Venda Balcão Avulsa; clientes Atacadistas liberam a tabela de Atacado).',
+        'Busca de Produtos e Serviços: Utilize a barra de busca dinâmica para localizar produtos do Estoque (por nome, código, SKU, marca ou código de barras) ou Serviços cadastrados, defina a quantidade e clique para incluir. Também é possível usar a lista agrupada ou "+ Item Avulso".',
+        'Exclusão de Itens & Limpeza de Campos: Cada linha de produto ou serviço possui botão de lixeira para exclusão (inclusive do último item), além do botão "Limpar Lista" que zera itens, desconto e valores de pagamento sem deixar dados residuais.',
+        'Múltiplas Formas com Bandeiras Diferentes: Adicione uma ou várias formas de pagamento (PIX, Dinheiro, Cartão Crédito, Cartão Débito, Boleto, Faturado 30d). Cada cartão possui seletor próprio de Bandeira (Visa, Mastercard, Elo, Hipercard, Outra) e Parcelas (1x a 12x), com cálculo de taxa e botão "Restante" para fechar a soma.',
+        'Cancelar Venda Antes de Adicionar: Se desistir durante o preenchimento, clique em "Cancelar Venda" (ou no X) para descartar o rascunho e limpar todos os campos sem salvar nada nem mexer no estoque.',
+        'Enviar para o PDV ou Receber: Escolha o Terminal PDV de destino e clique em "Salvar & Mandar p/ Fila do PDV", "Enviar e Finalizar no PDV" (abre a tela do PDV já com o checkout da venda pronto para receber do cliente) ou "Receber Agora & Gerar Recibo".',
+        'Cancelar ou Excluir Venda Salva: Na listagem, cards ou detalhes da venda, qualquer pessoa com acesso a Vendas pode clicar em "Cancelar" (estorna o estoque e mantém auditoria). Já o botão "Excluir" exige obrigatoriamente senha do Administrador ou de funcionário autorizado.'
       ],
       tips: [
-        'Vendas a prazo entram automaticamente na aba "Contas a Receber" no Financeiro.',
-        'Você pode emitir o comprovante de venda e cupom não fiscal para o cliente.'
+        'Preços de Atacado permanecem bloqueados por padrão até que um cliente cadastrado como Atacadista seja selecionado.',
+        'Vendas pendentes já enviadas exibem o selo "Na fila do PDV" e podem ser abertas com 1 clique pelo botão "Enviar PDV".'
       ],
       rules: [
-        'O custo das mercadorias vendidas (CMV) é contabilizado no DRE para apuração da Margem de Contribuição.'
-      ]
-    },
-    {
-      id: 'financeiro_dre',
-      title: '4. Financeiro, Contas a Receber, Contas a Pagar & DRE',
-      badge: 'Financeiro',
-      icon: DollarSign,
-      targetTab: 'financial',
-      summary: 'Conciliação bancária simplificada, fluxo de caixa, controle de baixas e DRE Gerencial de alta precisão.',
-      steps: [
-        'Acesse a aba "Contas a Receber" para visualizar todas as Ordens de Serviço e Vendas do mês.',
-        'Clique no botão "Dar Baixa (Receber)" quando o cliente efetuar o pagamento via PIX, dinheiro ou cartão.',
-        'Acesse a aba "Contas a Pagar" para acompanhar despesas de aluguel, internet, salários, DAS MEI e parcelas de dívidas.',
-        'Clique no botão "Dar Baixa (Pagar)" para liquidar a conta e manter o saldo devedor atualizado.',
-        'Consulte a aba "DRE Gerencial" para verificar o Demonstrativo de Resultado oficial: Receita Bruta, Custos Variáveis, Custos com Pessoal, Custos com Frota, Custos Fixos, Tributos e Lucro Líquido.'
-      ],
-      tips: [
-        'Use os filtros rápidos "Apenas Pendentes" e "Apenas Quitados" para focar nas contas do dia.',
-        'O DRE desconta automaticamente as taxas de operadoras de cartão informadas nas vendas.'
-      ],
-      rules: [
-        'Uma conta dada como baixa atualiza em tempo real os indicadores do Dashboard.',
-        'Contas a pagar atrasadas geram alertas automáticos de atenção.'
-      ]
-    },
-    {
-      id: 'custos_iniciais_dividas',
-      title: '5. Custos Iniciais, Despesas Recorrentes & Dívidas da Empresa',
-      badge: 'Planejamento',
-      icon: Calculator,
-      targetTab: 'initialCosts',
-      summary: 'Mapeamento de contas recorrentes (salários CLT, aluguel, internet, combustíveis, DAS MEI), dívidas da empresa parceladas e cálculo do Break-Even.',
-      steps: [
-        'Cadastre as despesas mensais recorrentes da sua empresa (Aluguel da Loja, Salários da Equipe, Internet, DAS MEI, Alimentação, Combustíveis).',
-        'Cadastre dívidas parceladas (Empréstimos bancários, financiamentos, IPVA parcelado, Seguros em 12x): informe a quantidade de parcelas (ex: 24x), parcelas já pagas e valor mensal.',
-        'Use o botão "+1 Parcela Paga" diretamente na tabela para amortizar parcelas pagas no mês.',
-        'Clique em "Sincronizar com Contas a Pagar" para alimentar automaticamente o fluxo financeiro do sistema.',
-        'Consulte o Simulador de Ponto de Equilíbrio (Break-Even): veja quantas Ordens de Serviço são necessárias no mês para pagar todas as contas fixas e atingir o lucro desejado.'
-      ],
-      tips: [
-        'Ajuste o Ticket Médio previsto por OS e a Margem de Insumos para simular cenários realistas de viabilidade.',
-        'O saldo devedor restante de todas as dívidas da empresa é recalculado dinamicamente.'
-      ],
-      rules: [
-        'Contas marcadas como "Sincronizado" alimentam automaticamente as Contas a Pagar do Financeiro.'
-      ]
-    },
-    {
-      id: 'produtos_margens',
-      title: '6. Produtos, Estoque & Margens (55% Varejo / 35% Atacado)',
-      badge: 'Estoque',
-      icon: Package,
-      targetTab: 'products',
-      summary: 'Cadastro de produtos com precificação automática de 55% para varejo e 35% para atacado, controle de estoque mínimo e movimentações.',
-      steps: [
-        'Ao cadastrar um produto, informe o Preço de Custo (ex: R$ 100,00).',
-        'O sistema calcula automaticamente o Preço de Varejo (+55% = R$ 155,00) e o Preço de Atacado (+35% = R$ 135,00).',
-        'Utilize o botão "Aplicar Margem 55% Varejo e 35% Atacado em Todos os Produtos" para reajustar todo o catálogo em 1 clique.',
-        'Defina o Estoque Mínimo para receber alertas visuais quando o produto estiver prestes a esgotar.',
-        'Cadastre Marcas, Categorias, Subcategorias, Tags e URL amigável para organização completa do catálogo.'
-      ],
-      tips: [
-        'A conferência de XML de NF-e aplica automaticamente as margens de 55% e 35% aos itens importados.',
-        'Você pode personalizar as margens individualmente caso algum item exija margem diferenciada.'
-      ],
-      rules: [
-        'Preço de Varejo = Custo × 1.55 (Margem de 55%).',
-        'Preço de Atacado = Custo × 1.35 (Margem de 35%).'
-      ]
-    },
-    {
-      id: 'importacao_nfe',
-      title: '7. Importação Multi-Formato & Leitura de NF-e (XML)',
-      badge: 'Integrações',
-      icon: UploadCloud,
-      targetTab: 'cadastros',
-      summary: 'Leitura automática de arquivos XML de notas fiscais com cadastro de fornecedor, atualização de estoque e contas a pagar.',
-      steps: [
-        'Na Central de Cadastros ou na tela de Produtos, selecione "Importar XML de NF-e".',
-        'Selecione o arquivo .xml da NF-e emitida pelo seu fornecedor.',
-        'O sistema extrai a Razão Social, CNPJ, endereço e dados de contato do Fornecedor.',
-        'Todos os produtos da nota são listados com NCM, código do fabricante, custo unitário e sugestão de Varejo (55%) e Atacado (35%).',
-        'Confirme a importação: o fornecedor é cadastrado, os produtos entram no estoque e uma Conta a Pagar com o valor da nota é gerada automaticamente.'
-      ],
-      tips: [
-        'Detector Anti-Duplicidade Ativo: Se você enviar acidentalmente o mesmo arquivo XML ou planilha, o sistema alertará na hora exibindo a data e os detalhes do envio anterior.',
-        'Na aba "Importação Multi-Formato & Backup", você pode trazer dados legados em CSV, XLSX, TXT, PDF, XML e SQL com exemplos prontos.',
-        'Você pode conferir e ajustar as margens antes de confirmar a importação do XML.'
-      ],
-      rules: [
-        'Proteção contra Upload Duplicado: O sistema calcula a assinatura SHA-256 e confere Chave da NF-e / Número / CNPJ / Tamanho para prevenir duplicidades.',
-        'Se um arquivo duplicado for detectado, o sistema oferece as opções de cancelar ou reprocessar com segurança.',
-        'Produtos com o mesmo código ou nome são atualizados no estoque sem criar duplicidades.',
-        'O fornecedor identificado pelo CNPJ não é duplicado se já existir na base.'
-      ]
-    },
-    {
-      id: 'operadoras_cartao',
-      title: '8. Operadoras de Cartão & Repasse de Taxas',
-      badge: 'Meios de Pagamento',
-      icon: CreditCard,
-      targetTab: 'cardOperators',
-      summary: 'Configuração de operadoras de maquininhas (ex: InfinitePay, PagBank), parcelamento em até 12x e regra de absorver ou repassar taxa.',
-      steps: [
-        'Acesse "Operadoras de Cartão" no menu lateral.',
-        'Visualize as operadoras cadastradas (InfinitePay, PagBank, etc.) com suas taxas de Débito, Crédito à Vista e Parcelado de 2x a 12x.',
-        'Configure a integração via API/Token ou utilize a simulação de maquininha.',
-        'Escolha o modo de absorção padrão: "Repassar para o cliente" (acréscimo no valor) ou "Assumir taxa" (empresa absorve o desconto).',
-        'Ao lançar uma venda ou OS, selecione a operadora e a quantidade de parcelas: o sistema calcula o valor líquido a receber e a taxa exata retida.'
-      ],
-      tips: [
-        'A InfinitePay já vem pré-configurada com tabela completa de 1x a 12x parcelas.',
-        'As taxas descontadas são contabilizadas automaticamente na linha de "Taxas de Cartão" do DRE.'
-      ],
-      rules: [
-        'Se repassar a taxa, o valor final pago pelo cliente cobre o custo financeiro da operadora.'
-      ]
-    },
-    {
-      id: 'backup_seguranca',
-      title: '9. Backup, Google Drive & Versionamento',
-      badge: 'Segurança',
-      icon: HardDrive,
-      targetTab: 'googleDrive',
-      summary: 'Rotinas de segurança, sincronização na nuvem com Google Drive, logs de auditoria e controle de versão.',
-      steps: [
-        'Acesse a tela "Google Drive" no menu lateral para autenticar e exportar backups automáticos dos seus dados.',
-        'O sistema mantém controle de versão oficial visível no rodapé de todas as telas.',
-        'Acesse "Configurações > Logs & Auditoria" no menu lateral para auditar qualquer criação, edição ou exclusão de dados feita pelos usuários.',
-        'Você pode baixar o arquivo zip completo do sistema a qualquer momento para backup local offline.'
-      ],
-      tips: [
-        'Recomenda-se realizar o backup semanal para garantir a integridade dos dados históricos.',
-        'Apenas administradores têm permissão para restaurar backups e limpar bases de dados.'
-      ],
-      rules: [
-        'Toda ação crítica de exclusão ou alteração de preço gera um registro inalterável de auditoria.'
-      ]
-    },
-    {
-      id: 'google_agenda',
-      title: '10. Google Agenda & Agendamento de Serviços e Visitas Técnicas',
-      badge: 'Integração Google',
-      icon: Calendar,
-      targetTab: 'agenda',
-      summary: 'Como conectar a agenda corporativa com o Google Calendar, agendar visitas de campo, serviços técnicos em piscinas e bombas, e gerenciar dados fictícios de exemplo.',
-      steps: [
-        'Autenticação & Validação Google: No menu lateral, acesse "Google Agenda" e clique em "Conectar & Validar Conta Google". O sistema abre a tela oficial de validação onde você informa seu e-mail (mppiscina2004@gmail.com) e credenciais, validando a integração diretamente sem bloqueios de domínio ("auth/unauthorized-domain").',
-        'Novo Agendamento: Clique em "+ Novo Agendamento" para cadastrar visitas técnicas, serviços especializados, compromissos diários ou entregas.',
-        'Vínculo com Ordens de Serviço: Ao selecionar uma OS cadastrada, o sistema preenche automaticamente cliente, endereço e detalhes técnicos no agendamento.',
-        'Agendamento Direto na Tela de OS: Na tela "Ordens de Serviço", clique no botão "Agendar" na coluna de Ações para criar o evento correspondente em 1 clique.',
-        'Sincronização em Tempo Real: Clique em "Sincronizar Google Agenda" para enviar agendamentos pendentes diretamente para sua agenda remota da nuvem.',
-        'Notificação via WhatsApp: Em cada compromisso agendado, você conta com o botão verde "WhatsApp" para disparar instantaneamente a confirmação de data e horário ao cliente.',
-        'Gestão e Limpeza de Dados: A limpeza de dados fictícios está centralizada no menu "Configurações > Gestão de Dados", garantindo que a base seja zerada com total segurança operacional.'
-      ],
-      tips: [
-        'Agendamentos sincronizados com o Google Agenda notificam a equipe técnica automaticamente via alertas no celular.',
-        'Ao agendar uma OS, o endereço completo da residência ou condomínio é automaticamente formatado no evento do Google Calendar com link para navegação GPS (Google Maps / Waze).',
-        'Se você utiliza banco de dados MySQL, acesse "Configurações > Gestão de Dados" para baixar o script de carga completo .sql compatível com MySQL 5.7 / 8.0 e charset utf8mb4.'
-      ],
-      rules: [
-        'Exclusões de compromissos que estejam sincronizados com o Google Agenda requerem confirmação explícita na tela para evitar perdas acidentais.'
-      ]
-    },
-    {
-      id: 'whatsapp_integracao',
-      title: '11. Integração com WhatsApp & Notificações Rápidas',
-      badge: 'Comunicação',
-      icon: MessageSquare,
-      targetTab: 'configuracoes',
-      summary: 'Como configurar e usar o WhatsApp integrado para envio de orçamentos, confirmação de visitas, aprovação e conclusão de OS com garantia, cobrança PIX e comprovantes.',
-      steps: [
-        'Configurações Iniciais: Acesse "Configurações" no menu lateral e clique na aba "Integração WhatsApp". Informe o Telefone Comercial com DDD (ex: 11 99999-8888) e a Chave PIX Padrão.',
-        'Modelos de Mensagem: O sistema já possui 6 modelos profissionais pré-configurados: Orçamento de OS, OS Aprovada, OS Concluída com Garantia, Visita Técnica Agendada, Cobrança com Chave Pix e Comprovante de Venda/PDV.',
-        'Personalização de Textos: Você pode editar e criar novos modelos na tela de configurações, utilizando variáveis dinâmicas como {cliente_nome}, {os_numero}, {valor_total}, {chave_pix}, {data}, {horario} e {garantia}.',
-        'Envio em 1 Clique em Ordens de Serviço: Na tela de "Ordens de Serviço", clique no botão verde "WhatsApp" na coluna de Ações. O modal abrirá com o modelo apropriado pré-selecionado e as variáveis substituídas.',
-        'Envio em 1 Clique na Google Agenda: Na tela de "Google Agenda", cada card de visita ou serviço técnico possui o botão "WhatsApp" para avisar o cliente sobre o horário agendado.',
-        'Disparo Direto: Clique em "Abrir & Enviar no WhatsApp". O sistema abre o WhatsApp Web no computador ou o aplicativo nativo no celular/tablet, com o número do cliente formatado internacionalmente (+55) e o texto pronto para envio.'
-      ],
-      tips: [
-        'Você pode editar o texto da mensagem no próprio modal antes de disparar, adicionando observações personalizadas para o cliente.',
-        'Se o WhatsApp Web não abrir diretamente no seu navegador, você pode usar o botão "Copiar Texto" e colar manualmente na conversa do WhatsApp.',
-        'Não há cobrança por mensagem nem necessidade de aprovação de templates por terceiros, funcionando 100% de forma direta e gratuita via protocolo web/app.'
-      ],
-      rules: [
-        'O número do cliente é sanitizado automaticamente pelo sistema: pontuações, espaços e parênteses são removidos e o código do Brasil (+55) é inserido caso omitido.',
-        'As mensagens com termos de garantia informam formalmente os prazos de cobertura conforme o Código de Defesa do Consumidor e termos da empresa.'
-      ]
-    },
-    {
-      id: 'gestao_dados_limpeza',
-      title: '12. Gestão de Dados: Limpar Dados (Zerar Sistema), Restaurar Exemplos & Backups',
-      badge: 'Administração',
-      icon: Database,
-      targetTab: 'configuracoes',
-      summary: 'Centralização das ferramentas de controle de base de dados: como zerar o sistema para entrar em produção real, como restaurar dados de demonstração e como recuperar backups.',
-      steps: [
-        'Localização Centralizada: Todos os comandos de controle de dados e exportação SQL MySQL estão centralizados em "Configurações > Gestão de Dados" para segurança operacional.',
-        'Sincronização em Tempo Real (PC ↔ Celular): Todos os produtos, clientes, fornecedores, ordens de serviço, vendas e movimentações de caixa são sincronizados automaticamente na nuvem via Firestore.',
-        'Botão "Limpar Dados (Zerar Sistema)": Use esta opção quando estiver pronto para colocar o sistema em PRODUÇÃO REAL. Ela zera todos os registros de exemplo (clientes, fornecedores, produtos, OS, vendas, agenda, caixa e despesas).',
-        'Confirmação Segura: Ao clicar em "Limpar Dados", uma janela de confirmação é exibida explicando exatamente o que será zerado.',
-        'Botão "Restaurar Dados de Exemplo": Para demonstrações e treinamentos, recarrega instantaneamente toda a base padrão de exemplo.',
-        'Exportação SQL para MySQL: Permite baixar o script .sql completo compatível com MySQL 5.7 / 8.0 (charset utf8mb4).'
-      ],
-      tips: [
-        'Após zerar o sistema, você pode começar cadastrando seus Fornecedores e Produtos importando diretamente os XMLs das notas fiscais.',
-        'O detector anti-duplicidade evita que o mesmo XML ou planilha seja importado duas vezes por engano.'
-      ],
-      rules: [
-        'A ação de "Limpar Dados" reinicia os contadores de sequência de OS e Vendas para o número inicial 1.',
-        'Toda operação de limpeza e restauração de dados gera um registro de auditoria com data, hora e usuário responsável.'
+        'A soma das múltiplas formas de pagamento precisa coincidir com o Total Líquido da venda ao salvar.',
+        'O cancelamento estorna automaticamente os produtos para o estoque e exclui os valores dos totais financeiros sem apagar o histórico.'
       ]
     },
     {
       id: 'pdv_frente_caixa',
-      title: '13. PDV / Frente de Caixa & Baixa Unificada de Recebimentos',
+      title: '4. PDV / Frente de Caixa: Múltiplas Bandeiras, Cancelamento & Exclusão por Senha',
       badge: 'PDV / Caixa',
       icon: Store,
       targetTab: 'pdv',
-      summary: 'Fluxo completo de caixa para recebimento e baixa de todas as Vendas Diretas e Ordens de Serviço, com abertura/fechamento de turno, suprimento, sangria e comprovante.',
+      summary: 'Caixa completo para recebimento de Vendas e Ordens de Serviço com checkout multi-bandeira, balcão rápido, suprimento/sangria, fechamento de turno, cancelamento livre e exclusão protegida por senha.',
       steps: [
-        'Abertura de Caixa: Acesse "PDV / Caixa" no menu lateral ou no cabeçalho superior, clique em "Abrir Caixa PDV", escolha o terminal (Caixa 01, Caixa 02, Caixa 03 ou PDV Móvel) e informe o Fundo de Troco inicial em dinheiro.',
-        'Fila de Recebimentos: Todas as Vendas Diretas e Ordens de Serviço com pagamento pendente aparecem automaticamente na Fila do Caixa.',
-        'Receber no Caixa: Clique em "Receber no Caixa" em qualquer OS ou Venda. Selecione pagamento único ou "Dividir Pagamento" (Multi-Split), informe dinheiro recebido (com cálculo automático de troco), PIX ou cartão com bandeira e parcelas (1x a 12x).',
-        'Balcão PDV Rápido: Monte vendas de balcão buscando produtos por nome, código ou código de barras, alternando tabela Varejo/Atacado e finalizando direto para o caixa.',
-        'Suprimento e Sangria: Registre reforços de troco ou retiradas para cofre mantendo o saldo esperado em gaveta sempre exato.',
-        'Fechamento de Caixa: Ao encerrar o turno, clique em "Fechar Caixa", informe o valor contado na gaveta e confira automaticamente se houve diferença (sobra/falta).'
+        'Abertura de Caixa: Acesse "PDV / Caixa", clique em "Abrir Caixa PDV", selecione o terminal (Caixa 01, Caixa 02, Caixa 03 ou PDV Móvel) e informe o Fundo de Troco inicial.',
+        'Fila de Recebimentos & Balcão PDV: Visualize todas as O.S. e Vendas pendentes na Fila (incluindo as enviadas pela tela de Vendas) ou monte vendas rápidas direto na aba "Balcão PDV" com cadastro rápido de cliente.',
+        'Checkout com Múltiplas Formas e Bandeiras Diferentes: Clique em "Receber no Caixa" e ative "Múltiplas Formas / Cartões". Em cada linha escolha a forma, a Bandeira do cartão (Visa, Mastercard, Elo, Hipercard, Outra), as parcelas (1x a 12x) e o valor. Se houver dinheiro, informe o valor entregue para cálculo automático do troco.',
+        'Quitação Total, Entrada Parcial ou Parcela Programada: Receba o valor integral, apenas uma entrada/pagamento parcial ou liquide uma parcela específica, gerando automaticamente o recibo correspondente.',
+        'Cancelar Venda (Qualquer Operador do PDV): Tanto na Fila de Recebimentos quanto na aba "Vendas do PDV", qualquer usuário com acesso ao PDV pode clicar em "Cancelar" para estornar estoque e cancelar lançamentos vinculados sem apagar a auditoria.',
+        'Excluir Venda (Protegido por Senha): O botão "Excluir" abre um modal de autorização. A exclusão definitiva só é concluída digitando a Senha Mestra de Exclusão no PDV ou a senha de um Administrador / Funcionário autorizado pelo Administrador.',
+        'Suprimento, Sangria & Fechamento: Registre reforços de troco ou retiradas, acompanhe o "Extrato do Caixa" e finalize o turno em "Fechar Caixa" conferindo eventual sobra ou falta.'
       ],
       tips: [
-        'Após cada baixa no caixa, é possível imprimir o Comprovante de Recebimento térmico ou baixá-lo em HTML.',
-        'Você também pode encaminhar uma OS ou Venda para a fila de um terminal específico diretamente pelo botão "Cobrar (PDV)" nas telas de OS e Vendas.'
+        'Ao clicar em "Enviar e Finalizar no PDV" na tela de Vendas, o PDV abre automaticamente o checkout da venda já com todas as formas e bandeiras pré-carregadas.',
+        'Se nenhuma senha de exclusão tiver sido cadastrada ainda, o PDV bloqueia a exclusão e orienta configurar em Configurações.'
       ],
       rules: [
-        'Cada recebimento liquidado no PDV gera uma movimentação vinculada à sessão aberta do caixa e sincroniza em tempo real entre computador e celular.',
-        'Taxas de operadoras de cartão são descontadas automaticamente para apuração do valor líquido recebido.'
+        'Toda exclusão autorizada registra no Log de Auditoria quem executou a exclusão e qual administrador/funcionário autorizou pela senha.',
+        'Movimentações e recibos de vendas canceladas ficam marcados como cancelados para não distorcerem o saldo do caixa.'
+      ]
+    },
+    {
+      id: 'recibos_pagamento',
+      title: '5. Recibos Automáticos de Pagamento (A4, Térmico 80mm, PDF & Saldo)',
+      badge: 'Recibos',
+      icon: Receipt,
+      targetTab: 'pdv',
+      summary: 'Geração imediata e automática de recibo em todo lançamento ou confirmação de pagamento no PDV, Vendas, O.S. e Financeiro, com controle visual de saldo parcial e carimbo de quitação.',
+      steps: [
+        'Disparo Automático: Assim que um pagamento é confirmado (à vista, entrada de O.S., pagamento parcial, parcela ou quitação), o sistema cria o recibo sequencial (REC-YYYY-XXXX) e abre a visualização em modal.',
+        'Dados Completos & Origem Vinculada: O recibo exibe automaticamente os dados completos do cliente (Nome/Razão Social, CPF/CNPJ, Telefone e Endereço), número da O.S. ou ID da Venda Direta, lista de itens/serviços, formas de pagamento com bandeiras/parcelas e operador/terminal do caixa.',
+        'Controle de Saldo vs Quitação: Em pagamentos parciais/entradas, o recibo destaca em evidência o Valor Pago, o Valor Total da operação e o Saldo Devedor / Falta Restante. Quando integralmente pago, exibe o selo visual "QUITADO / INTEGRALMENTE PAGO".',
+        'Formatos de Saída (Modal, 80mm, A4, PDF e Compartilhamento): No modal do recibo, alterne entre visualização "Folha A4" e "Cupom Térmico 80mm", clique em Imprimir, "Baixar PDF" (A4 ou 80mm), "Copiar / Compartilhar" ou envie diretamente via WhatsApp.',
+        'Consulta Posterior: Acesse todos os recibos emitidos na aba "Recibos Emitidos" do PDV, na coluna de ações das Vendas/O.S. ou no Portal do Cliente.'
+      ],
+      tips: [
+        'Use a visualização Térmica 80mm para impressoras de balcão não fiscais e Folha A4 para entregas corporativas ou envio em PDF.',
+        'Todos os recibos ficam sincronizados na nuvem (Firestore) para reimpressão a qualquer hora.'
+      ],
+      rules: [
+        'Cada recebimento gera um recibo próprio que soma ao histórico acumulado para calcular corretamente o saldo devedor restante.',
+        'Recibos vinculados a vendas canceladas recebem indicação visual de cancelamento.'
+      ]
+    },
+    {
+      id: 'financeiro_dre',
+      title: '6. Financeiro, Contas a Receber, Contas a Pagar & DRE Gerencial',
+      badge: 'Financeiro',
+      icon: DollarSign,
+      targetTab: 'financial',
+      summary: 'Conciliação de receitas e despesas com baixa integrada à geração de recibos, sincronização automática de custos de equipe/compras/recorrentes e DRE Gerencial do período.',
+      steps: [
+        'Contas a Receber: Visualize todas as Ordens de Serviço e Vendas ativas da competência, conferindo valores recebidos, saldos pendentes e atalho de quitação com emissão automática de recibo.',
+        'Contas a Pagar: Acompanhe fornecedores (incluindo entradas de estoque/XML NF-e), folha salarial, horas trabalhadas, comissões e custos fixos/recorrentes sincronizados automaticamente.',
+        'Baixas e Conciliação: Clique para liquidar contas pendentes em Contas a Pagar ou Receber mantendo o fluxo de caixa atualizado em tempo real.',
+        'DRE Gerencial: Consulte o Demonstrativo de Resultado com Receita Bruta (Serviços + Vendas), Deduções/Taxas de Cartão, CMV, Custos de Pessoal, Frota, Custos Fixos e Lucro Líquido.'
+      ],
+      tips: [
+        'Filtre por competência mensal e status (Pendentes / Pagas) para focar nas liquidações do dia.',
+        'Os cálculos evitam duplicidade entre despesas já lançadas manualmente e provisões automáticas da folha e recorrências.'
+      ],
+      rules: [
+        'Vendas e O.S. canceladas não compõem a Receita Bruta nem os resultados do DRE.',
+        'As taxas de cartão das bandeiras são deduzidas conforme configuração da operadora.'
+      ]
+    },
+    {
+      id: 'custos_folha_remuneracao',
+      title: '7. Integração de Custos, Folha Salarial & Remuneração (Combobox)',
+      badge: 'Custos & Equipe',
+      icon: Calculator,
+      targetTab: 'employees',
+      summary: 'Configuração da forma de remuneração de cada funcionário via combobox e sincronização automática de folha, compras de materiais, despesas recorrentes e parcelamentos no Financeiro e Break-Even.',
+      steps: [
+        'Cadastro de Funcionários com Combobox de Remuneração: Na tela "Equipe & Funcionários" ou na Central de Cadastros, selecione na combobox o modelo de remuneração do colaborador: "Salário Fixo", "Hora Trabalhada" (informando Valor/Hora e Horas/Mês com prévia automática), "Comissão", "Salário + Comissão" ou "Hora Trabalhada + Comissão".',
+        'Filtros em Combobox: Filtre a equipe facilmente pelas comboboxes de Tipo de Remuneração e Situação (Ativos/Inativos).',
+        'Integração Automática da Folha e Comissões: Os valores nominais, encargos e comissões sobre O.S. concluídas e vendas pagas são sincronizados automaticamente em Contas a Pagar, DRE, BI, Rentabilidade por Técnico e Fechamento Contábil, mantendo histórico e evitando duplicidade.',
+        'Custos Iniciais, Recorrentes & Dívidas: Em "Custos Iniciais / Fixos", cadastre contas recorrentes (aluguel, telefone, celular, internet, energia, água, DAS MEI) e parcelamentos/dívidas, amortize parcelas com "+1 Parcela Paga" e acompanhe o Simulador de Break-Even.',
+        'Compras de Materiais & Estoque: Entradas manuais de mercadorias ou importações de XML NF-e geram automaticamente lançamentos de compra de materiais/reposição no mês correspondente.'
+      ],
+      tips: [
+        'Use o modelo "Hora Trabalhada" para técnicos ou prestadores pagos por hora apontada, visualizando a prévia mensal imediata no cadastro.',
+        'Ajuste o Ticket Médio e a Margem no Simulador de Break-Even para saber quantas O.S. cobrem os custos fixos mensais.'
+      ],
+      rules: [
+        'O cálculo nominal em todos os relatórios respeita exatamente o tipo de remuneração selecionado na combobox do colaborador.',
+        'Comissões só incidem sobre O.S. concluídas/entregues e vendas diretas pagas e não canceladas.'
+      ]
+    },
+    {
+      id: 'bi_indicadores',
+      title: '8. Gráficos & Indicadores Gerenciais (BI) com Filtros em Combobox',
+      badge: 'Inteligência (BI)',
+      icon: BarChart3,
+      targetTab: 'charts',
+      summary: 'Painel analítico interativo com comboboxes para período, status, visão rápida, filtros por entidade e escolha global do modelo de gráfico.',
+      steps: [
+        'Filtros por Combobox no Topo: Selecione o Período na combobox (Hoje, Semana, Quinzena, Mês, Trimestre, Semestre, Anual ou Personalizado com data início/fim), o Status de Pagamento (Todos, Pago, Pendente), a Visão Rápida e o Modelo de Gráfico.',
+        'Recorte por Entidade: Filtre resultados por Cliente, Produto/Peça, Serviço ou Canal (O.S. vs PDV/Vendas).',
+        'Modelos de Gráficos: Alterne instantaneamente todos os painéis selecionados entre Colunas Verticais, Barras Horizontais, Linha/Área, Rosca/Pizza ou Proporção 100%.',
+        'Panorama Financeiro & Rankings: Analise Receita Bruta, Recebido, A Receber, Custos/Despesas (incluindo folha e compras integradas), Lucro Líquido e rankings de clientes, produtos, serviços e equipe.'
+      ],
+      tips: [
+        'No celular, os filtros avançados ficam recolhidos por padrão com botão de expansão para manter a leitura limpa dos gráficos.',
+        'Compare períodos (Semana vs Mês vs Anual) usando a combobox de período para identificar sazonalidades.'
+      ],
+      rules: [
+        'Os indicadores de BI ignoram vendas e O.S. canceladas e aplicam rateio proporcional de folha e frota conforme o período filtrado.'
+      ]
+    },
+    {
+      id: 'produtos_margens',
+      title: '9. Módulo Estoque: Produtos, Peças, Fotos, EAN-13 & Kardex',
+      badge: 'Estoque',
+      icon: Package,
+      targetTab: 'products',
+      summary: 'Módulo renomeado para "Estoque" com todos os filtros em comboboxes, precificação automática 55% Varejo / 35% Atacado, fotos no hover/listagem/grade, código de barras EAN-13, duplicador e Kardex.',
+      steps: [
+        'Filtros em Combobox: Filtre rapidamente o estoque pelas comboboxes de Categoria, Marca, Subcategoria, Situação do Estoque (Normal, Baixo/Crítico, Zerado) e Tipo de Movimentação Kardex.',
+        'Precificação Automática: Informe o Custo do produto para calcular automaticamente Varejo (+55%) e Atacado (+35%), ou aplique em massa para todo o catálogo.',
+        'Fotos, EAN-13 & Duplicar: Adicione até 3 fotos (exibidas na listagem, nos cards e ao passar o mouse), gere código de barras EAN-13 válido em 1 clique ou clique em "Duplicar" para variações rápidas de potência/voltagem.',
+        'Histórico 360° & Kardex: Consulte entradas manuais, compras XML, saídas em O.S./Vendas e estornos por cancelamento com rastreabilidade completa.'
+      ],
+      tips: [
+        'Mantenha o Estoque Mínimo preenchido para destacar itens críticos antes que faltem para atendimento.',
+        'Todas as colunas e cards exibem a miniatura da foto com fallback automático caso o item ainda não possua imagem.'
+      ],
+      rules: [
+        'Preço de Varejo padrão = Custo × 1,55 (55%) · Preço de Atacado padrão = Custo × 1,35 (35%).',
+        'Saídas e estornos por venda ou O.S. ficam registrados com documento de referência no Kardex.'
+      ]
+    },
+    {
+      id: 'central_cadastros_usuarios',
+      title: '10. Central de Cadastros, Usuários, Listagem/Grade & Tooltips',
+      badge: 'Cadastros & Acesso',
+      icon: Users,
+      targetTab: 'cadastros',
+      summary: 'Gestão unificada com navegação e filtros por comboboxes, alternância entre Listagem e Grade (Cards), tooltip detalhado no hover e controle de permissões de usuários (incluindo exclusão no PDV/Vendas).',
+      steps: [
+        'Navegação por Combobox: Na Central de Cadastros, alterne pela combobox entre Clientes, Fornecedores, Estoque (Produtos/Peças), Equipe/Funcionários, Frota/Veículos, Catálogo de Serviços, Checklists, Usuários e Importação Multi-Formato.',
+        'Filtros Específicos em Combobox: Cada aba conta com comboboxes próprias (perfil Varejo/Atacado do cliente, cidade/UF de fornecedor, categoria/situação de estoque, tipo de remuneração da equipe, status da frota, categoria de serviço e equipamento de checklist).',
+        'Listagem vs Grade & Hover Tooltip: Alterne entre visualização em Tabela compacta ou Cards em Grade e passe o mouse sobre qualquer linha para visualizar um card flutuante com todos os detalhes do registro.',
+        'Gestão de Usuários & Permissão de Exclusão: Em Cadastro de Usuários (ou Configurações → Usuários e Acesso), crie usuários com perfil (Administrador, Colaborador, Vendedor, Técnico, Contador, Cliente) e marque a opção "Pode excluir vendas no PDV/Vendas (com sua senha)" para liberar colaboradores confiáveis.'
+      ],
+      tips: [
+        'Clientes cadastrados com perfil "Atacadista" desbloqueiam automaticamente a tabela de preço de Atacado em Vendas, PDV e O.S.',
+        'Clique no botão "+" em qualquer linha para abrir a ficha modal completa de detalhes e ações do registro.'
+      ],
+      rules: [
+        'Perfis de Administrador possuem permissão automática para exclusão com senha; demais perfis dependem da habilitação explícita pelo Administrador e de senha cadastrada.'
+      ]
+    },
+    {
+      id: 'importacao_nfe',
+      title: '11. Importação Multi-Formato & Leitura de NF-e (XML) Anti-Duplicidade',
+      badge: 'Integrações',
+      icon: UploadCloud,
+      targetTab: 'cadastros',
+      summary: 'Leitura automática de XML de NF-e com cadastro de fornecedor, atualização de estoque, lançamento financeiro de compra e proteção SHA-256 contra importação duplicada.',
+      steps: [
+        'Acesse "Estoque" ou "Central de Cadastros > Importação Multi-Formato & XML".',
+        'Envie o arquivo .xml da NF-e do fornecedor (ou planilhas CSV/XLSX/TXT/PDF/SQL nos importadores).',
+        'Conferência Automática: O sistema extrai CNPJ/dados do fornecedor, NCM, código, quantidade, custo e sugere preços de Varejo (+55%) e Atacado (+35%).',
+        'Confirme a Importação: O fornecedor é atualizado/criado sem duplicar, os produtos entram no Estoque (Kardex) e a conta a pagar da compra é lançada automaticamente no Financeiro.'
+      ],
+      tips: [
+        'Detector Anti-Duplicidade: Caso o mesmo XML já tenha sido importado antes (conferência por chave NF-e e hash SHA-256), o sistema avisa imediatamente permitindo cancelar ou reprocessar.'
+      ],
+      rules: [
+        'Fornecedores são conciliados pelo CNPJ e produtos por código/nome para evitar cadastros repetidos.'
+      ]
+    },
+    {
+      id: 'operadoras_cartao',
+      title: '12. Operadoras de Cartão, Bandeiras & Repasse/Absorção de Taxas',
+      badge: 'Meios de Pagamento',
+      icon: CreditCard,
+      targetTab: 'cardOperators',
+      summary: 'Configuração de adquirentes (PagBank, InfinitePay, Stone, Cielo, etc.), taxas por bandeira e parcela (1x a 12x), política de assumir ou repassar juros e baixa automática.',
+      steps: [
+        'Acesse "Operadoras de Cartão" no menu lateral.',
+        'Cadastre ou edite a operadora configurando taxas de PIX, Débito, Crédito à Vista (1x) e Parcelado (2x a 12x) por bandeira.',
+        'Defina se a empresa assume a taxa da maquininha ou repassa o acréscimo ao cliente.',
+        'No PagBank, ative a Baixa Automática e use "Sincronizar Pedidos Pendentes" para conciliar pagamentos via NSU e código de autorização.'
+      ],
+      tips: [
+        'Quando o PDV ou Vendas utiliza múltiplas bandeiras na mesma compra, cada linha busca a taxa correspondente à sua bandeira e número de parcelas.'
+      ],
+      rules: [
+        'As taxas retidas pelas operadoras compõem as deduções no DRE para mostrar o valor líquido real recebido.'
+      ]
+    },
+    {
+      id: 'frota_rentabilidade',
+      title: '13. Frota, Deslocamento por KM & Rentabilidade por Técnico',
+      badge: 'Frota & Equipe',
+      icon: Truck,
+      targetTab: 'fleet',
+      summary: 'Controle de veículos, abastecimentos, manutenção preventiva, cálculo de KM rodado em atendimentos externos e DRE individual de lucratividade por técnico.',
+      steps: [
+        'Em "Frota & Custos", cadastre os veículos da empresa e lance abastecimentos, trocas de óleo, pneus, IPVA e seguros.',
+        'Em O.S. externas, registre a quilometragem (ida e volta) para ratear o deslocamento e despesas de viagem.',
+        'Acesse "Rentabilidade p/ Técnico" para comparar faturamento gerado, custo de peças, folha/comissão (conforme combobox de remuneração) e margem líquida de cada colaborador.'
+      ],
+      tips: [
+        'Acompanhe os alertas automáticos de troca de óleo próxima com base na quilometragem do veículo.'
+      ],
+      rules: [
+        'Custos de frota e deslocamento entram no rateio operacional do DRE e da rentabilidade da equipe.'
+      ]
+    },
+    {
+      id: 'portal_cliente',
+      title: '14. Portal do Cliente, Garantias por S/N & Abertura de Chamados',
+      badge: 'Pós-Venda',
+      icon: UserCheck,
+      targetTab: 'customerPortal',
+      summary: 'Área exclusiva de autoatendimento para o cliente acompanhar suas O.S., consultar garantias por número de série, ver histórico de compras/recibos, alterar senha e abrir chamados.',
+      steps: [
+        'Acompanhar O.S. e Débitos: O cliente visualiza suas Ordens de Serviço com os mesmos status oficiais da oficina e acompanha pagamentos pendentes ou recibos.',
+        'Garantias por Número de Série (S/N): Consulta cada equipamento com contagem de dias restantes de garantia e botão de acionamento rápido.',
+        'Histórico de Compras & Perfil: Exibe compras ativas (excluindo canceladas) e permite ao próprio cliente atualizar telefone/endereço/usuário e senha de acesso.'
+      ],
+      tips: [
+        'Clientes também podem assinar digitalmente documentos pendentes diretamente pelo portal.'
+      ],
+      rules: [
+        'O acesso do perfil Cliente é isolado estritamente aos seus próprios registros (O.S., compras, garantias e chamados).'
+      ]
+    },
+    {
+      id: 'google_agenda',
+      title: '15. Google Agenda & Agendamento de Visitas Técnicas',
+      badge: 'Integração Google',
+      icon: Calendar,
+      targetTab: 'agenda',
+      summary: 'Sincronização da agenda corporativa com o Google Calendar, agendamento de visitas de campo em 1 clique direto pela O.S. e avisos pelo WhatsApp.',
+      steps: [
+        'Acesse "Google Agenda" e clique em "Conectar & Validar Conta Google" para autenticar sua conta Google Workspace.',
+        'Crie agendamentos vinculados a Ordens de Serviço (preenchendo automaticamente cliente, endereço e serviço) ou use o botão "Agendar" direto na tela de O.S.',
+        'Sincronize eventos para a nuvem e envie a confirmação de data e horário pelo botão "WhatsApp" em 1 clique.'
+      ],
+      tips: [
+        'O endereço completo no agendamento facilita a abertura imediata de rotas no Google Maps ou Waze pelo técnico em campo.'
+      ],
+      rules: [
+        'Exclusões de eventos sincronizados exigem confirmação na tela para evitar perda acidental na agenda.'
+      ]
+    },
+    {
+      id: 'whatsapp_integracao',
+      title: '16. Integração com WhatsApp & Mensagens Dinâmicas',
+      badge: 'Comunicação',
+      icon: MessageSquare,
+      targetTab: 'configuracoes',
+      summary: 'Disparo gratuito e direto de orçamentos, aprovações, garantias, recibos, cobranças PIX e confirmações de visita pelo WhatsApp Web/App.',
+      steps: [
+        'Configure o telefone comercial e a Chave PIX padrão em Configurações → Integração WhatsApp.',
+        'Personalize os modelos prontos usando variáveis automáticas ({cliente_nome}, {os_numero}, {valor_total}, {chave_pix}, {data}, {garantia}).',
+        'Clique no botão "WhatsApp" nas telas de O.S., Vendas, Agenda ou dentro do Modal de Recibo para abrir a conversa já preenchida e com o número formatado (+55).'
+      ],
+      tips: [
+        'Você pode editar o texto na hora antes de enviar ou usar o botão "Copiar Texto" caso prefira colar manualmente.'
+      ],
+      rules: [
+        'Os números dos clientes são higienizados e padronizados com DDI +55 automaticamente.'
+      ]
+    },
+    {
+      id: 'configuracoes_seguranca',
+      title: '17. Configurações Unificadas: Senha Mestra PDV, Temas, Auditoria, Dados & Drive',
+      badge: 'Administração',
+      icon: KeyRound,
+      targetTab: 'configuracoes',
+      summary: 'Centralização administrativa: definição da senha de exclusão de vendas no PDV/Vendas, Temas Visuais e Logs de Auditoria movidos para Configurações, gestão de base de dados, MySQL e Google Drive.',
+      steps: [
+        'Segurança do PDV & Vendas (Senha de Exclusão): Em "Configurações → Dados da Empresa", preencha o campo "Senha Mestra de Exclusão no PDV". Além disso, em "Configurações → Usuários e Acesso", defina quais colaboradores podem excluir vendas utilizando sua própria senha.',
+        'Temas & Identidade Visual (Centralizados em Configurações): Os menus de troca de tema foram movidos da barra superior para "Configurações → Temas & Identidade Visual", permitindo alternar entre as paletas visuais mantendo o topo mais limpo.',
+        'Logs & Auditoria (Centralizados em Configurações): O histórico imutável de criação, edição, cancelamento e exclusão (antes no topo) agora fica em "Configurações → Logs & Auditoria" com busca por usuário e ação.',
+        'Gestão de Dados (Zerar Sistema vs Demo vs MySQL): Em "Configurações → Gestão de Dados", use "Limpar Dados (Zerar Sistema)" para entrar em produção real, "Carregar Dados de Exemplo" para demonstrações, ou baixe o script completo .sql para MySQL.',
+        'Backup JSON & Google Drive: Exporte/restaure backups completos em JSON em "Configurações → Backup" ou conecte sua conta na aba "Google Drive" do menu lateral.'
+      ],
+      tips: [
+        'Defina a Senha Mestra de Exclusão no PDV logo na implantação para garantir que apenas o Administrador ou equipe autorizada exclua vendas definitivamente.',
+        'No celular, menus administrativos avançados ficam ocultos para manter a operação em campo enxuta e rápida.'
+      ],
+      rules: [
+        'Apenas Administradores acessam a definição de Senha Mestra, restauração de backup e limpeza total da base.',
+        'Todas as alterações críticas e exclusões autorizadas geram registro permanente nos Logs de Auditoria.'
       ]
     }
   ];

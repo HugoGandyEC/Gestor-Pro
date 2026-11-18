@@ -18,10 +18,14 @@ import {
   KeyRound,
   AlertTriangle,
   ArrowRightCircle,
-  Split
+  Split,
+  Search,
+  Eraser,
+  Package,
+  Wrench
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../context/AppContext';
-import { SaleItem, PaymentMethod, PaymentSplit, CardBrand, DirectSale } from '../types';
+import { SaleItem, PaymentMethod, PaymentSplit, CardBrand, DirectSale, Product, ServiceCatalogItem } from '../types';
 import { WhatsAppModal } from './WhatsAppModal';
 import { LiveSearchInput } from './LiveSearchInput';
 import { RecordDetailModal } from './RecordDetailModal';
@@ -62,6 +66,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
     employees,
     clients,
     products,
+    serviceCatalog,
     addDirectSale,
     updateDirectSale,
     cancelDirectSale,
@@ -99,6 +104,8 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
 
   const [clientId, setClientId] = useState('');
   const [clientSearch, setClientSearch] = useState('');
+  const [itemSearch, setItemSearch] = useState('');
+  const [quickAddQty, setQuickAddQty] = useState<number>(1);
   const [employeeId, setEmployeeId] = useState(employees[3]?.id || employees[0]?.id || '');
   const [priceType, setPriceType] = useState<'varejo' | 'atacado'>('varejo');
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
@@ -129,7 +136,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
 
   const [items, setItems] = useState<SaleItem[]>([]);
   const [payments, setPayments] = useState<PaymentSplit[]>([
-    { id: 'p1', method: 'pix', amount: 320, netAmount: 320 }
+    { id: 'p1', method: 'pix', amount: 0, netAmount: 0 }
   ]);
 
   const showToast = (msg: string) => {
@@ -326,34 +333,35 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
     recalculateItemsForPriceType(nextType);
   };
 
-  const handleOpenNewSaleModal = () => {
+  const resetSaleDraftFields = () => {
     setEditingSale(null);
     setClientId('');
     setClientSearch('');
+    setItemSearch('');
+    setQuickAddQty(1);
     setPriceType('varejo');
     setDiscountType('fixed');
     setDiscountValue(0);
     setModalTerminal(TERMINALS[0]);
     setSaleError(null);
-    const firstProd = products[0];
-    setItems(
-      firstProd
-        ? [
-            {
-              id: String(Date.now()),
-              productId: firstProd.id,
-              name: firstProd.name,
-              quantity: 1,
-              cost: firstProd.costPrice,
-              price: firstProd.retailPrice,
-              unit: firstProd.unit
-            }
-          ]
-        : []
-    );
-    const initVal = firstProd?.retailPrice || 0;
-    setPayments([enrichSplit({ id: `p-${Date.now()}`, method: 'pix', amount: initVal, netAmount: initVal })]);
+    setItems([]);
+    setPayments([enrichSplit({ id: `p-${Date.now()}`, method: 'pix', amount: 0, netAmount: 0 })]);
+  };
+
+  const handleOpenNewSaleModal = () => {
+    resetSaleDraftFields();
     setIsModalOpen(true);
+  };
+
+  const handleDiscardUnsavedSale = () => {
+    const wasEditing = Boolean(editingSale);
+    resetSaleDraftFields();
+    setIsModalOpen(false);
+    showToast(
+      wasEditing
+        ? 'Edição cancelada. Nenhuma alteração foi salva.'
+        : 'Venda cancelada antes de ser adicionada e campos limpos.'
+    );
   };
 
   const handleOpenEditSaleModal = (sale: DirectSale) => {
@@ -361,6 +369,8 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
     setEditingSale(sale);
     setClientId(sale.clientId || '');
     setClientSearch('');
+    setItemSearch('');
+    setQuickAddQty(1);
     setEmployeeId(sale.employeeId);
     setPriceType(saleClient?.customerType === 'atacado' ? sale.priceType : 'varejo');
     setDiscountType(sale.discountType || 'fixed');
@@ -404,40 +414,133 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
     }
   };
 
-  const handleAddItem = () => {
-    const defaultProd = products[0];
-    const initialPrice =
+  const syncPaymentsForUpdatedItems = (nextItems: SaleItem[], nextDiscountVal = discountValue) => {
+    const sub = nextItems.reduce((acc, it) => acc + Number(it.price || 0) * Number(it.quantity || 0), 0);
+    const disc = discountType === 'percent' ? (sub * (Number(nextDiscountVal) || 0)) / 100 : Number(nextDiscountVal) || 0;
+    const nextTotal = Math.max(0, Number((sub - disc).toFixed(2)));
+
+    if (nextItems.length === 0) {
+      setDiscountValue(0);
+      setPayments([enrichSplit({ id: `p-${Date.now()}`, method: payments[0]?.method || 'pix', amount: 0, netAmount: 0 })]);
+      return;
+    }
+
+    if (payments.length === 1) {
+      setPayments(prev => prev.map((p, i) => (i === 0 ? enrichSplit({ ...p, amount: nextTotal }) : p)));
+    }
+  };
+
+  const handleAddProductToSale = (prod: Product, qty = quickAddQty) => {
+    const cleanQty = Math.max(1, Number(qty) || 1);
+    const unitPrice =
       effectivePriceType === 'atacado'
-        ? (defaultProd?.wholesalePrice || 120)
-        : (defaultProd?.retailPrice || 160);
+        ? Number(prod.wholesalePrice || prod.retailPrice || 0)
+        : Number(prod.retailPrice || 0);
+
+    const existingIdx = items.findIndex(it => it.productId === prod.id);
+    let nextItems: SaleItem[];
+    if (existingIdx >= 0) {
+      nextItems = items.map((it, i) =>
+        i === existingIdx ? { ...it, quantity: Number(it.quantity || 0) + cleanQty, price: unitPrice } : it
+      );
+    } else {
+      nextItems = [
+        ...items,
+        {
+          id: `it-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          productId: prod.id,
+          name: prod.name,
+          quantity: cleanQty,
+          cost: Number(prod.costPrice || 0),
+          price: unitPrice,
+          unit: prod.unit || 'UN'
+        }
+      ];
+    }
+    setItems(nextItems);
+    setSaleError(null);
+    setQuickAddQty(1);
+    syncPaymentsForUpdatedItems(nextItems);
+  };
+
+  const handleAddServiceToSale = (srv: ServiceCatalogItem, qty = quickAddQty) => {
+    const cleanQty = Math.max(1, Number(qty) || 1);
+    const unitPrice = Number(srv.standardPrice || srv.minPrice || 0);
+    const nextItems: SaleItem[] = [
+      ...items,
+      {
+        id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        productId: undefined,
+        name: `[Serviço] ${srv.name}`,
+        quantity: cleanQty,
+        cost: 0,
+        price: unitPrice,
+        unit: 'SV'
+      }
+    ];
+    setItems(nextItems);
+    setSaleError(null);
+    setQuickAddQty(1);
+    syncPaymentsForUpdatedItems(nextItems);
+  };
+
+  const handleAddBlankItem = () => {
     setItems(prev => [
       ...prev,
       {
-        id: String(Date.now()),
-        productId: defaultProd?.id,
-        name: defaultProd?.name || 'Novo Produto',
+        id: `avulso-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        productId: undefined,
+        name: '',
         quantity: 1,
-        cost: defaultProd?.costPrice || 60,
-        price: initialPrice,
-        unit: defaultProd?.unit || 'UN'
+        cost: 0,
+        price: 0,
+        unit: 'UN'
       }
     ]);
+    setSaleError(null);
+  };
+
+  const handleRemoveItem = (idx: number) => {
+    const nextItems = items.filter((_, i) => i !== idx);
+    setItems(nextItems);
+    syncPaymentsForUpdatedItems(nextItems);
+  };
+
+  const handleClearAllItems = () => {
+    setItems([]);
+    setItemSearch('');
+    setQuickAddQty(1);
+    setDiscountValue(0);
+    setSaleError(null);
+    setPayments([enrichSplit({ id: `p-${Date.now()}`, method: 'pix', amount: 0, netAmount: 0 })]);
   };
 
   const handleProductSelect = (idx: number, prodId: string) => {
+    if (!prodId) {
+      const nextItems = items.map((it, i) =>
+        i === idx ? { ...it, productId: undefined, name: '', cost: 0, price: 0, unit: 'UN' } : it
+      );
+      setItems(nextItems);
+      syncPaymentsForUpdatedItems(nextItems);
+      return;
+    }
     const prod = products.find(p => p.id === prodId);
     if (!prod) return;
     const price = effectivePriceType === 'atacado' ? prod.wholesalePrice : prod.retailPrice;
-    const updated = [...items];
-    updated[idx] = {
-      ...updated[idx],
-      productId: prod.id,
-      name: prod.name,
-      cost: prod.costPrice,
-      price: price,
-      unit: prod.unit
-    };
+    const updated = items.map((it, i) =>
+      i === idx
+        ? {
+            ...it,
+            productId: prod.id,
+            name: prod.name,
+            cost: prod.costPrice,
+            price,
+            unit: prod.unit
+          }
+        : it
+    );
     setItems(updated);
+    syncPaymentsForUpdatedItems(updated);
   };
 
   const calculateSubtotal = () => {
@@ -1244,11 +1347,9 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
               </h3>
               <button
                 type="button"
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setEditingSale(null);
-                }}
+                onClick={handleDiscardUnsavedSale}
                 className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                title="Cancelar venda e limpar campos"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1403,70 +1504,266 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
                 </div>
               </div>
 
-              {/* Itens */}
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="font-bold text-slate-800">Itens / Equipamentos Vendidos</span>
-                  <button type="button" onClick={handleAddItem} className="text-blue-600 font-bold hover:underline cursor-pointer">
-                    + Adicionar Item
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {items.map((it, idx) => (
-                    <div key={it.id || idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                      <select
-                        value={it.productId || ''}
-                        onChange={(e) => handleProductSelect(idx, e.target.value)}
-                        className="flex-1 min-w-[180px] p-1.5 bg-white border border-slate-200 rounded text-xs"
+              {/* Busca & Lista de Produtos e Serviços */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <div>
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Search className="w-4 h-4 text-blue-600" />
+                      <span>Buscar &amp; Adicionar Produtos ou Serviços</span>
+                    </span>
+                    <p className="text-[11px] text-slate-500">
+                      Pesquise por nome, código, SKU, marca, código de barras ou serviço. Exclua itens a qualquer momento para limpar a lista.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddBlankItem}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Item Avulso</span>
+                    </button>
+                    {items.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAllItems}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold cursor-pointer"
+                        title="Remover todos os produtos/serviços e limpar valores"
                       >
-                        <option value="">Selecione do Estoque...</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.code} - {p.name} (Estoque: {p.currentStock})
-                          </option>
-                        ))}
-                      </select>
+                        <Eraser className="w-3.5 h-3.5" />
+                        <span>Limpar Lista</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="Qtd"
-                        value={it.quantity}
-                        onChange={(e) => {
-                          const up = [...items];
-                          up[idx] = { ...up[idx], quantity: Math.max(1, Number(e.target.value) || 1) };
-                          setItems(up);
-                        }}
-                        className="w-16 p-1.5 bg-white border border-slate-200 rounded font-mono text-center"
-                      />
+                {/* Barra de busca unificada (Produtos + Serviços) */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                  <div className="md:col-span-6">
+                    <LiveSearchInput<
+                      | { kind: 'product'; data: Product }
+                      | { kind: 'service'; data: ServiceCatalogItem }
+                    >
+                      value={itemSearch}
+                      onChange={setItemSearch}
+                      minChars={1}
+                      maxResults={20}
+                      clearOnSelect
+                      placeholder="Buscar produto (nome, código, marca, barras) ou serviço..."
+                      emptyLabel="Nenhum produto ou serviço encontrado"
+                      inputClassName="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      getOptions={(query) => {
+                        const q = query.trim().toLowerCase();
+                        const prodOptions = [...products]
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .filter(
+                            p =>
+                              p.name.toLowerCase().includes(q) ||
+                              (p.code || '').toLowerCase().includes(q) ||
+                              (p.sku || '').toLowerCase().includes(q) ||
+                              (p.barcode || '').toLowerCase().includes(q) ||
+                              (p.brand || '').toLowerCase().includes(q) ||
+                              (p.category || '').toLowerCase().includes(q) ||
+                              (p.tags || []).some(t => t.toLowerCase().includes(q))
+                          )
+                          .map(prod => {
+                            const unitPrice =
+                              effectivePriceType === 'atacado'
+                                ? Number(prod.wholesalePrice || prod.retailPrice || 0)
+                                : Number(prod.retailPrice || 0);
+                            return {
+                              id: `prod-${prod.id}`,
+                              title: prod.name,
+                              subtitle: `${prod.code || prod.sku || 'S/C'}${prod.brand ? ` · ${prod.brand}` : ''} · Estoque: ${prod.currentStock} ${prod.unit}`,
+                              priceText: formatBRL(unitPrice),
+                              thumbnailUrl: prod.photos?.[0],
+                              badgeText: effectivePriceType === 'atacado' ? 'Atacado' : 'Produto',
+                              badgeClassName:
+                                effectivePriceType === 'atacado'
+                                  ? 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800'
+                                  : 'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700',
+                              data: { kind: 'product' as const, data: prod }
+                            };
+                          });
 
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Preço R$"
-                        value={it.price}
-                        onChange={(e) => {
-                          const up = [...items];
-                          up[idx] = { ...up[idx], price: Math.max(0, Number(e.target.value) || 0) };
-                          setItems(up);
-                        }}
-                        className="w-24 p-1.5 bg-white border border-slate-200 rounded font-mono font-bold text-slate-900"
-                      />
+                        const srvOptions = [...serviceCatalog]
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .filter(
+                            s =>
+                              s.name.toLowerCase().includes(q) ||
+                              (s.code || '').toLowerCase().includes(q) ||
+                              (s.category || '').toLowerCase().includes(q)
+                          )
+                          .map(srv => ({
+                            id: `srv-${srv.id}`,
+                            title: srv.name,
+                            subtitle: `${srv.code} · ${srv.category}`,
+                            priceText: formatBRL(srv.standardPrice),
+                            icon: <Wrench className="w-3.5 h-3.5 text-emerald-700" />,
+                            badgeText: 'Serviço',
+                            badgeClassName: 'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800',
+                            data: { kind: 'service' as const, data: srv }
+                          }));
 
-                      {items.length > 1 && (
+                        return [...prodOptions, ...srvOptions];
+                      }}
+                      onSelect={(opt) => {
+                        if (opt.data.kind === 'product') {
+                          handleAddProductToSale(opt.data.data, quickAddQty);
+                        } else {
+                          handleAddServiceToSale(opt.data.data, quickAddQty);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="md:col-span-4">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        if (val.startsWith('p:')) {
+                          const prod = products.find(p => p.id === val.slice(2));
+                          if (prod) handleAddProductToSale(prod, quickAddQty);
+                        } else if (val.startsWith('s:')) {
+                          const srv = serviceCatalog.find(s => s.id === val.slice(2));
+                          if (srv) handleAddServiceToSale(srv, quickAddQty);
+                        }
+                      }}
+                      aria-label="Escolher produto ou serviço da lista"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
+                    >
+                      <option value="">-- Selecionar da lista ({products.length} prod. / {serviceCatalog.length} serv.) --</option>
+                      <optgroup label="Produtos do Estoque">
+                        {[...products]
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map(p => {
+                            const price = effectivePriceType === 'atacado' ? p.wholesalePrice : p.retailPrice;
+                            return (
+                              <option key={p.id} value={`p:${p.id}`}>
+                                {p.code} - {p.name} ({formatBRL(price)} · Est: {p.currentStock})
+                              </option>
+                            );
+                          })}
+                      </optgroup>
+                      {serviceCatalog.length > 0 && (
+                        <optgroup label="Serviços Cadastrados">
+                          {[...serviceCatalog]
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map(s => (
+                              <option key={s.id} value={`s:${s.id}`}>
+                                [Serviço] {s.code} - {s.name} ({formatBRL(s.standardPrice)})
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2 flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500">Qtd:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quickAddQty}
+                      onChange={(e) => setQuickAddQty(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-full text-xs font-mono font-bold text-center focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                {/* Lista de itens adicionados */}
+                {items.length === 0 ? (
+                  <div className="p-4 bg-white border border-dashed border-slate-300 rounded-lg text-center text-xs text-slate-500">
+                    <Package className="w-5 h-5 mx-auto mb-1 text-slate-400" />
+                    Nenhum produto ou serviço na venda ainda. Use a busca acima para adicionar itens.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {items.map((it, idx) => (
+                      <div
+                        key={it.id || idx}
+                        className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white p-2 rounded-lg border border-slate-200"
+                      >
+                        <span className="text-[10px] font-black text-slate-400 w-5 text-center">#{idx + 1}</span>
+                        {it.productId ? (
+                          <select
+                            value={it.productId}
+                            onChange={(e) => handleProductSelect(idx, e.target.value)}
+                            className="flex-1 min-w-[180px] p-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-medium"
+                          >
+                            <option value="">Limpar produto...</option>
+                            {products.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.code} - {p.name} (Estoque: {p.currentStock})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={it.name}
+                            onChange={(e) => {
+                              const up = [...items];
+                              up[idx] = { ...up[idx], name: e.target.value };
+                              setItems(up);
+                            }}
+                            placeholder="Descrição do produto ou serviço..."
+                            className="flex-1 min-w-[180px] p-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-medium"
+                          />
+                        )}
+
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="Qtd"
+                          value={it.quantity || ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Math.max(1, Number(e.target.value) || 1);
+                            const up = items.map((row, i) => (i === idx ? { ...row, quantity: val } : row));
+                            setItems(up);
+                            syncPaymentsForUpdatedItems(up);
+                          }}
+                          className="w-16 p-1.5 bg-slate-50 border border-slate-200 rounded font-mono text-center"
+                          title="Quantidade"
+                        />
+
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0,00"
+                          value={it.price > 0 ? it.price : ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0);
+                            const up = items.map((row, i) => (i === idx ? { ...row, price: val } : row));
+                            setItems(up);
+                            syncPaymentsForUpdatedItems(up);
+                          }}
+                          className="w-24 p-1.5 bg-slate-50 border border-slate-200 rounded font-mono font-bold text-slate-900 text-right"
+                          title="Valor unitário (R$)"
+                        />
+
+                        <div className="w-24 text-right font-mono font-bold text-emerald-700 text-xs tabular-nums">
+                          {formatBRL(Number(it.price || 0) * Number(it.quantity || 0))}
+                        </div>
+
                         <button
                           type="button"
-                          onClick={() => setItems(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                          title="Remover item"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer shrink-0"
+                          title="Excluir este produto/serviço da lista"
+                          aria-label={`Excluir item ${it.name || idx + 1}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Desconto e Resumo */}
@@ -1498,8 +1795,13 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
                       type="number"
                       min="0"
                       step="0.01"
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(Math.max(0, Number(e.target.value) || 0))}
+                      placeholder="0,00"
+                      value={discountValue > 0 ? discountValue : ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0);
+                        setDiscountValue(val);
+                        syncPaymentsForUpdatedItems(items, val);
+                      }}
                       className="w-20 p-1.5 bg-white border border-slate-200 rounded-lg font-mono font-bold text-right"
                     />
                   </div>
@@ -1523,7 +1825,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
                   <div>
                     <span className="font-bold text-slate-800 flex items-center gap-1.5">
                       <Split className="w-4 h-4 text-[#53383e]" />
-                      <span>Múltiplas Formas de Pagamento & Bandeiras</span>
+                      <span>Múltiplas Formas de Pagamento &amp; Bandeiras</span>
                     </span>
                     <p className="text-[11px] text-slate-500">
                       Adicione quantos cartões ou formas desejar (ex.: PIX + Crédito Visa 3x + Débito Mastercard).
@@ -1597,12 +1899,16 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
                               type="number"
                               min="0"
                               step="0.01"
-                              placeholder="Valor R$"
-                              value={p.amount}
-                              onChange={(e) => updatePaymentRow(idx, { amount: Math.max(0, Number(e.target.value) || 0) })}
+                              placeholder="0,00"
+                              value={p.amount > 0 ? p.amount : ''}
+                              onChange={(e) =>
+                                updatePaymentRow(idx, {
+                                  amount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0)
+                                })
+                              }
                               className="w-28 p-1.5 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-emerald-700 text-right"
                             />
-                            {Math.abs(unallocatedDiff) > 0.01 && (
+                            {Math.abs(unallocatedDiff) > 0.01 && modalTotal > 0 && (
                               <button
                                 type="button"
                                 onClick={() =>
@@ -1675,41 +1981,41 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex flex-wrap justify-end gap-2">
+              <div className="pt-3 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setEditingSale(null);
-                  }}
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                  onClick={handleDiscardUnsavedSale}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
                 >
-                  Fechar
+                  <Ban className="w-3.5 h-3.5" />
+                  <span>Cancelar Venda</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveSale('queue_only')}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#363739] hover:bg-[#252627] rounded-lg shadow-xs cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Salvar & Mandar p/ Fila do PDV</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveSale('go_to_pdv')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs cursor-pointer"
-                >
-                  <ArrowRightCircle className="w-3.5 h-3.5" />
-                  <span>Enviar e Finalizar no PDV</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveSale('settle_now')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs cursor-pointer"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Receber Agora & Gerar Recibo</span>
-                </button>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSale('queue_only')}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#363739] hover:bg-[#252627] rounded-lg shadow-xs cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Salvar &amp; Mandar p/ Fila do PDV</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSale('go_to_pdv')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-xs cursor-pointer"
+                  >
+                    <ArrowRightCircle className="w-3.5 h-3.5" />
+                    <span>Enviar e Finalizar no PDV</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSale('settle_now')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Receber Agora &amp; Gerar Recibo</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

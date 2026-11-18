@@ -44,7 +44,12 @@ import {
   KeyRound,
   Eye,
   Sliders,
-  HardDrive
+  HardDrive,
+  Receipt,
+  BarChart3,
+  Ban,
+  Store,
+  Search
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 import { SYSTEM_VERSION } from '../constants/version';
@@ -197,14 +202,30 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           ],
           tips: 'Facilita a visualização em notebooks e tablets sem cortar colunas essenciais.',
           targetTab: 'orders'
+        },
+        {
+          id: 'os_unified_status_stock_search',
+          moduleCode: 'MOD-1.7',
+          title: 'Busca de Produtos do Estoque na OS & Status Unificados',
+          icon: Search,
+          badge: 'Sincronia OS',
+          objective: 'Garantir que todos os produtos cadastrados no Estoque apareçam na busca da OS e que os status sejam idênticos em toda a interface.',
+          summary: 'Pesquisa instantânea por nome, código, marca ou barras + seleção direta na OS; status idênticos entre tabela, cards do Painel e Portal.',
+          howToUse: [
+            'Ao criar ou editar uma OS, use o campo de busca inteligente para pesquisar qualquer produto ou serviço do Estoque.',
+            'Selecione o item desejado na lista suspensa ou no seletor para adicioná-lo com preço e baixa automática ao concluir.',
+            'Os status oficiais ("Orçamento", "Aguardando Aprovação", "Aguardando Peça", "Em Andamento", "Concluída", "Entregue", "Pago" e "Cancelada") aparecem com exatamente o mesmo rótulo e cor nos cards do Painel e na listagem de OS.'
+          ],
+          tips: 'Evita divergências de nomenclatura entre a equipe de campo, recepção e painel gerencial.',
+          targetTab: 'orders'
         }
       ]
     },
     {
       id: 'vendas_estoque',
-      title: 'Vendas, Produtos & Controle de Estoque',
+      title: 'Vendas, PDV, Recibos & Módulo Estoque',
       icon: Package,
-      description: 'Gestão de catálogo, código de barras EAN-13, fotos, duplicador ágil, histórico 360° e PDV balcão.',
+      description: 'Gestão do módulo Estoque com comboboxes, vendas diretas com múltiplas bandeiras, frente de caixa PDV, recibos A4/80mm e XML NF-e.',
       modules: [
         {
           id: 'product_barcode',
@@ -220,7 +241,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
             'O sistema gera automaticamente um código EAN-13 válido com dígito verificador.',
             'Você também pode bipar ou digitar manualmente códigos de barras já existentes nas embalagens dos fabricantes.'
           ],
-          tips: 'O código de barras gerado pode ser pesquisado instantaneamente na busca de vendas e PDV.',
+          tips: 'O código de barras gerado pode ser pesquisado instantaneamente na busca de vendas, OS e PDV. Todos os filtros do módulo Estoque (Categoria, Marca, Subcategoria, Situação e Kardex) usam comboboxes limpas.',
           targetTab: 'products'
         },
         {
@@ -232,7 +253,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           objective: 'Criar novos produtos rapidamente aproveitando todas as configurações de um item existente.',
           summary: 'Copia fornecedor, categoria, margem de lucro, NCM e impostos, bastando ajustar a variação (voltagem, potência ou tamanho).',
           howToUse: [
-            'Na tabela de Produtos & Estoque, localize o produto que deseja usar como modelo.',
+            'Na tabela do módulo "Estoque", localize o produto que deseja usar como modelo.',
             'Clique no botão "Duplicar" na coluna de Ações.',
             'O modal abrirá preenchido com o nome acrescido de "(Cópia)".',
             'Ajuste o modelo, voltagem ou preço e salve.'
@@ -249,7 +270,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           objective: 'Armazenar até 3 fotos por produto para facilitar a identificação visual por técnicos e clientes.',
           summary: 'Permite carregar fotos das conexões, vista explodida do motor e placa técnica com número de série.',
           howToUse: [
-            'No cadastro do produto, vá na seção "Galeria de Fotos".',
+            'No cadastro do produto no Estoque, vá na seção "Galeria de Fotos".',
             'Carregue até 3 fotos da peça ou equipamento.',
             'As fotos ficam visíveis na ficha do produto, no histórico e no catálogo do cliente.'
           ],
@@ -259,14 +280,14 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'product_history',
           moduleCode: 'MOD-2.4',
-          title: 'Histórico Total 360° do Produto',
+          title: 'Histórico Total 360° & Kardex do Estoque',
           icon: History,
           badge: 'Rastreabilidade',
-          objective: 'Visualizar todas as entradas, saídas em OS, vendas diretas e saldo residual em estoque.',
-          summary: 'Auditoria completa por produto com data, número da nota fiscal ou OS, quantidade movimentada e margem obtida.',
+          objective: 'Visualizar todas as entradas, saídas em OS, vendas diretas, estornos de cancelamentos e saldo residual.',
+          summary: 'Auditoria completa por produto com filtro por tipo de movimentação em combobox, data, NF ou OS e margem obtida.',
           howToUse: [
-            'Na lista de produtos, clique no botão "Histórico Total" do produto.',
-            'Uma linha do tempo é exibida com todas as transações que movimentaram aquele item.',
+            'Na lista do Estoque, clique no botão "Histórico Total" do produto ou acesse o Kardex.',
+            'Filtre pelo tipo de movimentação (Entrada XML, Saída Venda/OS, Ajuste/Estorno) na combobox.',
             'Consulte o saldo remanescente em prateleira e o lucro bruto total gerado.'
           ],
           tips: 'Essencial para conferência de estoque físico e suporte em garantias de fábrica.',
@@ -275,43 +296,78 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'direct_sales',
           moduleCode: 'MOD-2.5',
-          title: 'Frente de Caixa (PDV) & Vendas Diretas de Balcão',
+          title: 'Vendas Diretas: Busca, Limpeza, Múltiplas Bandeiras & Envio ao PDV',
           icon: Package,
-          badge: 'Balcão Ágil',
-          objective: 'Vender peças, produtos químicos e acessórios diretamente no balcão sem necessidade de abrir uma OS.',
-          summary: 'Seleção ágil de itens, escolha de tabela de preço (Varejo ou Atacado), parcelamento e impressão de recibo.',
+          badge: 'Balcão Inteligente',
+          objective: 'Montar vendas rapidamente buscando produtos e serviços, com formulário limpo, múltiplas bandeiras e envio direto para receber no PDV.',
+          summary: 'Busca unificada (Estoque + Serviços + Item Avulso), exclusão de qualquer item (deixando valores zerados/limpos), cancelar antes ou depois, excluir por senha e enviar ao PDV.',
           howToUse: [
-            'Acesse a tela "Vendas" no menu lateral.',
-            'Clique em "+ Nova Venda".',
-            'Adicione os itens do estoque e selecione o cliente.',
-            'Defina a condição de pagamento (Pix, Cartão à vista ou parcelado) e confirme.',
-            'O sistema baixa o estoque automaticamente e emite o comprovante de venda.'
+            'Clique em "+ Nova Venda": a tela abre totalmente limpa (lista vazia e campos numéricos sem zeros fixos).',
+            'Use a "Busca Rápida de Produtos e Serviços" (por nome, código ou código de barras) ou a lista agrupada para adicionar itens do Estoque, serviços ou item avulso.',
+            'Para remover qualquer produto ou serviço (mesmo sendo o único item), clique no ícone da lixeira na linha ou em "Limpar Lista".',
+            'Adicione uma ou mais formas de pagamento escolhendo Operadora, Bandeira diferente e Parcelas por linha, ou clique em "Enviar e Finalizar no PDV" para o caixa receber.',
+            'Antes de confirmar, clique em "Cancelar Venda" para descartar o rascunho; após criada, qualquer usuário pode "Cancelar" (estorna estoque) ou o Admin/permitido pode "Excluir" mediante senha.'
           ],
-          tips: 'Você pode aplicar descontos em percentual ou em valor fixo em reais.',
+          tips: 'Ao enviar para o PDV, o sistema abre o Frente de Caixa já posicionado para cobrar o cliente.',
           targetTab: 'sales'
         },
         {
           id: 'xml_nfe_import',
           moduleCode: 'MOD-2.6',
-          title: 'Importação de NF-e via Arquivo XML',
+          title: 'Importação de NF-e via Arquivo XML (Anti-Duplicidade)',
           icon: Download,
           badge: 'Automação Fiscal',
-          objective: 'Abastecer o estoque e cadastrar novos produtos automaticamente através do XML da nota fiscal do fornecedor.',
-          summary: 'Leitura automática de código, NCM, quantidade e custo unitário, gerando também a duplicata no Contas a Pagar.',
+          objective: 'Abastecer o Estoque e cadastrar novos produtos automaticamente através do XML da nota fiscal com proteção anti-duplicidade.',
+          summary: 'Leitura automática de código, NCM, quantidade e custo unitário, bloqueando XML já importado e gerando compra no Contas a Pagar.',
           howToUse: [
-            'Na tela de Produtos ou Cadastros, clique em "Importar XML de NF-e".',
-            'Selecione o arquivo .xml emitido pelo seu distribuidor ou fabricante.',
-            'Confira a listagem dos itens importados e confirme.',
-            'Os itens são somados ao estoque e a despesa entra na aba de financeiro.'
+            'Na tela de Estoque ou Central de Cadastros, clique em "Importar XML de NF-e".',
+            'Selecione o arquivo .xml emitido pelo seu fornecedor.',
+            'Confira a listagem dos itens importados (o sistema alerta caso a chave NF-e já tenha sido lançada) e confirme.',
+            'Os itens são somados ao Estoque e o custo de reposição entra automaticamente no Contas a Pagar do mês.'
           ],
-          tips: 'Evita digitação manual e elimina erros de tributação ou custo.',
+          tips: 'Evita digitação manual, elimina entradas duplicadas de nota e mantém o financeiro sincronizado.',
           targetTab: 'products'
+        },
+        {
+          id: 'pdv_multipay_security',
+          moduleCode: 'MOD-2.7',
+          title: 'PDV / Frente de Caixa: Múltiplas Bandeiras, Cancelar & Excluir por Senha',
+          icon: Store,
+          badge: 'Frente de Caixa',
+          objective: 'Receber OS e Vendas dividindo em quantas formas de pagamento e bandeiras diferentes o cliente precisar, com controle de cancelamento e exclusão.',
+          summary: 'Suporta Pix + Dinheiro + Crédito Visa + Débito Elo na mesma venda, cancelamento aberto a operadores do PDV e exclusão definitiva protegida por senha.',
+          howToUse: [
+            'Acesse "PDV / Frente de Caixa", abra o caixa (informando o fundo de troco) e selecione a OS, Venda ou adicione itens avulsos.',
+            'Em "Pagamentos", adicione quantas linhas desejar (+ Adicionar Forma): escolha Dinheiro, Pix ou Cartão com bandeira e parcelas independentes em cada linha.',
+            'Confira o saldo pago vs restante e finalize o recebimento.',
+            'Para estornar mantendo o histórico contábil e devolvendo os produtos ao Estoque, qualquer operador do PDV pode clicar em "Cancelar Venda".',
+            'Para remover o registro definitivamente ("Excluir Venda"), é obrigatória a senha mestra do PDV cadastrada em Configurações (ou usuário Admin / colaborador autorizado).'
+          ],
+          tips: 'Vendas canceladas não contam no faturamento do Painel, DRE, BI nem no Fechamento Contábil.',
+          targetTab: 'pdv'
+        },
+        {
+          id: 'auto_receipts_a4_80mm',
+          moduleCode: 'MOD-2.8',
+          title: 'Recibos Automáticos de Pagamento (A4, Térmico 80mm & PDF)',
+          icon: Receipt,
+          badge: 'Comprovantes',
+          objective: 'Emitir instantaneamente o recibo oficial após qualquer recebimento de OS ou Venda no PDV ou Financeiro.',
+          summary: 'Alterna entre folha A4 completa e bobina térmica 80mm, indicando selo "QUITADO" ou "PAGAMENTO PARCIAL (Restante a Pagar)" e detalhando cada bandeira.',
+          howToUse: [
+            'Assim que um recebimento parcial ou total é concluído no PDV ou no Contas a Receber, o modal do Recibo abre automaticamente.',
+            'Escolha o layout desejado no topo: "Folha A4" ou "Cupom Térmico 80mm".',
+            'Verifique o número sequencial do recibo (ex: REC-2026-0001), cliente, cada forma/bandeira paga e o saldo restante se parcial.',
+            'Clique em "Imprimir / Salvar PDF" ou reabra qualquer recibo emitido pelo histórico da venda ou financeiro.'
+          ],
+          tips: 'Pagamentos parciais mantêm a fatura em aberto apenas pelo saldo restante até a quitação final.',
+          targetTab: 'pdv'
         }
       ]
     },
     {
       id: 'financeiro',
-      title: 'Financeiro, Bancos & PagBank',
+      title: 'Financeiro, Custos Integrados, BI & Contábil',
       icon: DollarSign,
       description: 'Gestão de contas, operadoras de cartão com taxas detalhadas, baixa automática PagBank e fechamento contábil.',
       modules: [
@@ -412,8 +468,42 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
             'Analise a tabela comparativa de desempenho da equipe técnica.',
             'Verifique a taxa de conversão de orçamentos e tempo médio de atendimento.'
           ],
-          tips: 'Excelente balizador para planos de comissão e premiações por produtividade.',
+          tips: 'Excelente balizador para planos de comissão e premiações por produtividade com base no modelo de remuneração de cada técnico.',
           targetTab: 'profitability'
+        },
+        {
+          id: 'integrated_costs_payroll',
+          moduleCode: 'MOD-3.7',
+          title: 'Integração de Custos, Folha & Remuneração por Combobox',
+          icon: DollarSign,
+          badge: 'Sincronia DRE',
+          objective: 'Refletir automaticamente salários, horas trabalhadas, comissões, compras de materiais e contas recorrentes no Contas a Pagar e DRE.',
+          summary: 'Combobox de Forma de Remuneração (Salário Fixo, Hora Trabalhada, Comissão, Salário + Comissão, Hora + Comissão) + prevenção de duplicidade.',
+          howToUse: [
+            'No cadastro do colaborador (Equipe ou Central de Cadastros), escolha a "Forma de Remuneração" na combobox.',
+            'Se escolher Hora Trabalhada, preencha Valor/Hora e Horas/Mês para cálculo automático da prévia mensal.',
+            'Folha salarial, comissões sobre OS concluídas/vendas pagas, compras manuais ou XML e recorrentes (aluguel, telefone, energia) são sincronizados no Contas a Pagar.',
+            'A DRE e o Break-Even eliminam qualquer risco de dupla contagem e permitem quitar a folha com controle de pagamento.'
+          ],
+          tips: 'Use as comboboxes de filtro na equipe e no financeiro para auditar cada centro de custo em segundos.',
+          targetTab: 'financial'
+        },
+        {
+          id: 'bi_analytics_combobox',
+          moduleCode: 'MOD-3.8',
+          title: 'Gráficos & Indicadores Gerenciais (BI) com Filtros em Combobox',
+          icon: BarChart3,
+          badge: 'Inteligência BI',
+          objective: 'Analisar faturamento, lucro líquido, ticket médio e fluxo de caixa por meio de gráficos interativos e filtros combinados.',
+          summary: 'Comboboxes de Período (Hoje a Anual/Personalizado), Status de Pagamento, Visão Rápida e Modelo de Gráfico (Barras, Linha, Área, Pizza).',
+          howToUse: [
+            'Acesse "Gráficos & Indicadores (BI)" no menu lateral.',
+            'Selecione na combobox o período desejado (Hoje, Semana, Quinzena, Mês, Trimestre, Semestre, Anual ou Personalizado).',
+            'Combine com as comboboxes de Status de Pagamento, Visão Rápida e tipo de gráfico.',
+            'Vendas canceladas são excluídas automaticamente dos indicadores para manter a fidelidade financeira.'
+          ],
+          tips: 'Ideal para reuniões gerenciais rápidas e comparação de margem por mês.',
+          targetTab: 'charts'
         }
       ]
     },
@@ -461,15 +551,16 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'master_registrations',
           moduleCode: 'MOD-4.3',
-          title: 'Central de Cadastros Mestres (Clientes, Fornecedores, Frota e Equipe)',
+          title: 'Central de Cadastros: Comboboxes, Listagem/Grade & Tooltips',
           icon: Building,
           badge: 'Cadastros Unificados',
-          objective: 'Gerenciar em um único local todos os dados cadastrais da empresa.',
-          summary: 'Clientes com múltiplos endereços, fornecedores com dados fiscais, técnicos com veículos e catálogo de serviços.',
+          objective: 'Gerenciar clientes, fornecedores, estoque, equipe, frota, serviços e checklists com navegação e filtros via combobox e visão em lista ou cards.',
+          summary: 'Alternância entre abas e filtros específicos por combobox, exibição em Listagem (tabela) ou Grade (cards) e tooltips detalhados ao passar o mouse.',
           howToUse: [
-            'Acesse a tela "Cadastros Gerais" no menu lateral.',
-            'Selecione a categoria desejada (Clientes, Fornecedores, Funcionários, Veículos, Serviços).',
-            'Cadastre ou edite dados com validação automática de CPF/CNPJ e CEP.'
+            'Acesse "Central de Cadastros" no menu lateral.',
+            'Use a combobox de seção ou os botões para alternar entre Clientes, Fornecedores, Estoque, Equipe, Frota, Serviços e Checklists.',
+            'Utilize os filtros em combobox de cada seção (perfil, cidade/UF, categoria/situação de estoque, remuneração da equipe, status da frota).',
+            'Alterne o botão de visualização entre Listagem e Grade (Cards) e passe o mouse nos itens para ver dados completos em tooltip.'
           ],
           tips: 'Clientes aceitam múltiplos endereços com títulos de referência (ex: Casa de Campo, Sede, Filial).',
           targetTab: 'cadastros'
@@ -639,7 +730,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
             'Escolha entre os temas disponíveis com amostra das cores oficiais.',
             'A aplicação atualiza as cores de menus, botões, tabelas e cabeçalhos imediatamente.'
           ],
-          tips: 'O tema Claro & Suave com Ouro Vibrante oferece leitura agradável para atendimentos diurnos.',
+          tips: 'O tema Claro & Suave com Ouro Vibrante oferece leitura agradável para atendimentos diurnos. O seletor foi movido para Configurações para deixar o cabeçalho superior mais limpo.',
           targetTab: 'configuracoes'
         },
         {
@@ -661,17 +752,34 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'audit_logs',
           moduleCode: 'MOD-6.4',
-          title: 'Logs de Auditoria & Rastreabilidade de Operações',
+          title: 'Logs de Auditoria & Rastreabilidade (em Configurações)',
           icon: Shield,
           badge: 'Auditoria',
-          objective: 'Rastrear todas as ações realizadas no sistema (quem alterou, o que alterou, data e horário).',
-          summary: 'Histórico imutável de cadastros de clientes, emissão de OSs, baixas no PDV e alterações de garantias.',
+          objective: 'Rastrear todas as ações realizadas no sistema (quem alterou, cancelou ou excluiu, data e horário) dentro de Configurações.',
+          summary: 'Histórico imutável de cadastros, OSs, cancelamentos e exclusões de vendas no PDV com o nome do autorizador.',
           howToUse: [
             'Acesse "Configurações" no menu lateral e clique na aba "Logs & Auditoria".',
             'Consulte a listagem de eventos com data, hora, usuário responsável e descrição da ação.',
             'Filtre por perfil ou palavra-chave para investigações e conferência.'
           ],
-          tips: 'Excelente ferramenta para controle interno e prevenção contra exclusões indevidas.',
+          tips: 'O botão de auditoria também foi movido do topo para Configurações, garantindo interface limpa e centralizada.',
+          targetTab: 'configuracoes'
+        },
+        {
+          id: 'pdv_delete_security_rules',
+          moduleCode: 'MOD-6.5',
+          title: 'Senha Mestra de Exclusão no PDV/Vendas & Permissão por Usuário',
+          icon: Ban,
+          badge: 'Segurança de Caixa',
+          objective: 'Diferenciar "Cancelar Venda" (aberto ao operador, estorna estoque) de "Excluir Venda" (apagamento definitivo protegido por senha).',
+          summary: 'Apenas a senha definida pelo Administrador em Configurações ou usuários autorizados explicitamente ("Pode Excluir Vendas") removem uma venda.',
+          howToUse: [
+            'Em "Configurações > Empresa & Séries", cadastre a "Senha de Exclusão de Vendas (PDV/Vendas)".',
+            'No cadastro do colaborador ("Equipe & Usuários"), marque a permissão "Permitido excluir vendas no PDV/Vendas" apenas para gerentes de confiança.',
+            'Ao clicar em "Excluir" em Vendas ou no PDV, o sistema exige a senha autorizada e registra o autor nos Logs de Auditoria.',
+            'Já o botão "Cancelar" pode ser usado por qualquer operador autorizado para estornar itens ao Estoque preservando o registro.'
+          ],
+          tips: 'Protege o caixa contra fraudes mantendo agilidade operacional para erros simples de digitação.',
           targetTab: 'configuracoes'
         }
       ]
@@ -830,7 +938,9 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
 
           <div className="hidden md:flex items-center gap-1.5 text-xs text-[#707174]">
             <Bookmark className="w-3.5 h-3.5 text-[#53383e]" />
-            <span>6 Categorias · 28 Módulos Mapeados</span>
+            <span>
+              {manualCategories.length} Categorias · {manualCategories.reduce((acc, c) => acc + c.modules.length, 0)} Módulos Mapeados
+            </span>
           </div>
         </div>
 

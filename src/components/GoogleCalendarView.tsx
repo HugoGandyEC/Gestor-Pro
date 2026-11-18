@@ -18,8 +18,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   CalendarDays, 
-  Sparkles, 
-  RotateCcw, 
   Lock, 
   ShieldCheck, 
   X, 
@@ -55,8 +53,6 @@ export const GoogleCalendarView: React.FC = () => {
     addAppointment, 
     updateAppointment, 
     deleteAppointment, 
-    clearSampleAppointments, 
-    restoreSampleAppointments,
     clients,
     serviceOrders,
     employees,
@@ -83,8 +79,6 @@ export const GoogleCalendarView: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<CompanyAppointment | null>(null);
   const [deletingAppointment, setDeletingAppointment] = useState<CompanyAppointment | null>(null);
-  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
-  const [isRestoreConfirmOpen, setIsRestoreConfirmOpen] = useState(false);
   const [viewDetailsAppointment, setViewDetailsAppointment] = useState<CompanyAppointment | null>(null);
 
   // WhatsApp Message Modal State
@@ -497,11 +491,6 @@ export const GoogleCalendarView: React.FC = () => {
     });
   }, [appointments, selectedType, selectedStatus, selectedEmployee, searchTerm]);
 
-  // Sample Items Count
-  const sampleItemsCount = useMemo(() => {
-    return appointments.filter(a => a.isSample).length;
-  }, [appointments]);
-
   // Format Helper for Type Badge
   const getTypeBadge = (type: AppointmentType) => {
     switch (type) {
@@ -711,26 +700,6 @@ export const GoogleCalendarView: React.FC = () => {
               Abrir Google Agenda
             </a>
           </div>
-
-          {/* Sample Data Status & Direction to Configurações */}
-          <div className="flex items-center gap-2">
-            {sampleItemsCount > 0 ? (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1.5 font-medium">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{sampleItemsCount} agendamentos de exemplo</span>
-                </span>
-                <span className="text-[11px] text-gray-500 hidden md:inline">
-                  (Para zerar todos os dados do sistema, acesse <strong>Configurações &gt; Gestão de Dados</strong>)
-                </span>
-              </div>
-            ) : (
-              <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Base de agendamentos limpa</span>
-              </span>
-            )}
-          </div>
         </div>
 
         {/* Filter bar */}
@@ -813,24 +782,6 @@ export const GoogleCalendarView: React.FC = () => {
         </div>
       </div>
 
-      {/* Notice of active sample data */}
-      {sampleItemsCount > 0 && (
-        <div className="bg-amber-50/80 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              <strong>Ambiente com dados fictícios de exemplo:</strong> Existem {sampleItemsCount} compromissos e visitas de exemplo para demonstração. Você pode excluí-los a qualquer momento clicando em <strong>"Limpar Dados de Exemplo"</strong>.
-            </span>
-          </div>
-          <button
-            onClick={() => setIsClearConfirmOpen(true)}
-            className="text-xs font-semibold text-rose-700 hover:text-rose-900 underline shrink-0 ml-3"
-          >
-            Limpar agora
-          </button>
-        </div>
-      )}
-
       {/* Appointments List / Cards */}
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs text-gray-500 px-1">
@@ -847,7 +798,7 @@ export const GoogleCalendarView: React.FC = () => {
             <CalendarIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <h3 className="text-sm font-semibold text-gray-700">Nenhum agendamento encontrado</h3>
             <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-              Não há compromissos cadastrados com os filtros selecionados. Crie um novo agendamento ou restaure os dados fictícios de exemplo.
+              Não há compromissos cadastrados com os filtros selecionados. Crie um novo agendamento para começar.
             </p>
             <div className="mt-4 flex items-center justify-center gap-2">
               <button
@@ -855,12 +806,6 @@ export const GoogleCalendarView: React.FC = () => {
                 className="px-3.5 py-2 bg-[#53383e] text-white text-xs font-semibold rounded-lg hover:bg-[#422c31]"
               >
                 + Novo Agendamento
-              </button>
-              <button
-                onClick={() => restoreSampleAppointments()}
-                className="px-3.5 py-2 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200"
-              >
-                Restaurar Dados Exemplo
               </button>
             </div>
           </div>
@@ -874,9 +819,7 @@ export const GoogleCalendarView: React.FC = () => {
               return (
                 <div 
                   key={apt.id}
-                  className={`bg-white rounded-xl border transition-all hover:shadow-md flex flex-col justify-between overflow-hidden ${
-                    apt.isSample ? 'border-amber-200/90' : 'border-gray-200'
-                  }`}
+                  className="bg-white rounded-xl border border-gray-200 transition-all hover:shadow-md flex flex-col justify-between overflow-hidden"
                 >
                   <div className="p-4 space-y-3">
                     {/* Header Badges */}
@@ -890,11 +833,6 @@ export const GoogleCalendarView: React.FC = () => {
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${statusBadge.bg}`}>
                           {statusBadge.label}
                         </span>
-                        {apt.isSample && (
-                          <span className="text-[10px] bg-amber-100 text-amber-800 font-mono px-1.5 py-0.5 rounded">
-                            Exemplo
-                          </span>
-                        )}
                       </div>
                     </div>
 
@@ -1318,97 +1256,6 @@ export const GoogleCalendarView: React.FC = () => {
                 className="px-4 py-1.5 text-xs text-white bg-rose-600 hover:bg-rose-700 rounded-lg font-semibold"
               >
                 Confirmar Exclusão
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL: CONFIRMAR LIMPAR DADOS DE EXEMPLO                                 */}
-      {/* ========================================================================= */}
-      {isClearConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 border border-gray-200 space-y-4">
-            <div className="flex items-center gap-3 text-rose-600">
-              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-rose-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900 text-sm">Limpar Dados de Exemplo?</h3>
-                <p className="text-xs text-gray-500">Limpeza dos dados demonstrativos da agenda</p>
-              </div>
-            </div>
-
-            <p className="text-xs text-gray-600 leading-relaxed">
-              Você deseja remover todos os <strong>{sampleItemsCount} agendamentos fictícios de exemplo</strong>? 
-              Seus agendamentos reais criados manualmente não serão alterados. Você poderá restaurar os exemplos futuramente a qualquer momento.
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setIsClearConfirmOpen(false)}
-                className="px-3.5 py-1.5 text-xs text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  clearSampleAppointments();
-                  setIsClearConfirmOpen(false);
-                  setSyncFeedback({
-                    type: 'success',
-                    message: 'Dados fictícios de exemplo foram limpos com sucesso.'
-                  });
-                }}
-                className="px-4 py-1.5 text-xs text-white bg-rose-600 hover:bg-rose-700 rounded-lg font-semibold"
-              >
-                Sim, Limpar Exemplos
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL: RESTAURAR DADOS DE EXEMPLO                                        */}
-      {/* ========================================================================= */}
-      {isRestoreConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 border border-gray-200 space-y-4">
-            <div className="flex items-center gap-3 text-amber-700">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                <RotateCcw className="w-5 h-5 text-amber-700" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900 text-sm">Restaurar Exemplos Fictícios?</h3>
-                <p className="text-xs text-gray-500">Recarregar dados de demonstração</p>
-              </div>
-            </div>
-
-            <p className="text-xs text-gray-600 leading-relaxed">
-              Deseja recarregar a lista com os 7 agendamentos fictícios de visitas técnicas, serviços de bomba/solar e reuniões da empresa?
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setIsRestoreConfirmOpen(false)}
-                className="px-3.5 py-1.5 text-xs text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  restoreSampleAppointments();
-                  setIsRestoreConfirmOpen(false);
-                  setSyncFeedback({
-                    type: 'success',
-                    message: 'Dados fictícios de exemplo recarregados na agenda!'
-                  });
-                }}
-                className="px-4 py-1.5 text-xs text-white bg-[#53383e] hover:bg-[#422c31] rounded-lg font-semibold"
-              >
-                Restaurar Exemplos
               </button>
             </div>
           </div>

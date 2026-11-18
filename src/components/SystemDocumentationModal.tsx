@@ -88,40 +88,50 @@ export const SystemDocumentationModal: React.FC<SystemDocumentationModalProps> =
               <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
                 <div className="font-bold text-slate-900 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                  Ordem de Serviço (OS) & Orçamentos
+                  Ordem de Serviço (OS), Busca no Estoque & Status Unificados
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Ciclo de vida completo: <em>Orçamento Aberto, Aguardando Aprovação, Aprovada/Em Andamento, Aguardando Peças, Concluída e Entregue/Finalizada</em>. Checklist de entrada e saída com fotos, alocação de peças do estoque, taxa de visita técnica, assinatura digital na tela touch e termo de garantia (90 dias a 3 anos).
+                  Ciclo completo com nomenclatura idêntica em tabela, cards do Painel e Portal (<em>Orçamento, Aguardando Aprovação, Aguardando Peça, Em Andamento, Concluída, Entregue, Pago, Cancelada</em>). Busca direta de itens do Estoque, checklist com fotos, assinatura touch e termo de garantia.
                 </p>
               </div>
 
               <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
                 <div className="font-bold text-slate-900 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                  Vendas & Orçamentos Multiformas
+                  Vendas, PDV Multi-Bandeiras & Recibos (A4 / 80mm / PDF)
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Conversão instantânea de orçamento em venda ou OS aprovada em 1 clique. Controle de preços diferenciados (Varejo vs Atacado) e divisão do pagamento em múltiplas formas (Pix + Cartão + Dinheiro) com cálculo automático das taxas por bandeira.
+                  Busca inteligente de produtos/serviços, formulário limpo com remoção total de itens, envio direto de Vendas/OS para recebimento no PDV e divisão em múltiplas formas com bandeiras e parcelas distintas. Emissão automática de Recibo A4/80mm indicando pagamento parcial ou quitado, cancelamento aberto com estorno de estoque e exclusão definitiva por senha mestra.
                 </p>
               </div>
 
               <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
                 <div className="font-bold text-slate-900 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
-                  Estoque & Entrada via XML de NF-e
+                  Módulo Estoque, Kardex & Entrada via XML de NF-e
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Leitor de XML de Nota Fiscal Eletrônica de compra. Cadastra ou atualiza produtos, recalcula custo médio, dá entrada no estoque (Kardex) e gera automaticamente a Conta a Pagar vinculada ao fornecedor.
+                  Leitor de XML com trava anti-duplicidade, fotos (até 3), EAN-13, duplicador rápido e filtros em combobox (Categoria, Marca, Subcategoria, Situação e Kardex). Gera automaticamente o custo de reposição no Contas a Pagar vinculado ao fornecedor.
                 </p>
               </div>
 
               <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
                 <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-purple-600"></span>
-                  Portal Exclusivo do Cliente
+                  <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                  Custos Integrados, Folha por Combobox & BI Gerencial
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Área do cliente para consulta de Ordens de Serviço, termos de garantia com número de série do reservatório térmico/bomba, débitos em aberto, assinatura digital de documentos e abertura de chamados técnicos ou em garantia.
+                  Sincronização automática de salários, horas trabalhadas, comissões, compras e recorrentes no Contas a Pagar/DRE sem duplicidade. Remuneração configurada via combobox (Fixo, Hora, Comissão ou mistos) e Gráficos BI com filtros combinados em combobox.
+                </p>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1 md:col-span-2">
+                <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                  Central de Cadastros, Portal do Cliente & Configurações Unificadas
+                </div>
+                <p className="text-slate-600 text-[11px]">
+                  Cadastros com comboboxes, modo Listagem/Grade (cards) e tooltips; Portal do Cliente com garantias por S/N, compras e chamados; e Configurações centralizando Senha Mestra de exclusão PDV, Temas, Logs de Auditoria, Backup JSON e Google Drive.
                 </p>
               </div>
             </div>
@@ -171,7 +181,15 @@ export const SystemDocumentationModal: React.FC<SystemDocumentationModalProps> =
                     <td className="p-2.5 text-center text-purple-700">Ver débitos</td>
                   </tr>
                   <tr>
-                    <td className="p-2.5 font-medium">Gestão de Produtos & Estoque</td>
+                    <td className="p-2.5 font-medium">PDV: Cancelar vs Excluir Venda</td>
+                    <td className="p-2.5 text-center font-bold text-emerald-700">Cancelar &amp; Excluir (Senha)</td>
+                    <td className="p-2.5 text-center text-slate-700">Cancelar / Excluir c/ Permissão+Senha</td>
+                    <td className="p-2.5 text-center text-slate-400">-</td>
+                    <td className="p-2.5 text-center text-slate-400">Auditar</td>
+                    <td className="p-2.5 text-center text-slate-400">-</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2.5 font-medium">Módulo Estoque &amp; Kardex</td>
                     <td className="p-2.5 text-center font-bold text-emerald-700">Total</td>
                     <td className="p-2.5 text-center text-slate-700">Inserir / Propor</td>
                     <td className="p-2.5 text-center text-blue-700">Ver Peças</td>
@@ -205,11 +223,11 @@ export const SystemDocumentationModal: React.FC<SystemDocumentationModalProps> =
               4. Modelo de Entidades e Relacionamentos (MySQL)
             </h4>
             <div>· <strong>Cliente</strong> 1:N Ordem de Serviço / 1:N Venda / 1:N Portal do Cliente (Chamados)</div>
-            <div>· <strong>Fornecedor</strong> 1:N Contas a Pagar (Compras de Produtos/XML)</div>
-            <div>· <strong>Produto/Peça</strong> 1:N Movimentações de Estoque (Kardex) / N:N Ordem de Serviço</div>
-            <div>· <strong>Ordem de Serviço</strong> 1:1 Checklist / 1:1 Assinatura Digital / 1:N Imagens / 1:N Formas de Pagamento</div>
-            <div>· <strong>Caixa PDV (Sessão)</strong> 1:N Movimentações de Caixa (Recebimentos de Venda/OS, Suprimentos, Sangrias)</div>
-            <div>· <strong>Contas a Receber / Contas a Pagar</strong> vinculadas a Taxas de Cartão por Bandeira e DRE</div>
+            <div>· <strong>Fornecedor</strong> 1:N Contas a Pagar (Compras de Produtos / NF-e XML com trava anti-duplicidade)</div>
+            <div>· <strong>Estoque (Produto/Peça)</strong> 1:N Movimentações Kardex (Saída, Entrada XML, Ajuste/Estorno) / N:N OS e Vendas</div>
+            <div>· <strong>Ordem de Serviço</strong> 1:1 Checklist / 1:1 Assinatura Digital / 1:N Imagens / 1:N Splits de Pagamento c/ Bandeira</div>
+            <div>· <strong>Venda &amp; Caixa PDV (Sessão)</strong> 1:N Splits (Operadora, Bandeira, Parcelas) / 1:N Recibos (A4/80mm) / Status Cancelamento vs Exclusão Auditada</div>
+            <div>· <strong>Equipe &amp; Custos</strong> Folha por Modelo (Salário, Hora, Comissão) + Recorrentes → Contas a Pagar, DRE e BI</div>
           </div>
 
           {/* 5. Histórico Resumido de Versões */}
