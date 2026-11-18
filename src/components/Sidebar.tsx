@@ -31,30 +31,9 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SYSTEM_VERSION } from '../constants/version';
+import { getEstadoModulos, MODULOS_CHANGED_EVENT, ModuloId } from '../modulos/ativarModulos';
 
-export type ActiveTab = 
-  | 'dashboard' 
-  | 'agenda'
-  | 'pdv'
-  | 'orders' 
-  | 'sales' 
-  | 'products'
-  | 'clients'
-  | 'suppliers'
-  | 'customerPortal'
-  | 'accounting'
-  | 'profitability' 
-  | 'fleet' 
-  | 'operational' 
-  | 'initialCosts' 
-  | 'financial' 
-  | 'employees'
-  | 'cadastros'
-  | 'cardOperators'
-  | 'googleDrive'
-  | 'configuracoes'
-  | 'charts'
-  | 'documentation';
+export type ActiveTab = ModuloId;
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -104,6 +83,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logout,
     openLogoutModal
   } = useApp();
+
+  const [modulosEstado, setModulosEstado] = React.useState(() => getEstadoModulos());
+
+  React.useEffect(() => {
+    const sync = () => setModulosEstado(getEstadoModulos());
+    window.addEventListener(MODULOS_CHANGED_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(MODULOS_CHANGED_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
 
   // Collapsible Submenu Categories state
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(() => {
@@ -412,9 +403,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Navigation Categories and Items */}
         <nav className={`p-2 space-y-3 flex-1 overflow-y-auto ${isEffectiveCollapsed ? 'px-1.5' : 'p-3'}`}>
           {navigationCategories.map((group) => {
-            const visibleItems = group.items.filter(item => 
-              item.roles.includes(currentRole) || 
-              (currentRole === 'vendedor' && (item.roles.includes('colaborador') || item.id === 'sales' || item.id === 'products' || item.id === 'clients'))
+            const visibleItems = group.items.filter(item =>
+              modulosEstado[item.id] && (
+                item.roles.includes(currentRole) ||
+                (currentRole === 'vendedor' && (item.roles.includes('colaborador') || item.id === 'sales' || item.id === 'products' || item.id === 'clients'))
+              )
             );
             if (visibleItems.length === 0) return null;
 
@@ -551,7 +544,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
             <div className="hidden md:flex text-[10px] text-[#8e9094] items-center justify-between">
-              <span>MP PISCINA ERP · <strong className="text-slate-300 font-mono">{SYSTEM_VERSION}</strong></span>
+              <span>FIRE GESTÃO · <strong className="text-slate-300 font-mono">{SYSTEM_VERSION}</strong></span>
               <span className="text-emerald-400 font-mono flex items-center gap-1">● Nuvem Sincronizada</span>
             </div>
           </div>

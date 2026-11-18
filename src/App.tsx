@@ -2,76 +2,60 @@ import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { Sidebar, ActiveTab } from './components/Sidebar';
-import { DashboardView } from './components/DashboardView';
-import { ServiceOrdersView } from './components/ServiceOrdersView';
-import { EmployeeProfitabilityReportView } from './components/EmployeeProfitabilityReportView';
-import { FleetCostsView } from './components/FleetCostsView';
-import { OperationalCostsView } from './components/OperationalCostsView';
-import { InitialCostSimulatorView } from './components/InitialCostSimulatorView';
-import { FinancialView } from './components/FinancialView';
-import { SalesView } from './components/SalesView';
-import { EmployeesView } from './components/EmployeesView';
-import { CustomerPortalView } from './components/CustomerPortalView';
-import { ProductsAndStockView } from './components/ProductsAndStockView';
-import { ClientsView } from './components/ClientsView';
-import { SuppliersView } from './components/SuppliersView';
-import { AccountingClosingView } from './components/AccountingClosingView';
-import { MasterRegistrationsView } from './components/MasterRegistrationsView';
-import { CardOperatorsView } from './components/CardOperatorsView';
-import { GoogleDriveView } from './components/GoogleDriveView';
-import { GoogleCalendarView } from './components/GoogleCalendarView';
-import { SystemSettingsView } from './components/SystemSettingsView';
 import { SystemDocumentationModal } from './components/SystemDocumentationModal';
 import { SystemHelpModal } from './components/SystemHelpModal';
-import { SystemManualView } from './components/SystemManualView';
 import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
 import { PaymentReceiptModal } from './components/PaymentReceiptModal';
 import { LoginView } from './components/LoginView';
 import { SystemFooter } from './components/SystemFooter';
-import { PdvView } from './components/PdvView';
-import { AnalyticsChartsView } from './components/AnalyticsChartsView';
-
-const VALID_TABS: ActiveTab[] = [
-  'dashboard',
-  'agenda',
-  'pdv',
-  'orders',
-  'sales',
-  'products',
-  'clients',
-  'suppliers',
-  'customerPortal',
-  'accounting',
-  'profitability',
-  'fleet',
-  'operational',
-  'initialCosts',
-  'financial',
-  'employees',
-  'cadastros',
-  'cardOperators',
-  'googleDrive',
-  'configuracoes',
-  'charts',
-  'documentation'
-];
+import {
+  DashboardView,
+  GoogleCalendarView,
+  PdvView,
+  ServiceOrdersView,
+  SalesView,
+  CustomerPortalView,
+  FinancialView,
+  AnalyticsChartsView,
+  EmployeeProfitabilityReportView,
+  AccountingClosingView,
+  OperationalCostsView,
+  FleetCostsView,
+  InitialCostSimulatorView,
+  MasterRegistrationsView,
+  CardOperatorsView,
+  ProductsAndStockView,
+  ClientsView,
+  SuppliersView,
+  EmployeesView,
+  GoogleDriveView,
+  SystemSettingsView,
+  SystemManualView,
+  getEstadoModulos,
+  getModulosAtivosIds,
+  getPrimeiroModuloAtivo,
+  isModuloAtivo,
+  MODULOS_CHANGED_EVENT
+} from './modulos';
 
 const getInitialTab = (): ActiveTab => {
+  const ativos = getModulosAtivosIds();
   try {
     const hash = window.location.hash.replace(/^#/, '') as ActiveTab;
-    if (hash && VALID_TABS.includes(hash)) {
+    if (hash && ativos.includes(hash)) {
       return hash;
     }
     const saved = localStorage.getItem('gestaopro_active_tab') as ActiveTab;
-    if (saved && VALID_TABS.includes(saved)) {
+    if (saved && ativos.includes(saved)) {
       return saved;
     }
   } catch {}
-  return 'dashboard';
+  return getPrimeiroModuloAtivo();
 };
 
 const MainLayout: React.FC = () => {
   const { currentRole, activeReceiptModal, closeReceiptModal } = useApp();
+  const [modulosEstado, setModulosEstado] = useState(() => getEstadoModulos());
   const [activeTab, setActiveTabState] = useState<ActiveTab>(getInitialTab);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNewOSModalOpen, setIsNewOSModalOpen] = useState(false);
@@ -81,13 +65,29 @@ const MainLayout: React.FC = () => {
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   const handleSetActiveTab = React.useCallback((tab: ActiveTab) => {
-    setActiveTabState(tab);
+    const destino = isModuloAtivo(tab) ? tab : getPrimeiroModuloAtivo();
+    setActiveTabState(destino);
     try {
-      localStorage.setItem('gestaopro_active_tab', tab);
-      if (window.location.hash !== `#${tab}`) {
-        window.history.replaceState(null, '', `#${tab}`);
+      localStorage.setItem('gestaopro_active_tab', destino);
+      if (window.location.hash !== `#${destino}`) {
+        window.history.replaceState(null, '', `#${destino}`);
       }
     } catch {}
+  }, []);
+
+  // Reage em tempo real quando módulos são ativados/desativados
+  React.useEffect(() => {
+    const syncModulos = () => {
+      const novoEstado = getEstadoModulos();
+      setModulosEstado(novoEstado);
+      setActiveTabState((atual) => (novoEstado[atual] ? atual : getPrimeiroModuloAtivo()));
+    };
+    window.addEventListener(MODULOS_CHANGED_EVENT, syncModulos);
+    window.addEventListener('storage', syncModulos);
+    return () => {
+      window.removeEventListener(MODULOS_CHANGED_EVENT, syncModulos);
+      window.removeEventListener('storage', syncModulos);
+    };
   }, []);
 
   // Sync with browser navigation & maintain same screen on reload
@@ -101,7 +101,7 @@ const MainLayout: React.FC = () => {
 
     const handleHashChange = () => {
       const hash = window.location.hash.replace(/^#/, '') as ActiveTab;
-      if (hash && VALID_TABS.includes(hash)) {
+      if (hash && isModuloAtivo(hash)) {
         setActiveTabState(hash);
         try {
           localStorage.setItem('gestaopro_active_tab', hash);
@@ -113,27 +113,47 @@ const MainLayout: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [activeTab]);
 
-  // If role switches to client, default tab to customerPortal
+  // If role switches, route to an active module permitted for that role
   React.useEffect(() => {
-    if (currentRole === 'cliente') {
+    if (currentRole === 'cliente' && modulosEstado.customerPortal) {
       handleSetActiveTab('customerPortal');
-    } else if (currentRole === 'tecnico' && (activeTab === 'sales' || activeTab === 'customerPortal' || activeTab === 'configuracoes')) {
+    } else if (currentRole === 'tecnico' && (activeTab === 'sales' || activeTab === 'customerPortal' || activeTab === 'configuracoes') && modulosEstado.orders) {
       handleSetActiveTab('orders');
-    } else if (currentRole === 'contador' && (activeTab === 'orders' || activeTab === 'fleet' || activeTab === 'configuracoes')) {
+    } else if (currentRole === 'contador' && (activeTab === 'orders' || activeTab === 'fleet' || activeTab === 'configuracoes') && modulosEstado.accounting) {
       handleSetActiveTab('accounting');
     }
-  }, [currentRole, handleSetActiveTab]);
+  }, [currentRole, handleSetActiveTab, modulosEstado.customerPortal, modulosEstado.orders, modulosEstado.accounting]);
 
   const renderCurrentView = () => {
-    switch (activeTab) {
+    const current: ActiveTab = modulosEstado[activeTab] ? activeTab : getPrimeiroModuloAtivo();
+
+    if (!modulosEstado[current]) {
+      return (
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-2">
+          <h2 className="text-lg font-bold text-slate-900">Nenhum módulo ativo no momento</h2>
+          <p className="text-sm text-slate-500">
+            Ative pelo menos um módulo no arquivo <code className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">src/modulos/ativarModulos.ts</code>.
+          </p>
+        </div>
+      );
+    }
+
+    switch (current) {
       case 'dashboard':
         return (
-          <DashboardView 
-            onNavigate={(tab) => handleSetActiveTab(tab)} 
-            onOpenNewOS={() => setIsNewOSModalOpen(true)}
+          <DashboardView
+            onNavigate={(tab) => handleSetActiveTab(tab)}
+            onOpenNewOS={() => {
+              if (modulosEstado.orders) {
+                handleSetActiveTab('orders');
+                setIsNewOSModalOpen(true);
+              }
+            }}
             onOpenOrdersByStatus={(status) => {
-              setOrdersStatusFilterTrigger(prev => ({ status, seq: (prev?.seq || 0) + 1 }));
-              handleSetActiveTab('orders');
+              if (modulosEstado.orders) {
+                setOrdersStatusFilterTrigger(prev => ({ status, seq: (prev?.seq || 0) + 1 }));
+                handleSetActiveTab('orders');
+              }
             }}
           />
         );
@@ -143,7 +163,7 @@ const MainLayout: React.FC = () => {
         return <PdvView externalSaleTrigger={pdvSaleTrigger} />;
       case 'orders':
         return (
-          <ServiceOrdersView 
+          <ServiceOrdersView
             isNewModalOpen={isNewOSModalOpen}
             setIsNewModalOpen={setIsNewOSModalOpen}
             externalStatusFilter={ordersStatusFilterTrigger}
@@ -171,8 +191,10 @@ const MainLayout: React.FC = () => {
         return (
           <SalesView
             onSendToPdvAndNavigate={(saleId) => {
-              setPdvSaleTrigger(prev => ({ saleId, seq: (prev?.seq || 0) + 1 }));
-              handleSetActiveTab('pdv');
+              if (modulosEstado.pdv) {
+                setPdvSaleTrigger(prev => ({ saleId, seq: (prev?.seq || 0) + 1 }));
+                handleSetActiveTab('pdv');
+              }
             }}
           />
         );
@@ -193,28 +215,25 @@ const MainLayout: React.FC = () => {
       case 'documentation':
         return <SystemManualView onNavigate={(tab) => handleSetActiveTab(tab)} />;
       default:
-        return (
-          <DashboardView 
-            onNavigate={(tab) => handleSetActiveTab(tab)} 
-            onOpenNewOS={() => setIsNewOSModalOpen(true)}
-            onOpenOrdersByStatus={(status) => {
-              setOrdersStatusFilterTrigger(prev => ({ status, seq: (prev?.seq || 0) + 1 }));
-              handleSetActiveTab('orders');
-            }}
-          />
-        );
+        return null;
     }
   };
 
   return (
     <div className="min-h-screen bg-[#f4f5f6] text-[#363739] flex flex-col font-sans selection:bg-[#53383e] selection:text-white">
       {/* Top Bar Header */}
-      <Header 
+      <Header
         onOpenNewOS={() => {
-          handleSetActiveTab('orders');
-          setIsNewOSModalOpen(true);
+          if (modulosEstado.orders) {
+            handleSetActiveTab('orders');
+            setIsNewOSModalOpen(true);
+          }
         }}
-        onOpenPdv={() => handleSetActiveTab('pdv')}
+        onOpenPdv={() => {
+          if (modulosEstado.pdv) {
+            handleSetActiveTab('pdv');
+          }
+        }}
         onOpenDoc={() => setIsDocModalOpen(true)}
         onOpenHelp={() => setIsHelpModalOpen(true)}
         isMobileMenuOpen={isMobileMenuOpen}
@@ -223,8 +242,8 @@ const MainLayout: React.FC = () => {
 
       <div className="flex-1 max-w-7xl w-full mx-auto flex">
         {/* Sidebar Navigation */}
-        <Sidebar 
-          activeTab={activeTab} 
+        <Sidebar
+          activeTab={activeTab}
           setActiveTab={(tab) => {
             handleSetActiveTab(tab);
             setIsMobileMenuOpen(false);
@@ -254,7 +273,7 @@ const MainLayout: React.FC = () => {
       />
 
       {/* System Documentation Modal */}
-      <SystemDocumentationModal 
+      <SystemDocumentationModal
         isOpen={isDocModalOpen}
         onClose={() => setIsDocModalOpen(false)}
       />

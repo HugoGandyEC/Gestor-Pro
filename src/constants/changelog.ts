@@ -16,6 +16,35 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.17',
+    date: '18/11/2026',
+    title: 'Arquitetura Modular (Pasta modulos + Controle de Ativação) e Topo Limpo sem Seletor de Data/Mês',
+    summary:
+      'Reorganização completa de todos os 22 módulos do FIRE GESTÃO dentro da pasta dedicada modulos com arquivo central para ativar/desativar módulos (true/false), painel visual de gestão de módulos em Configurações e remoção do campo de data/mês do cabeçalho superior.',
+    highlights: [
+      'Pasta modulos Organizada: todos os 22 módulos do sistema separados em pastas próprias dentro de src/modulos/ junto ao índice central e ao arquivo ativarModulos.ts',
+      'Ativação e Desativação em 1 Arquivo: altere qualquer módulo para true ou false em src/modulos/ativarModulos.ts (ou em tempo real na aba Configurações → Módulos do Sistema) para exibir ou ocultar o módulo do menu, atalhos e rotas',
+      'Topo Mais Limpo: remoção definitiva do campo de data/mês do cabeçalho superior do sistema'
+    ],
+    changes: [
+      {
+        category: 'Removido',
+        description:
+          'Removido o campo de seleção de data e mês do topo (Header) do sistema.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Todos os 22 módulos (Dashboard, Agenda, PDV, Ordens de Serviço, Vendas, Portal do Cliente, Financeiro/DRE, Gráficos BI, Lucratividade, Fechamento Fiscal, Custos Fixos, Frota, Custos Iniciais, Cadastros, Operadoras, Estoque, Clientes, Fornecedores, Funcionários, Google Drive, Configurações e Manual) foram organizados dentro da pasta src/modulos/.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Criado o arquivo central src/modulos/ativarModulos.ts (com chave mestra true/false por módulo) e a nova aba Configurações → Módulos do Sistema para ativar ou desativar módulos dinamicamente.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.16',
     date: '18/11/2026',
     title: 'Nova Identidade FIRE GESTÃO, Favicon Chama Alegre, Login Solar & Temas Enxutos',

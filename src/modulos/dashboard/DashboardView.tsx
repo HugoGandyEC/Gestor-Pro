@@ -1,0 +1,1071 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  TrendingUp, 
+  DollarSign, 
+  Wrench, 
+  ShoppingBag, 
+  AlertCircle, 
+  ArrowUpRight, 
+  Plus, 
+  CheckCircle,
+  Clock,
+  Calendar,
+  Layers,
+  ChevronRight,
+  Filter,
+  BarChart3,
+  PieChart,
+  Package,
+  Award,
+  Zap,
+  Building2,
+  Truck,
+  RotateCcw
+} from 'lucide-react';
+import { useApp, formatBRL } from '../../context/AppContext';
+import { computeEmployeeNominalPay } from '../../utils/employeeRemuneration';
+import { ActiveTab } from '../../components/Sidebar';
+import { ServiceOrder, ServiceOrderStatus, DirectSale } from '../../types';
+import { SERVICE_ORDER_STATUS_LIST } from '../../utils/serviceOrderStatus';
+import { TechnicianDashboardView } from './TechnicianDashboardView';
+import {
+  computeServiceOrderFinancials,
+  getDaysInMonthYear,
+  getMonthLabelBR,
+  getMonthsOfYear,
+  getTodayISODate,
+  isActiveEmployee,
+  isAutoPayrollExpense,
+  isServiceOrderFinishedForDRE
+} from '../../utils/financialHelpers';
+
+interface DashboardViewProps {
+  onNavigate: (tab: ActiveTab) => void;
+  onOpenNewOS: () => void;
+  onOpenOrdersByStatus?: (status: ServiceOrderStatus | 'todas') => void;
+}
+
+type PeriodMode = 'dia' | 'mes' | 'ano';
+
+export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenNewOS, onOpenOrdersByStatus }) => {
+  const { 
+    monthlyFinancialSummary, 
+    selectedMonthYear, 
+    setSelectedMonthYear,
+    serviceOrders, 
+    directSales,
+    products,
+    vehicles, 
+    vehicleExpenses,
+    generalExpenses,
+    employees,
+    currentRole
+  } = useApp();
+
+  // Se o perfil logado for Técnico, exibe exclusivamente a tela de serviços e remuneração técnica (sem financeiro da empresa)
+  if (currentRole === 'tecnico') {
+    return <TechnicianDashboardView onNavigate={onNavigate} />;
+  }
+
+  // Period mode: 'dia' (por dia), 'mes' (por mês), 'ano' (por ano)
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('mes');
+  const [activeRankTab, setActiveRankTab] = useState<'produtos' | 'servicos'>('produtos');
+  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
+
+  // Data real de hoje para alertas de prazo
+  const referenceToday = getTodayISODate();
+  const selectedYear = Number((selectedMonthYear || '').slice(0, 4)) || new Date().getFullYear();
+
+  // =========================================================================
+  // 1. CÁLCULO DE STATUS DAS ORDENS DE SERVIÇO (Qualificação Oficial da OS)
+  // =========================================================================
+  const osMetrics = useMemo(() => {
+    let emAtrasoCount = 0;
+    let emAtrasoValue = 0;
+    const emAtrasoList: ServiceOrder[] = [];
+
+    let abertasCount = 0;
+    let abertasValue = 0;
+
+    let concluidasCount = 0;
+    let concluidasValue = 0;
+
+    let pagasCount = 0;
+    let pagasValue = 0;
+
+    let totalValue = 0;
+
+    const byStatus: Record<ServiceOrderStatus, { count: number; value: number }> = {
+      orcamento_aberto: { count: 0, value: 0 },
+      aguardando_aprovacao: { count: 0, value: 0 },
+      aprovada_em_andamento: { count: 0, value: 0 },
+      aguardando_pecas: { count: 0, value: 0 },
+      concluida_aguardando_retirada: { count: 0, value: 0 },
+      entregue_finalizada: { count: 0, value: 0 },
+      cancelada: { count: 0, value: 0 }
+    };
+
+    serviceOrders.forEach(os => {
+      // Calculate total order value
+      const srvTotal = os.services.reduce((a, s) => a + s.price, 0);
+      const prtTotal = os.parts.reduce((a, p) => a + (p.price * p.quantity), 0);
+      const osTotal = Math.max(0, (srvTotal + prtTotal + (os.visitFee || 0)) - (os.calculatedDiscount || 0));
+
+      totalValue += osTotal;
+
+      if (byStatus[os.status]) {
+        byStatus[os.status].count += 1;
+        byStatus[os.status].value += osTotal;
+      }
+
+      const isCompleted = os.status === 'entregue_finalizada' || os.status === 'concluida_aguardando_retirada';
+      const isCancelled = os.status === 'cancelada';
+
+      // 1. Em Atraso: aberta e com previsão anterior à data de referência
+      const isDelayed = !isCompleted && !isCancelled && os.forecastDate && os.forecastDate < referenceToday;
+
+      if (isDelayed) {
+        emAtrasoCount++;
+        emAtrasoValue += osTotal;
+        emAtrasoList.push(os);
+      }
+
+      // 2. Carteira em Aberto (Orçamentos + Execução)
+      if (os.status === 'aprovada_em_andamento' || os.status === 'aguardando_pecas' || os.status === 'aguardando_aprovacao' || os.status === 'orcamento_aberto') {
+        abertasCount++;
+        abertasValue += osTotal;
+      }
+
+      // 3. Concluídas & Entregues
+      if (isCompleted) {
+        concluidasCount++;
+        concluidasValue += osTotal;
+      }
+
+      // 4. Pagas / Liquidadas
+      if (os.paymentStatus === 'pago') {
+        pagasCount++;
+        pagasValue += osTotal;
+      }
+    });
+
+    const totalOrders = serviceOrders.length;
+
+    return {
+      emAtrasoCount,
+      emAtrasoValue,
+      emAtrasoList,
+      emAndamentoCount: abertasCount,
+      emAndamentoValue: abertasValue,
+      faturadasCount: concluidasCount,
+      faturadasValue: concluidasValue,
+      pagasCount,
+      pagasValue,
+      totalOrders,
+      totalValue,
+      byStatus
+    };
+  }, [serviceOrders, referenceToday]);
+
+  // =========================================================================
+  // 2. DADOS AGRUPADOS POR PERÍODO (DIA, MÊS, ANO) PARA GRÁFICOS — 100% REAIS
+  // =========================================================================
+  const chartData = useMemo(() => {
+    const realizedOrders = serviceOrders.filter(isServiceOrderFinishedForDRE);
+
+    if (periodMode === 'dia') {
+      const daysInMonth = getDaysInMonthYear(selectedMonthYear);
+      const days = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dayStr = d < 10 ? `0${d}` : `${d}`;
+        const fullDate = `${selectedMonthYear}-${dayStr}`;
+
+        let servicesTotal = 0;
+        let salesTotal = 0;
+
+        realizedOrders.forEach(os => {
+          const dateMatch = os.completionDate === fullDate || (!os.completionDate && os.openDate === fullDate);
+          if (dateMatch) {
+            const fin = computeServiceOrderFinancials(os);
+            servicesTotal += fin.netServicesAndVisit;
+            salesTotal += fin.netParts;
+          }
+        });
+
+        directSales.forEach(s => {
+          if (s.status !== 'cancelada' && s.date === fullDate) {
+            salesTotal += Math.max(0, Number(s.total || 0));
+          }
+        });
+
+        days.push({
+          label: `${dayStr}`,
+          fullDate,
+          services: Number(servicesTotal.toFixed(2)),
+          sales: Number(salesTotal.toFixed(2)),
+          total: Number((servicesTotal + salesTotal).toFixed(2))
+        });
+      }
+      return days;
+    } else if (periodMode === 'mes') {
+      const months = getMonthsOfYear(selectedYear);
+
+      return months.map(m => {
+        let servicesTotal = 0;
+        let salesTotal = 0;
+
+        realizedOrders.forEach(os => {
+          const osMonth = (os.completionDate || os.openDate).slice(0, 7);
+          if (osMonth === m.key) {
+            const fin = computeServiceOrderFinancials(os);
+            servicesTotal += fin.netServicesAndVisit;
+            salesTotal += fin.netParts;
+          }
+        });
+
+        directSales.forEach(s => {
+          if (s.status !== 'cancelada' && s.date.slice(0, 7) === m.key) {
+            salesTotal += Math.max(0, Number(s.total || 0));
+          }
+        });
+
+        return {
+          label: m.label,
+          fullDate: m.key,
+          services: Number(servicesTotal.toFixed(2)),
+          sales: Number(salesTotal.toFixed(2)),
+          total: Number((servicesTotal + salesTotal).toFixed(2))
+        };
+      });
+    } else {
+      // Agrupamento anual 100% real (sem valores fictícios)
+      const years = [
+        String(selectedYear - 2),
+        String(selectedYear - 1),
+        String(selectedYear),
+        String(selectedYear + 1)
+      ];
+      return years.map(yr => {
+        let servicesTotal = 0;
+        let salesTotal = 0;
+
+        realizedOrders.forEach(os => {
+          const osYear = (os.completionDate || os.openDate).slice(0, 4);
+          if (osYear === yr) {
+            const fin = computeServiceOrderFinancials(os);
+            servicesTotal += fin.netServicesAndVisit;
+            salesTotal += fin.netParts;
+          }
+        });
+
+        directSales.forEach(s => {
+          if (s.status !== 'cancelada' && s.date.slice(0, 4) === yr) {
+            salesTotal += Math.max(0, Number(s.total || 0));
+          }
+        });
+
+        return {
+          label: yr,
+          fullDate: yr,
+          services: Number(servicesTotal.toFixed(2)),
+          sales: Number(salesTotal.toFixed(2)),
+          total: Number((servicesTotal + salesTotal).toFixed(2))
+        };
+      });
+    }
+  }, [periodMode, selectedMonthYear, selectedYear, serviceOrders, directSales]);
+
+  // Max value for comparative chart scaling
+  const maxChartValue = useMemo(() => {
+    const maxVal = Math.max(...chartData.map(d => d.total), 1000);
+    return Math.ceil(maxVal * 1.15);
+  }, [chartData]);
+
+  // =========================================================================
+  // 3. RANKING DE MAIS VENDIDOS (PRODUTOS & SERVIÇOS — SOMENTE OPERAÇÕES ATIVAS)
+  // =========================================================================
+  const topSellingProducts = useMemo(() => {
+    const productMap = new Map<string, { id: string; name: string; quantity: number; totalRevenue: number; category: string }>();
+
+    // 1. Peças aplicadas em Ordens de Serviço válidas (exclui canceladas e orçamentos abertos)
+    serviceOrders.forEach(os => {
+      if (os.status === 'cancelada' || os.status === 'orcamento_aberto') return;
+      os.parts.forEach(part => {
+        const key = part.name.trim();
+        const existing = productMap.get(key) || {
+          id: part.productId || key,
+          name: part.name,
+          quantity: 0,
+          totalRevenue: 0,
+          category: 'Peças & Instalação'
+        };
+        existing.quantity += Number(part.quantity || 1);
+        existing.totalRevenue += Number(part.price || 0) * Number(part.quantity || 1);
+        productMap.set(key, existing);
+      });
+    });
+
+    // 2. Vendas Diretas de Balcão
+    directSales.forEach(sale => {
+      if (sale.status === 'cancelada') return;
+      sale.items.forEach(item => {
+        const key = item.name.trim();
+        const existing = productMap.get(key) || {
+          id: item.productId || key,
+          name: item.name,
+          quantity: 0,
+          totalRevenue: 0,
+          category: 'Venda de Balcão'
+        };
+        existing.quantity += Number(item.quantity || 1);
+        existing.totalRevenue += Number(item.price || 0) * Number(item.quantity || 1);
+        productMap.set(key, existing);
+      });
+    });
+
+    const list = Array.from(productMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const maxRevenue = list.length > 0 ? list[0].totalRevenue : 1;
+
+    return list.map(item => ({
+      ...item,
+      percentage: Math.min(100, Math.round((item.totalRevenue / maxRevenue) * 100))
+    }));
+  }, [serviceOrders, directSales]);
+
+  const topSellingServices = useMemo(() => {
+    const serviceMap = new Map<string, { id: string; name: string; executions: number; totalHours: number; totalRevenue: number }>();
+
+    serviceOrders.forEach(os => {
+      if (os.status === 'cancelada' || os.status === 'orcamento_aberto') return;
+      os.services.forEach(srv => {
+        const key = srv.name.trim();
+        const existing = serviceMap.get(key) || {
+          id: srv.id,
+          name: srv.name,
+          executions: 0,
+          totalHours: 0,
+          totalRevenue: 0
+        };
+        existing.executions += 1;
+        existing.totalHours += srv.hours || 0;
+        existing.totalRevenue += Number(srv.price || 0);
+        serviceMap.set(key, existing);
+      });
+    });
+
+    const list = Array.from(serviceMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const maxRevenue = list.length > 0 ? list[0].totalRevenue : 1;
+
+    return list.map(item => ({
+      ...item,
+      percentage: Math.min(100, Math.round((item.totalRevenue / maxRevenue) * 100))
+    }));
+  }, [serviceOrders]);
+
+  // =========================================================================
+  // 4. CUSTOS E RESUMO OPERACIONAL (SEM DUPLA CONTAGEM DE FOLHA)
+  // =========================================================================
+  const totalFleetCost = useMemo(() => {
+    return vehicleExpenses
+      .filter(ve => ve.date.startsWith(selectedMonthYear))
+      .reduce((a, b) => a + Number(b.cost || 0), 0);
+  }, [vehicleExpenses, selectedMonthYear]);
+
+  const totalFixedCost = useMemo(() => {
+    return generalExpenses
+      .filter(ge => ge.dueDate.startsWith(selectedMonthYear) && !isAutoPayrollExpense(ge))
+      .reduce((a, b) => a + Number(b.cost || 0), 0);
+  }, [generalExpenses, selectedMonthYear]);
+
+  const totalSalaries = useMemo(() => {
+    return employees
+      .filter(isActiveEmployee)
+      .reduce((a, e) => a + computeEmployeeNominalPay(e) + Number(e.benefitsCharges || 0), 0);
+  }, [employees]);
+
+  // Alerta de manutenção de frota (óleo)
+  const oilAlerts = vehicles.filter(v => (v.nextOilChangeKm - v.currentKm) <= 1500);
+
+  return (
+    <div className="space-y-6">
+      {/* =========================================================================
+          BANNER PRINCIPAL COM CONTROLES DE PERÍODO (DIA, MÊS, ANO)
+          ========================================================================= */}
+      <div className="bg-gradient-to-r from-[#2b2c2e] via-[#363739] to-[#53383e] rounded-2xl p-5 sm:p-6 text-white shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6 border border-[#3d3f42]">
+        <div>
+          <div className="hidden md:flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-[#c2bfb0] border border-[#c2bfb0]/30 uppercase tracking-wider">
+              Visão Geral · Serviços & Vendas
+            </span>
+            <span className="text-xs text-[#d8d8d8]">
+              {periodMode === 'dia' && `Visualização Diária (${getMonthLabelBR(selectedMonthYear)})`}
+              {periodMode === 'mes' && `Visualização Mensal Comparativa (Ano ${selectedYear})`}
+              {periodMode === 'ano' && `Visualização Anual Consolidada`}
+            </span>
+          </div>
+
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white md:mt-2">
+            Controle Executivo de Operações & Vendas
+          </h1>
+          <p className="hidden md:block text-xs text-[#d8d8d8] mt-1 max-w-2xl leading-relaxed">
+            Painel executivo com os status das Ordens de Serviço conforme qualificação oficial da OS, alertas de prazo, faturamento de serviços vs vendas e ranking dos produtos mais vendidos.
+          </p>
+        </div>
+
+        {/* Controles de Período e Ações */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+          {/* Seletor Dia / Mês / Ano */}
+          <div className="inline-flex rounded-xl p-1 bg-[#222325] border border-[#3d3f42] text-xs font-semibold">
+            <button
+              onClick={() => setPeriodMode('dia')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                periodMode === 'dia' 
+                  ? 'bg-[#53383e] text-white shadow-xs font-bold' 
+                  : 'text-[#d8d8d8] hover:text-white'
+              }`}
+            >
+              Por Dia
+            </button>
+            <button
+              onClick={() => setPeriodMode('mes')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                periodMode === 'mes' 
+                  ? 'bg-[#53383e] text-white shadow-xs font-bold' 
+                  : 'text-[#d8d8d8] hover:text-white'
+              }`}
+            >
+              Por Mês
+            </button>
+            <button
+              onClick={() => setPeriodMode('ano')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                periodMode === 'ano' 
+                  ? 'bg-[#53383e] text-white shadow-xs font-bold' 
+                  : 'text-[#d8d8d8] hover:text-white'
+              }`}
+            >
+              Por Ano
+            </button>
+          </div>
+
+          {/* Botão Ação Rápida */}
+          <button
+            onClick={onOpenNewOS}
+            className="px-4 py-2 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 border border-[#c2bfb0]/30 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-white" />
+            <span>Nova OS</span>
+          </button>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          4 CARDS EXECUTIVOS DE RESUMO OPERACIONAL & FINANCEIRO DAS OS
+          ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 1. EM ATRASO */}
+        <div 
+          onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('todas') : onNavigate('orders'))}
+          className="bg-white p-4 rounded-xl border border-rose-200 hover:border-rose-300 shadow-2xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+              OS com Prazo Vencido
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold font-mono text-rose-700">
+              {osMetrics.emAtrasoCount}
+            </span>
+            <span className="text-xs text-rose-600 font-medium">ordem(ns) em atraso</span>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-rose-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500">Valor Retido:</span>
+            <span className="font-mono font-bold text-rose-700">{formatBRL(osMetrics.emAtrasoValue)}</span>
+          </div>
+        </div>
+
+        {/* 2. CARTEIRA EM ABERTO */}
+        <div 
+          onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('aprovada_em_andamento') : onNavigate('orders'))}
+          className="bg-white p-4 rounded-xl border border-amber-200 hover:border-amber-300 shadow-2xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+              Carteira em Aberto
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold font-mono text-amber-900">
+              {osMetrics.emAndamentoCount}
+            </span>
+            <span className="text-xs text-amber-700 font-medium">orçamentos e execução</span>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500">Valor em Aberto:</span>
+            <span className="font-mono font-bold text-amber-800">{formatBRL(osMetrics.emAndamentoValue)}</span>
+          </div>
+        </div>
+
+        {/* 3. CONCLUÍDAS / ENTREGUES */}
+        <div 
+          onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('entregue_finalizada') : onNavigate('orders'))}
+          className="bg-white p-4 rounded-xl border border-[#d8d8d8] hover:border-slate-400 shadow-2xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#363739] flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#53383e]"></span>
+              Concluídas & Entregues
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-[#f6eff1] text-[#53383e] flex items-center justify-center group-hover:scale-105 transition-transform">
+              <CheckCircle className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold font-mono text-[#363739]">
+              {osMetrics.faturadasCount}
+            </span>
+            <span className="text-xs text-slate-500 font-medium">prontas ou entregues</span>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500">Volume Total:</span>
+            <span className="font-mono font-bold text-[#363739]">{formatBRL(osMetrics.faturadasValue)}</span>
+          </div>
+        </div>
+
+        {/* 4. PAGOS / RECEBIDOS */}
+        <div 
+          onClick={() => onNavigate('financial')}
+          className="bg-white p-4 rounded-xl border border-emerald-200 hover:border-emerald-300 shadow-2xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              Pagas / Baixadas
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <DollarSign className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-bold font-mono text-emerald-800">
+              {osMetrics.pagasCount}
+            </span>
+            <span className="text-xs text-emerald-600 font-medium">recebidas no caixa</span>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500">Total Liquidado:</span>
+            <span className="font-mono font-bold text-emerald-800">{formatBRL(osMetrics.pagasValue)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          CARDS DE STATUS DAS ORDENS DE SERVIÇO (EXATAMENTE COMO QUALIFICADO NA OS)
+          ========================================================================= */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#d8d8d8] shadow-xs space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-[#f6eff1] text-[#53383e]">
+              <Wrench className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-bold text-[#363739] text-sm">
+                Status das Ordens de Serviço (Qualificação na OS)
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Clique em qualquer card para abrir as Ordens de Serviço filtradas exatamente pelo mesmo status cadastrado na OS.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('todas') : onNavigate('orders'))}
+            className="text-xs font-semibold text-[#53383e] hover:text-[#432c32] flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+          >
+            <span>Ver Todas ({osMetrics.totalOrders})</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {SERVICE_ORDER_STATUS_LIST.map((st) => {
+            const metric = osMetrics.byStatus[st.value] || { count: 0, value: 0 };
+            return (
+              <button
+                key={st.value}
+                type="button"
+                onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus(st.value) : onNavigate('orders'))}
+                className={`text-left bg-slate-50/50 hover:bg-white p-3.5 rounded-xl border transition-all cursor-pointer group ${st.cardBorderClass}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-md border ${st.badgeClass}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dotClass}`} />
+                    <span className="truncate">{st.label}</span>
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                </div>
+
+                <div className="flex items-baseline justify-between gap-2 mt-2.5">
+                  <div>
+                    <span className={`text-xl font-bold font-mono ${st.textClass}`}>
+                      {metric.count}
+                    </span>
+                    <span className="text-[11px] text-slate-500 ml-1">OS</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-slate-800">
+                    {formatBRL(metric.value)}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Card Totalizador para fechar grade 4x2 equilibrada */}
+          <button
+            type="button"
+            onClick={() => (onOpenOrdersByStatus ? onOpenOrdersByStatus('todas') : onNavigate('orders'))}
+            className="text-left bg-[#f6eff1]/60 hover:bg-[#f6eff1] p-3.5 rounded-xl border border-[#d8d8d8] hover:border-[#53383e]/40 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-md border bg-white text-[#53383e] border-[#d8d8d8]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#53383e]" />
+                Todas as Ordens de Serviço
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-[#53383e] group-hover:translate-x-0.5 transition-transform shrink-0" />
+            </div>
+
+            <div className="flex items-baseline justify-between gap-2 mt-2.5">
+              <div>
+                <span className="text-xl font-bold font-mono text-[#53383e]">
+                  {osMetrics.totalOrders}
+                </span>
+                <span className="text-[11px] text-slate-600 ml-1">OS no total</span>
+              </div>
+              <span className="font-mono text-xs font-bold text-[#363739]">
+                {formatBRL(osMetrics.totalValue)}
+              </span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          ALERTA DE ORDENS EM ATRASO (SE HOUVER)
+          ========================================================================= */}
+      {osMetrics.emAtrasoList.length > 0 && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-rose-900">
+                Atenção Operacional: {osMetrics.emAtrasoCount} Ordem de Serviço com previsão de entrega expirada!
+              </span>
+              <div className="text-rose-800 text-[11px] mt-0.5">
+                {osMetrics.emAtrasoList.map(os => `${os.code} (${os.clientName} - Prev: ${os.forecastDate})`).join(' · ')}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigate('orders')}
+            className="px-3 py-1.5 text-xs font-bold text-white bg-rose-700 hover:bg-rose-800 rounded-lg shadow-2xs shrink-0 self-start sm:self-auto cursor-pointer"
+          >
+            Acessar Ordens Atrasadas →
+          </button>
+        </div>
+      )}
+
+      {/* =========================================================================
+          GRÁFICO PRINCIPAL: SERVIÇOS VS VENDAS POR PERÍODO (DIA, MÊS, ANO)
+          ========================================================================= */}
+      <div className="bg-white p-5 rounded-2xl border border-[#d8d8d8] shadow-xs space-y-4">
+        {/* Cabeçalho do Gráfico */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#d8d8d8]">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-[#f6eff1] text-[#53383e]">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <h3 className="font-bold text-[#363739] text-sm">
+                Evolução Comparativa: Serviços Técnicos vs Vendas de Produtos
+              </h3>
+            </div>
+            <p className="hidden md:block text-xs text-slate-500 mt-0.5">
+              Receita consolidada de mão de obra técnica/visitas confrontada com venda de peças e equipamentos {periodMode === 'dia' ? 'dia a dia' : periodMode === 'mes' ? 'mês a mês' : 'ano a ano'}.
+            </p>
+          </div>
+
+          {/* Legenda de Cores */}
+          <div className="flex items-center gap-4 text-xs font-semibold shrink-0">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-[#53383e]"></span>
+              <span className="text-slate-700">Serviços (OS)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-[#363739]"></span>
+              <span className="text-slate-700">Vendas & Peças</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-1.5 text-slate-400">
+              <span className="w-3 h-3 rounded-sm bg-[#d8d8d8]"></span>
+              <span>Total</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Gráfico SVG Responsivo e Interativo */}
+        <div className="relative pt-4 pb-2">
+          {/* SVG Canvas */}
+          <div className="h-64 w-full">
+            <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 800 220">
+              {/* Linhas de Grade Verticais e Horizontais */}
+              <line x1="40" y1="20" x2="790" y2="20" stroke="#f0f0f0" strokeDasharray="3 3" />
+              <line x1="40" y1="65" x2="790" y2="65" stroke="#f0f0f0" strokeDasharray="3 3" />
+              <line x1="40" y1="110" x2="790" y2="110" stroke="#f0f0f0" strokeDasharray="3 3" />
+              <line x1="40" y1="155" x2="790" y2="155" stroke="#f0f0f0" strokeDasharray="3 3" />
+              <line x1="40" y1="195" x2="790" y2="195" stroke="#d8d8d8" strokeWidth="1.5" />
+
+              {/* Rótulos do Eixo Y */}
+              <text x="35" y="25" textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
+                {formatBRL(maxChartValue).replace(',00', '')}
+              </text>
+              <text x="35" y="115" textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
+                {formatBRL(maxChartValue / 2).replace(',00', '')}
+              </text>
+              <text x="35" y="198" textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
+                R$ 0
+              </text>
+
+              {/* Barras do Gráfico */}
+              {chartData.map((item, index) => {
+                const totalBars = chartData.length;
+                const availableWidth = 730;
+                const slotWidth = availableWidth / totalBars;
+                const barWidth = Math.min(28, Math.max(8, slotWidth * 0.4));
+                const xSlotCenter = 55 + (index * slotWidth) + (slotWidth / 2);
+
+                const chartHeight = 175; // de y=20 a y=195
+
+                // Alturas proporcionais
+                const servicesHeight = Math.max(item.services > 0 ? 3 : 0, (item.services / maxChartValue) * chartHeight);
+                const salesHeight = Math.max(item.sales > 0 ? 3 : 0, (item.sales / maxChartValue) * chartHeight);
+
+                const yServices = 195 - servicesHeight;
+                const ySales = 195 - salesHeight;
+
+                const isHovered = hoveredBarIndex === index;
+
+                return (
+                  <g 
+                    key={index} 
+                    className="cursor-pointer transition-opacity"
+                    onMouseEnter={() => setHoveredBarIndex(index)}
+                    onMouseLeave={() => setHoveredBarIndex(null)}
+                  >
+                    {/* Hover highlight column */}
+                    {isHovered && (
+                      <rect 
+                        x={xSlotCenter - slotWidth / 2} 
+                        y="15" 
+                        width={slotWidth} 
+                        height="180" 
+                        fill="#53383e" 
+                        opacity="0.05" 
+                        rx="4"
+                      />
+                    )}
+
+                    {/* Barra de Serviços (Vinho) */}
+                    <rect
+                      x={xSlotCenter - barWidth - 1}
+                      y={yServices}
+                      width={barWidth}
+                      height={servicesHeight}
+                      fill="#53383e"
+                      rx="3"
+                      className="transition-all duration-300"
+                    />
+
+                    {/* Barra de Vendas (Grafite) */}
+                    <rect
+                      x={xSlotCenter + 1}
+                      y={ySales}
+                      width={barWidth}
+                      height={salesHeight}
+                      fill="#363739"
+                      rx="3"
+                      className="transition-all duration-300"
+                    />
+
+                    {/* Rótulo do Eixo X */}
+                    <text
+                      x={xSlotCenter}
+                      y="212"
+                      textAnchor="middle"
+                      className={`text-[10px] font-medium ${isHovered ? 'fill-[#53383e] font-bold' : 'fill-slate-500'}`}
+                    >
+                      {item.label}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Tooltip Dinâmico ao passar o mouse */}
+          {hoveredBarIndex !== null && chartData[hoveredBarIndex] && (
+            <div className="mt-2 p-3 rounded-xl bg-[#2b2c2e] text-white text-xs flex flex-wrap items-center justify-between gap-3 shadow-md border border-[#3d3f42]">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[#c2bfb0]" />
+                <span className="font-bold text-[#d8d8d8]">
+                  Período: {chartData[hoveredBarIndex].fullDate}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 font-mono text-[11px]">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-xs bg-[#53383e]"></span>
+                  <span>Serviços: <strong>{formatBRL(chartData[hoveredBarIndex].services)}</strong></span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-xs bg-[#d8d8d8]"></span>
+                  <span>Vendas: <strong>{formatBRL(chartData[hoveredBarIndex].sales)}</strong></span>
+                </span>
+                <span className="flex items-center gap-1.5 text-[#c2bfb0] font-bold">
+                  <span>Total: {formatBRL(chartData[hoveredBarIndex].total)}</span>
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* =========================================================================
+          SEÇÃO DE RANKING: MAIS VENDIDOS (PRODUTOS & SERVIÇOS)
+          ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Coluna 1: Produtos e Peças Mais Vendidos */}
+        <div className="bg-white p-5 rounded-2xl border border-[#d8d8d8] shadow-xs space-y-4 flex flex-col">
+          <div className="flex items-center justify-between pb-3 border-b border-[#d8d8d8]">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-[#f6eff1] text-[#53383e]">
+                <Package className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-[#363739] text-sm">
+                  Produtos & Peças Mais Vendidos
+                </h3>
+                <p className="hidden md:block text-[11px] text-slate-500">
+                  Ranking por faturamento e unidades movimentadas (OS + Balcão).
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => onNavigate('products')}
+              className="text-xs font-semibold text-[#53383e] hover:text-[#432c32] flex items-center gap-1 cursor-pointer"
+            >
+              <span>Ver Estoque</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Lista com Barras de Progresso Visual */}
+          <div className="space-y-3.5 flex-1 overflow-y-auto max-h-80 pr-1">
+            {topSellingProducts.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                Nenhum produto ou peça vendido no período selecionado.
+              </div>
+            ) : (
+              topSellingProducts.map((prod, idx) => (
+                <div key={prod.id || idx} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                        idx === 0 ? 'bg-amber-100 text-amber-800' :
+                        idx === 1 ? 'bg-slate-200 text-slate-700' :
+                        idx === 2 ? 'bg-[#c2bfb0]/30 text-[#53383e]' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        #{idx + 1}
+                      </span>
+                      <span className="font-semibold text-slate-900 truncate" title={prod.name}>
+                        {prod.name}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 font-mono">
+                      <span className="text-[11px] text-slate-500">{prod.quantity} un</span>
+                      <span className="font-bold text-slate-900">{formatBRL(prod.totalRevenue)}</span>
+                    </div>
+                  </div>
+
+                  {/* Barra de Progresso Visual */}
+                  <div className="w-full h-2 rounded-full bg-[#f4f5f6] overflow-hidden border border-[#d8d8d8]">
+                    <div 
+                      className="h-full rounded-full bg-gradient-to-r from-[#53383e] to-[#363739] transition-all duration-500"
+                      style={{ width: `${prod.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Coluna 2: Serviços Técnicos Mais Contratados */}
+        <div className="bg-white p-5 rounded-2xl border border-[#d8d8d8] shadow-xs space-y-4 flex flex-col">
+          <div className="flex items-center justify-between pb-3 border-b border-[#d8d8d8]">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-[#f6eff1] text-[#53383e]">
+                <Wrench className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-[#363739] text-sm">
+                  Serviços Mais Realizados
+                </h3>
+                <p className="hidden md:block text-[11px] text-slate-500">
+                  Ranking de serviços com maior recorrência e receita nas Ordens de Serviço.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => onNavigate('orders')}
+              className="text-xs font-semibold text-[#53383e] hover:text-[#432c32] flex items-center gap-1 cursor-pointer"
+            >
+              <span>Ver Ordens</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Lista com Barras de Progresso Visual */}
+          <div className="space-y-3.5 flex-1 overflow-y-auto max-h-80 pr-1">
+            {topSellingServices.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                Nenhum serviço técnico registrado no período.
+              </div>
+            ) : (
+              topSellingServices.map((srv, idx) => (
+                <div key={srv.id || idx} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                        idx === 0 ? 'bg-amber-100 text-amber-800' :
+                        idx === 1 ? 'bg-slate-200 text-slate-700' :
+                        idx === 2 ? 'bg-[#c2bfb0]/30 text-[#53383e]' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        #{idx + 1}
+                      </span>
+                      <span className="font-semibold text-slate-900 truncate" title={srv.name}>
+                        {srv.name}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 font-mono">
+                      <span className="text-[11px] text-slate-500">{srv.executions} OS ({srv.totalHours}h)</span>
+                      <span className="font-bold text-slate-900">{formatBRL(srv.totalRevenue)}</span>
+                    </div>
+                  </div>
+
+                  {/* Barra de Progresso Visual */}
+                  <div className="w-full h-2 rounded-full bg-[#f4f5f6] overflow-hidden border border-[#d8d8d8]">
+                    <div 
+                      className="h-full rounded-full bg-[#53383e] transition-all duration-500"
+                      style={{ width: `${srv.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          RODAPÉ SINTÉTICO: CUSTOS FIXOS, FROTA & FOLHA (Somente Desktop/Tablet)
+          ========================================================================= */}
+      <div className="hidden md:grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+        {/* Frota e Combustível */}
+        <div className="bg-white p-4 rounded-xl border border-[#d8d8d8] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-[#363739] flex items-center gap-1.5">
+              <Truck className="w-4 h-4 text-[#53383e]" />
+              Custos de Frota
+            </span>
+            <button 
+              onClick={() => onNavigate('fleet')} 
+              className="text-[11px] font-semibold text-[#53383e] hover:underline"
+            >
+              Ver Frota
+            </button>
+          </div>
+          <div className="text-xl font-bold font-mono text-slate-900">
+            {formatBRL(totalFleetCost)}
+          </div>
+          <p className="text-[11px] text-slate-500">
+            {oilAlerts.length > 0 ? `${oilAlerts.length} veículo(s) próximo(s) da troca de óleo` : 'Veículos com manutenção em dia'}
+          </p>
+        </div>
+
+        {/* Despesas Fixas */}
+        <div className="bg-white p-4 rounded-xl border border-[#d8d8d8] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-[#363739] flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-[#53383e]" />
+              Despesas Fixas
+            </span>
+            <button 
+              onClick={() => onNavigate('operational')} 
+              className="text-[11px] font-semibold text-[#53383e] hover:underline"
+            >
+              Ver Contas
+            </button>
+          </div>
+          <div className="text-xl font-bold font-mono text-slate-900">
+            {formatBRL(totalFixedCost)}
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Aluguel, internet fibra, energia e celulares
+          </p>
+        </div>
+
+        {/* Folha e Técnicos */}
+        <div className="bg-white p-4 rounded-xl border border-[#d8d8d8] shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-[#363739] flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-[#53383e]" />
+              Lucratividade Técnica
+            </span>
+            <button 
+              onClick={() => onNavigate('profitability')} 
+              className="text-[11px] font-semibold text-[#53383e] hover:underline"
+            >
+              Relatório DRE
+            </button>
+          </div>
+          <div className="text-xl font-bold font-mono text-slate-900">
+            {formatBRL(totalSalaries)}
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Folha salarial e encargos de {employees.length} colaboradores
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};

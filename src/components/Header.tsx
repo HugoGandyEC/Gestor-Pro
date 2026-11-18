@@ -1,11 +1,6 @@
 import React from 'react';
-import { 
-  Wrench, 
-  Plus, 
-  Calendar, 
-  FileText, 
-  RotateCcw,
-  UserCheck,
+import {
+  Plus,
   Shield,
   Briefcase,
   HardHat,
@@ -14,13 +9,12 @@ import {
   Menu,
   X,
   LogOut,
-  HelpCircle,
   Store
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
-import { getAvailableMonths } from '../utils/financialHelpers';
 import { FireBrandIcon } from './FireBrandIcon';
+import { getEstadoModulos, MODULOS_CHANGED_EVENT } from '../modulos/ativarModulos';
 
 interface HeaderProps {
   onOpenNewOS: () => void;
@@ -31,36 +25,31 @@ interface HeaderProps {
   onToggleMobileMenu?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
-  onOpenNewOS, 
+export const Header: React.FC<HeaderProps> = ({
+  onOpenNewOS,
   onOpenPdv,
-  onOpenDoc, 
-  onOpenHelp,
   isMobileMenuOpen = false,
   onToggleMobileMenu
 }) => {
-  const { 
-    selectedMonthYear, 
-    setSelectedMonthYear, 
-    serviceOrders,
-    directSales,
-    generalExpenses,
-    currentRole, 
+  const {
+    currentRole,
     setCurrentRole,
     currentUser,
     openLogoutModal,
     companySettings
   } = useApp();
 
-  const availableMonths = React.useMemo(
-    () =>
-      getAvailableMonths(selectedMonthYear, [
-        ...serviceOrders.map(o => o.completionDate || o.openDate),
-        ...directSales.map(s => s.date),
-        ...generalExpenses.map(e => e.dueDate)
-      ]),
-    [selectedMonthYear, serviceOrders, directSales, generalExpenses]
-  );
+  const [modulosEstado, setModulosEstado] = React.useState(() => getEstadoModulos());
+
+  React.useEffect(() => {
+    const sync = () => setModulosEstado(getEstadoModulos());
+    window.addEventListener(MODULOS_CHANGED_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(MODULOS_CHANGED_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
@@ -94,8 +83,8 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onToggleMobileMenu}
             className="lg:hidden p-2 rounded-xl text-[#363739] hover:bg-[#f4f5f6] border border-[#d8d8d8] transition-colors cursor-pointer"
-            aria-label={isMobileMenuOpen ? "Fechar menu lateral" : "Abrir menu lateral"}
-            title={isMobileMenuOpen ? "Fechar menu lateral" : "Abrir menu lateral"}
+            aria-label={isMobileMenuOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
+            title={isMobileMenuOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
           >
             {isMobileMenuOpen ? (
               <X className="w-5 h-5 text-[#53383e]" />
@@ -105,9 +94,9 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {companySettings.logoUrl ? (
-            <img 
-              src={companySettings.logoUrl} 
-              alt={companySettings.tradeName || 'Logo'} 
+            <img
+              src={companySettings.logoUrl}
+              alt={companySettings.tradeName || 'Logo'}
               className="max-h-9 max-w-[120px] object-contain shrink-0 rounded"
             />
           ) : (
@@ -130,11 +119,11 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Controls Zone: Role Switcher, Month, Actions */}
+        {/* Controls Zone: Role Switcher, User Profile & Quick Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Active Persona / Role Switcher - Oculto no celular para manter o topo limpo */}
           {currentUser && (currentUser.role === 'cliente' || currentUser.role === 'tecnico') ? (
-            <div 
+            <div
               className="hidden md:flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8] shadow-xs"
               title="Perfil com acesso estritamente isolado por RBAC e sessão criptografada"
             >
@@ -162,24 +151,6 @@ export const Header: React.FC<HeaderProps> = ({
                 <option value="tecnico">Técnico em Campo</option>
                 <option value="contador">Contador / Fiscal</option>
                 <option value="cliente">Cliente (Portal Exclusivo)</option>
-              </select>
-            </div>
-          )}
-
-          {/* Seletor de Mês (oculto no portal do cliente) */}
-          {currentRole !== 'cliente' && (
-            <div className="hidden sm:flex items-center gap-1.5 bg-[#f4f5f6] rounded-lg px-2.5 py-1.5 border border-[#d8d8d8]">
-              <Calendar className="w-4 h-4 text-[#707174] shrink-0" />
-              <select
-                value={selectedMonthYear}
-                onChange={(e) => setSelectedMonthYear(e.target.value)}
-                className="text-xs font-semibold text-[#363739] bg-transparent border-0 focus:ring-0 cursor-pointer pr-2"
-              >
-                {availableMonths.map(m => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
               </select>
             </div>
           )}
@@ -221,7 +192,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Quick PDV / Caixa Button */}
-          {onOpenPdv && (currentRole === 'admin' || currentRole === 'colaborador' || currentRole === 'vendedor') && (
+          {modulosEstado.pdv && onOpenPdv && (currentRole === 'admin' || currentRole === 'colaborador' || currentRole === 'vendedor') && (
             <button
               type="button"
               onClick={onOpenPdv}
@@ -233,8 +204,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Primary Action Button (se não for cliente) */}
-          {currentRole !== 'cliente' && (
+          {/* Primary Action Button (se não for cliente e módulo OS estiver ativo) */}
+          {modulosEstado.orders && currentRole !== 'cliente' && (
             <button
               onClick={onOpenNewOS}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg transition-all shadow-xs shrink-0 cursor-pointer"

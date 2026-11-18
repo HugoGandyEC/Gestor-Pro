@@ -1,0 +1,2882 @@
+import React, { useState } from 'react';
+import { 
+  Package, 
+  Plus, 
+  Upload, 
+  FileCode, 
+  ArrowUpRight, 
+  ArrowDownLeft, 
+  AlertTriangle, 
+  Search, 
+  Tag, 
+  Trash2, 
+  Edit3, 
+  Copy,
+  CheckCircle2, 
+  Layers,
+  FileText,
+  Percent,
+  Sparkles,
+  Boxes,
+  Barcode,
+  History,
+  Calendar,
+  Camera,
+  Image as ImageIcon,
+  Eye,
+  X,
+  TrendingUp,
+  ScanBarcode,
+  ShoppingBag,
+  Wrench,
+  DollarSign,
+  Globe,
+  Hash,
+  Bookmark,
+  Settings2,
+  SlidersHorizontal,
+  ExternalLink,
+  Link2,
+  Mail
+} from 'lucide-react';
+import { useApp, formatBRL } from '../../context/AppContext';
+import { Product, ParsedXmlNFe } from '../../types';
+import { NFeImportStagingModal } from './NFeImportStagingModal';
+import { GmailNfeSearchModal } from './GmailNfeSearchModal';
+import { 
+  checkDuplicateUpload, 
+  generateFileChecksum, 
+  UploadedFileRecord 
+} from '../../services/fileUploadTracker';
+import { DuplicateUploadModal } from '../../components/DuplicateUploadModal';
+import { TablePagination } from '../../components/TablePagination';
+import { LiveSearchInput } from '../../components/LiveSearchInput';
+import { RecordDetailModal } from '../../components/RecordDetailModal';
+import { ViewModeToggle, ViewMode } from '../../components/ViewModeToggle';
+import { useRowHoverTooltip } from '../../components/RowHoverTooltip';
+import { ProductPhotoThumb } from '../../components/ProductPhotoThumb';
+
+export const ProductsAndStockView: React.FC = () => {
+  const { 
+    products, 
+    stockMovements, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    parseNFeXml,
+    importNFeXml,
+    applyBulkMarginsToAllProducts,
+    currentRole,
+    serviceOrders,
+    directSales,
+    productCategories,
+    productSubcategories,
+    productBrands,
+    productTags,
+    addProductCategory,
+    updateProductCategory,
+    deleteProductCategory,
+    addProductSubcategory,
+    updateProductSubcategory,
+    deleteProductSubcategory,
+    addProductBrand,
+    updateProductBrand,
+    deleteProductBrand,
+    addProductTag,
+    updateProductTag,
+    deleteProductTag
+  } = useApp();
+
+  const [activeTab, setActiveTab] = useState<'products' | 'movements' | 'xml'>('products');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('todas');
+  const [brandFilter, setBrandFilter] = useState('todas');
+  const [subcategoryFilter, setSubcategoryFilter] = useState('todas');
+  const [stockStatusFilter, setStockStatusFilter] = useState<'todos' | 'normal' | 'baixo'>('todos');
+  const [movementTypeFilter, setMovementTypeFilter] = useState<string>('todos');
+
+  // Pagination State for Products
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Staging Modal State for NFe Import with Margin & Price Adjustment
+  const [stagingNFe, setStagingNFe] = useState<ParsedXmlNFe | null>(null);
+  const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
+  const [isGmailModalOpen, setIsGmailModalOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
+
+  // Duplicate Upload Alert Modal State
+  const [duplicateUploadState, setDuplicateUploadState] = useState<{
+    isOpen: boolean;
+    record: UploadedFileRecord | null;
+    fileName: string;
+    fileSize?: number;
+    onProceed: () => void;
+  }>({
+    isOpen: false,
+    record: null,
+    fileName: '',
+    onProceed: () => {}
+  });
+
+  // Taxonomy Manager Modal State (Categorias, Subcategorias, Marcas e Tags)
+  const [isTaxonomyModalOpen, setIsTaxonomyModalOpen] = useState(false);
+  const [taxonomyTab, setTaxonomyTab] = useState<'categories' | 'subcategories' | 'brands' | 'tags'>('categories');
+  const [newItemName, setNewItemName] = useState('');
+  const [editingItemOldName, setEditingItemOldName] = useState<string | null>(null);
+  const [editingItemNewName, setEditingItemNewName] = useState('');
+
+  // Modal Product State
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isDuplicating, setIsDuplicating] = useState(false);
+  const [code, setCode] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [name, setName] = useState('');
+  const [model, setModel] = useState('');
+  const [brand, setBrand] = useState('TermoMax');
+  const [subcategory, setSubcategory] = useState('Boilers Inox 316');
+  const [slug, setSlug] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [metaTitle, setMetaTitle] = useState('');
+  const [metaDescription, setMetaDescription] = useState('');
+  const [metaKeywords, setMetaKeywords] = useState('');
+  const [isSeoOpen, setIsSeoOpen] = useState(false);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [serialNumber, setSerialNumber] = useState('');
+  const [category, setCategory] = useState('Reservatórios Térmicos');
+  const [costPrice, setCostPrice] = useState<number>(1000);
+  const [profitMarginPercent, setProfitMarginPercent] = useState<number>(60);
+  const [retailPrice, setRetailPrice] = useState<number>(1600);
+  const [wholesalePrice, setWholesalePrice] = useState<number>(1400);
+  const [currentStock, setCurrentStock] = useState<number>(5);
+  const [minStock, setMinStock] = useState<number>(2);
+  const [unit, setUnit] = useState('UN');
+  const [ncm, setNcm] = useState('8419.19.10');
+  const [icmsRate, setIcmsRate] = useState<number>(12);
+  const [description, setDescription] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoUrlInput, setPhotoUrlInput] = useState('');
+
+  // Helper para gerar slug amigável
+  const generateSlug = (text: string) => {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
+  const handleAddTag = (tagToAdd?: string) => {
+    const clean = (tagToAdd !== undefined ? tagToAdd : tagInput).trim().toLowerCase();
+    if (!clean) return;
+    if (!tags.includes(clean)) {
+      setTags(prev => [...prev, clean]);
+    }
+    if (tagToAdd === undefined) {
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(prev => prev.filter(t => t !== tagToRemove));
+  };
+
+  // Total History Modal State
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [selectedProductForHistory, setSelectedProductForHistory] = useState<Product | null>(null);
+
+  // XML Import State
+  const [xmlText, setXmlText] = useState('');
+  const [xmlResult, setXmlResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const sampleXmlExample = `<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe>
+    <infNFe Id="NFe35241061423789000115550010000189241000189245">
+      <ide>
+        <nNF>18924</nNF>
+        <dhEmi>2026-10-28T10:30:00-03:00</dhEmi>
+      </ide>
+      <emit>
+        <CNPJ>61.423.789/0001-15</CNPJ>
+        <xNome>TermoMax Indústria de Reservatórios Térmicos Ltda</xNome>
+        <xFant>TermoMax Boilers</xFant>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>BOIL-600-AP</cProd>
+          <cEAN>7898901234567</cEAN>
+          <xProd>Reservatório Térmico Boiler 600L Alta Pressão Inox 316</xProd>
+          <NCM>8419.19.10</NCM>
+          <qCom>5.0000</qCom>
+          <vUnCom>3850.0000</vUnCom>
+          <vProd>19250.00</vProd>
+        </prod>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>VAL-ALIV-3B</cProd>
+          <xProd>Válvula de Segurança e Alívio de Pressão 3/4 3 Bar</xProd>
+          <NCM>8481.40.00</NCM>
+          <qCom>15.0000</qCom>
+          <vUnCom>65.0000</vUnCom>
+          <vProd>975.00</vProd>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>20225.00</vNF>
+        </ICMSTot>
+      </total>
+    </infNFe>
+  </NFe>
+</nfeProc>`;
+
+  const sampleXmlNewSupplier = `<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe>
+    <infNFe Id="NFe35241099888777000144550010000452101000452109">
+      <ide>
+        <nNF>45210</nNF>
+        <dhEmi>2026-10-31T14:15:00-03:00</dhEmi>
+      </ide>
+      <emit>
+        <CNPJ>22.888.999/0001-44</CNPJ>
+        <xNome>Solarium Indústria & Caldeiraria Térmica S/A</xNome>
+        <xFant>Solarium Térmica</xFant>
+        <enderEmit>
+          <xLgr>Rodovia Anhanguera</xLgr>
+          <nro>Km 142</nro>
+          <xBairro>Parque Industrial</xBairro>
+          <cMun>3526902</cMun>
+          <xMun>Limeira</xMun>
+          <UF>SP</UF>
+          <CEP>13480-000</CEP>
+          <fone>(19) 3404-8800</fone>
+        </enderEmit>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>SOL-BOIL-800</cProd>
+          <xProd>Reservatório Térmico Boiler Solar 800L Alta Pressão Inox 316L</xProd>
+          <NCM>8419.19.10</NCM>
+          <qCom>3.0000</qCom>
+          <vUnCom>4900.0000</vUnCom>
+          <vProd>14700.00</vProd>
+          <uCom>UN</uCom>
+        </prod>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>BOM-CIR-SOL-12</cProd>
+          <xProd>Bomba Circuladora Solar Bronze 1/2 CV Blindada</xProd>
+          <NCM>8413.70.80</NCM>
+          <qCom>6.0000</qCom>
+          <vUnCom>420.0000</vUnCom>
+          <vProd>2520.00</vProd>
+          <uCom>UN</uCom>
+        </prod>
+      </det>
+      <det nItem="3">
+        <prod>
+          <cProd>TUB-PPR-32MM</cProd>
+          <xProd>Tubo PPR Fibras 32mm Água Quente Barra 3m</xProd>
+          <NCM>3917.22.00</NCM>
+          <qCom>20.0000</qCom>
+          <vUnCom>48.0000</vUnCom>
+          <vProd>960.00</vProd>
+          <uCom>PC</uCom>
+        </prod>
+      </det>
+      <total>
+        <ICMSTot>
+          <vNF>18180.00</vNF>
+        </ICMSTot>
+      </total>
+    </infNFe>
+  </NFe>
+</nfeProc>`;
+
+  // Generator for valid 13-digit EAN-13 barcode
+  const generateEan13 = () => {
+    const prefix = '789';
+    let digits = prefix;
+    for (let i = 0; i < 9; i++) {
+      digits += Math.floor(Math.random() * 10).toString();
+    }
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      const d = parseInt(digits[i]);
+      sum += i % 2 === 0 ? d * 1 : d * 3;
+    }
+    const check = (10 - (sum % 10)) % 10;
+    const fullBarcode = digits + (check === 10 ? 0 : check);
+    setBarcode(fullBarcode);
+  };
+
+  // Two-way margin calculations
+  const handleCostChange = (newCost: number) => {
+    setCostPrice(newCost);
+    if (profitMarginPercent > 0) {
+      const calcRetail = Number((newCost * (1 + profitMarginPercent / 100)).toFixed(2));
+      setRetailPrice(calcRetail);
+    }
+  };
+
+  const handleMarginChange = (newMargin: number) => {
+    setProfitMarginPercent(newMargin);
+    if (costPrice > 0) {
+      const calcRetail = Number((costPrice * (1 + newMargin / 100)).toFixed(2));
+      setRetailPrice(calcRetail);
+    }
+  };
+
+  const handleRetailChange = (newRetail: number) => {
+    setRetailPrice(newRetail);
+    if (costPrice > 0) {
+      const margin = Number((((newRetail - costPrice) / costPrice) * 100).toFixed(1));
+      setProfitMarginPercent(margin);
+    }
+  };
+
+  // Photo handlers (up to 3 photos)
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, slotIdx: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (base64) {
+        setPhotos(prev => {
+          const next = [...prev];
+          next[slotIdx] = base64;
+          return next.slice(0, 3);
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddPhotoUrl = () => {
+    if (!photoUrlInput.trim()) return;
+    setPhotos(prev => {
+      if (prev.length >= 3) return prev;
+      return [...prev, photoUrlInput.trim()];
+    });
+    setPhotoUrlInput('');
+  };
+
+  const handleRemovePhoto = (slotIdx: number) => {
+    setPhotos(prev => prev.filter((_, idx) => idx !== slotIdx));
+  };
+
+  const handleOpenAdd = () => {
+    setEditingId(null);
+    setCode(`PROD-${Math.floor(100 + Math.random() * 900)}`);
+    generateEan13();
+    setName('');
+    setModel('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setSerialNumber('');
+    setCategory(productCategories[0] || 'Reservatórios Térmicos');
+    setSubcategory('');
+    setBrand('');
+    setSlug('');
+    setTags([]);
+    setTagInput('');
+    setMetaTitle('');
+    setMetaDescription('');
+    setMetaKeywords('');
+    setIsSeoOpen(false);
+    setCostPrice(1000);
+    setProfitMarginPercent(60);
+    setRetailPrice(1600);
+    setWholesalePrice(1400);
+    setCurrentStock(5);
+    setMinStock(2);
+    setUnit('UN');
+    setNcm('8419.19.10');
+    setDescription('');
+    setPhotos([]);
+    setIsDuplicating(false);
+    setIsProductModalOpen(true);
+  };
+
+  const handleOpenEdit = (p: Product) => {
+    setEditingId(p.id);
+    setIsDuplicating(false);
+    setCode(p.code);
+    setBarcode(p.barcode || '');
+    setName(p.name);
+    setModel(p.model || '');
+    setDate(p.date || new Date().toISOString().split('T')[0]);
+    setSerialNumber(p.serialNumber || '');
+    setCategory(p.category);
+    setSubcategory(p.subcategory || '');
+    setBrand(p.brand || '');
+    setSlug(p.slug || generateSlug(p.name));
+    setTags(p.tags ? [...p.tags] : []);
+    setTagInput('');
+    setMetaTitle(p.metaTitle || p.name);
+    setMetaDescription(p.metaDescription || p.description?.slice(0, 160) || '');
+    setMetaKeywords(p.metaKeywords || (p.tags ? p.tags.join(', ') : ''));
+    setIsSeoOpen(false);
+    setCostPrice(p.costPrice);
+    const margin = p.profitMarginPercent !== undefined 
+      ? p.profitMarginPercent 
+      : (p.costPrice > 0 ? Number((((p.retailPrice - p.costPrice) / p.costPrice) * 100).toFixed(1)) : 50);
+    setProfitMarginPercent(margin);
+    setRetailPrice(p.retailPrice);
+    setWholesalePrice(p.wholesalePrice);
+    setCurrentStock(p.currentStock);
+    setMinStock(p.minStock);
+    setUnit(p.unit);
+    setNcm(p.ncm);
+    setIcmsRate(p.icmsRate);
+    setDescription(p.description || '');
+    setPhotos(p.photos ? [...p.photos] : []);
+    setIsProductModalOpen(true);
+  };
+
+  const handleDuplicateProduct = (p: Product) => {
+    setEditingId(null);
+    setIsDuplicating(true);
+    setCode(`${p.code}-COP`);
+    // Generate new unique barcode for the clone
+    const prefix = '789';
+    let digits = prefix;
+    for (let i = 0; i < 9; i++) {
+      digits += Math.floor(Math.random() * 10).toString();
+    }
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      const d = parseInt(digits[i]);
+      sum += i % 2 === 0 ? d * 1 : d * 3;
+    }
+    const check = (10 - (sum % 10)) % 10;
+    setBarcode(digits + (check === 10 ? 0 : check));
+
+    setName(`${p.name} (Cópia)`);
+    setModel(p.model || '');
+    setDate(new Date().toISOString().split('T')[0]);
+    setSerialNumber(p.serialNumber ? `${p.serialNumber}-COP` : '');
+    setCategory(p.category);
+    setSubcategory(p.subcategory || '');
+    setBrand(p.brand || '');
+    setSlug(generateSlug(`${p.name} copia`));
+    setTags(p.tags ? [...p.tags] : []);
+    setTagInput('');
+    setMetaTitle(p.metaTitle ? `${p.metaTitle} (Cópia)` : `${p.name} (Cópia)`);
+    setMetaDescription(p.metaDescription || '');
+    setMetaKeywords(p.metaKeywords || '');
+    setIsSeoOpen(false);
+    setCostPrice(p.costPrice);
+    setProfitMarginPercent(p.profitMarginPercent || 50);
+    setRetailPrice(p.retailPrice);
+    setWholesalePrice(p.wholesalePrice);
+    setCurrentStock(0);
+    setMinStock(p.minStock);
+    setUnit(p.unit);
+    setNcm(p.ncm);
+    setIcmsRate(p.icmsRate);
+    setDescription(p.description || '');
+    setPhotos(p.photos ? [...p.photos] : []);
+    setIsProductModalOpen(true);
+  };
+
+  const handleSaveProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    const finalSlug = slug.trim() || generateSlug(name);
+    const finalMetaTitle = metaTitle.trim() || name;
+    const finalMetaDesc = metaDescription.trim() || description.slice(0, 160);
+    const finalKeywords = metaKeywords.trim() || (tags.length > 0 ? tags.join(', ') : undefined);
+
+    const productPayload = {
+      code,
+      barcode: barcode.trim() || undefined,
+      name,
+      model: model.trim() || undefined,
+      brand: brand.trim() || undefined,
+      subcategory: subcategory.trim() || undefined,
+      slug: finalSlug,
+      tags: tags.length > 0 ? tags : undefined,
+      metaTitle: finalMetaTitle,
+      metaDescription: finalMetaDesc || undefined,
+      metaKeywords: finalKeywords,
+      date,
+      serialNumber: serialNumber.trim() || undefined,
+      category,
+      costPrice: Number(costPrice),
+      profitMarginPercent: Number(profitMarginPercent),
+      retailPrice: Number(retailPrice),
+      wholesalePrice: Number(wholesalePrice),
+      currentStock: Number(currentStock),
+      minStock: Number(minStock),
+      unit,
+      ncm,
+      icmsRate: Number(icmsRate),
+      description: description.trim() || undefined,
+      photos: photos.filter(Boolean)
+    };
+
+    if (editingId) {
+      updateProduct(editingId, productPayload);
+    } else {
+      addProduct({
+        ...productPayload,
+        pisRate: 1.65,
+        cofinsRate: 7.6
+      });
+    }
+
+    setIsProductModalOpen(false);
+  };
+
+  const handleOpenHistory = (p: Product) => {
+    setSelectedProductForHistory(p);
+    setIsHistoryModalOpen(true);
+  };
+
+  const handleProcessXmlForReview = (contentToParse?: string, sourceFileName?: string, sourceFileSize?: number) => {
+    const content = contentToParse !== undefined ? contentToParse : xmlText;
+    if (!content.trim()) {
+      alert('Insira ou cole o conteúdo do XML da NF-e.');
+      return;
+    }
+    const res = parseNFeXml(content);
+    if (res.success && res.parsedNFe) {
+      const nfe = res.parsedNFe;
+      // Duplicate check by chNFe, nNF + CNPJ, or file
+      const dupCheck = checkDuplicateUpload({
+        chNFe: nfe.chNFe,
+        nNF: nfe.nNF,
+        supplierCnpj: nfe.supplier.cnpj,
+        fileName: sourceFileName,
+        fileSize: sourceFileSize,
+        category: 'nfe_xml'
+      });
+
+      if (dupCheck.isDuplicate && dupCheck.record) {
+        setDuplicateUploadState({
+          isOpen: true,
+          record: dupCheck.record,
+          fileName: sourceFileName || `NF-e ${nfe.nNF} (${nfe.supplier.name || 'Fornecedor'})`,
+          fileSize: sourceFileSize || content.length,
+          onProceed: () => {
+            setStagingNFe(nfe);
+            setIsStagingModalOpen(true);
+            setXmlResult(null);
+          }
+        });
+        return;
+      }
+
+      setStagingNFe(nfe);
+      setIsStagingModalOpen(true);
+      setXmlResult(null);
+    } else {
+      setXmlResult({ success: false, message: res.message });
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const checksum = await generateFileChecksum(file);
+      const content = await file.text();
+      setXmlText(content);
+
+      const res = parseNFeXml(content);
+      if (res.success && res.parsedNFe) {
+        const nfe = res.parsedNFe;
+        const dupCheck = checkDuplicateUpload({
+          chNFe: nfe.chNFe,
+          nNF: nfe.nNF,
+          supplierCnpj: nfe.supplier.cnpj,
+          fileName: file.name,
+          fileSize: file.size,
+          checksum,
+          category: 'nfe_xml'
+        });
+
+        if (dupCheck.isDuplicate && dupCheck.record) {
+          setDuplicateUploadState({
+            isOpen: true,
+            record: dupCheck.record,
+            fileName: file.name,
+            fileSize: file.size,
+            onProceed: () => {
+              setStagingNFe(nfe);
+              setIsStagingModalOpen(true);
+              setXmlResult(null);
+            }
+          });
+          return;
+        }
+
+        setStagingNFe(nfe);
+        setIsStagingModalOpen(true);
+        setXmlResult(null);
+      } else {
+        setXmlResult({ success: false, message: res.message });
+      }
+    } catch (err: any) {
+      alert(`Erro ao ler arquivo XML: ${err?.message || 'Arquivo corrompido'}`);
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleStagingSuccess = (msg: string) => {
+    setIsStagingModalOpen(false);
+    setStagingNFe(null);
+    setXmlResult({ success: true, message: msg });
+    setActiveTab('products');
+  };
+
+  const filteredProducts = products.filter(p => {
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = 
+      p.name.toLowerCase().includes(q) || 
+      p.code.toLowerCase().includes(q) ||
+      p.ncm.includes(searchTerm) ||
+      (p.brand && p.brand.toLowerCase().includes(q)) ||
+      (p.subcategory && p.subcategory.toLowerCase().includes(q)) ||
+      (p.tags && p.tags.some(t => t.toLowerCase().includes(q)));
+
+    const matchesCat = categoryFilter === 'todas' || p.category === categoryFilter;
+    const matchesBrand = brandFilter === 'todas' || p.brand === brandFilter;
+    const matchesSubcat = subcategoryFilter === 'todas' || p.subcategory === subcategoryFilter;
+    const isLow = p.currentStock <= p.minStock;
+    const matchesStockStatus =
+      stockStatusFilter === 'todos' ||
+      (stockStatusFilter === 'baixo' && isLow) ||
+      (stockStatusFilter === 'normal' && !isLow);
+
+    return matchesSearch && matchesCat && matchesBrand && matchesSubcat && matchesStockStatus;
+  });
+
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, brandFilter, subcategoryFilter, stockStatusFilter]);
+
+  const paginatedProducts = React.useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#d8d8d8]">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-[#363739] tracking-tight">
+              Estoque
+            </h1>
+            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
+              Produtos, Peças, Marcas & Movimentações
+            </span>
+          </div>
+          <p className="hidden md:block text-xs text-[#707174] mt-1">
+            Gestão completa de estoque de produtos, reservatórios térmicos, bombas e peças com marcas, URLs amigáveis, tags e movimentações Kardex.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setIsTaxonomyModalOpen(true)}
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs cursor-pointer"
+            title="Gerenciar Categorias, Subcategorias, Marcas e Tags salvas no sistema"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#53383e]" />
+            <span>Gerenciar Categorias & Marcas</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (confirm('Deseja aplicar a regra oficial de precificação em todo o catálogo? (+55% para Varejo e +35% para Atacado sobre o Preço de Custo)')) {
+                const res = applyBulkMarginsToAllProducts(55, 35);
+                alert(`Regra aplicada com sucesso! ${res.count} produto(s) atualizado(s) com 55% de margem no Varejo e 35% no Atacado.`);
+              }
+            }}
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors shadow-xs cursor-pointer"
+            title="Aplica 55% de margem no varejo e 35% no atacado para todos os produtos com custo cadastrado"
+          >
+            <Percent className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Aplicar 55% Varejo / 35% Atacado</span>
+          </button>
+
+          <button
+            onClick={() => setIsGmailModalOpen(true)}
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors shadow-xs cursor-pointer"
+            title="Buscar e-mails de fornecedores no Gmail com anexos XML de NF-e"
+          >
+            <Mail className="w-3.5 h-3.5 text-red-600" />
+            <span>Buscar NF-e no Gmail</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('xml')}
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-xs cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5 text-[#53383e]" />
+            <span>Importar XML NF-e</span>
+          </button>
+
+          {currentRole !== 'tecnico' && (
+            <button
+              onClick={handleOpenAdd}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg transition-colors shadow-xs shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Produto</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-[#d8d8d8] pb-2">
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+            activeTab === 'products' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
+          }`}
+        >
+          Estoque ({products.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('movements')}
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+            activeTab === 'movements' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
+          }`}
+        >
+          Movimentações de Estoque ({stockMovements.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('xml')}
+          className={`hidden md:inline-flex px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+            activeTab === 'xml' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
+          }`}
+        >
+          Importador de XML NF-e
+        </button>
+      </div>
+
+      {activeTab === 'products' && (
+        <div className="space-y-4">
+          {/* Filter Bar */}
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex-1 w-full">
+                <LiveSearchInput
+                  value={searchTerm}
+                  onChange={setSearchTerm}
+                  placeholder="Buscar por código, nome, NCM, marca ou tags..."
+                  emptyLabel="Nenhum produto"
+                  inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
+                  getOptions={(query) => {
+                    const q = query.toLowerCase();
+                    return products
+                      .filter(
+                        p =>
+                          p.name.toLowerCase().includes(q) ||
+                          p.code.toLowerCase().includes(q) ||
+                          (p.ncm || '').toLowerCase().includes(q) ||
+                          (p.brand || '').toLowerCase().includes(q) ||
+                          (p.sku || '').toLowerCase().includes(q) ||
+                          (p.tags || []).some(t => t.toLowerCase().includes(q))
+                      )
+                      .map(p => ({
+                        id: p.id,
+                        title: p.name,
+                        subtitle: `${p.code}${p.brand ? ` · ${p.brand}` : ''} · Estoque: ${p.currentStock} ${p.unit}`,
+                        priceText: formatBRL(p.retailPrice),
+                        thumbnailUrl: p.photos?.[0],
+                        data: p
+                      }));
+                  }}
+                  onSelect={(opt) => setSearchTerm(opt.data.code)}
+                />
+              </div>
+
+              {/* Comboboxes de Filtros de Estoque */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500">Categoria:</span>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+                  >
+                    <option value="todas">Todas ({products.length})</option>
+                    {productCategories.map(cat => {
+                      const count = products.filter(p => p.category === cat).length;
+                      return (
+                        <option key={cat} value={cat}>
+                          {cat} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div className="hidden md:flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500">Marca:</span>
+                  <select
+                    value={brandFilter}
+                    onChange={(e) => setBrandFilter(e.target.value)}
+                    className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+                  >
+                    <option value="todas">Todas as Marcas</option>
+                    {productBrands.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="hidden md:flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500">Subcategoria:</span>
+                  <select
+                    value={subcategoryFilter}
+                    onChange={(e) => setSubcategoryFilter(e.target.value)}
+                    className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+                  >
+                    <option value="todas">Todas Subcategorias</option>
+                    {productSubcategories.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-500">Situação:</span>
+                  <select
+                    value={stockStatusFilter}
+                    onChange={(e) => setStockStatusFilter(e.target.value as 'todos' | 'normal' | 'baixo')}
+                    className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+                  >
+                    <option value="todos">Todo o Estoque</option>
+                    <option value="normal">Estoque Normal</option>
+                    <option value="baixo">Estoque Baixo / Mínimo</option>
+                  </select>
+                </div>
+
+                {(categoryFilter !== 'todas' || brandFilter !== 'todas' || subcategoryFilter !== 'todas' || stockStatusFilter !== 'todos' || searchTerm) && (
+                  <button
+                    onClick={() => {
+                      setCategoryFilter('todas');
+                      setBrandFilter('todas');
+                      setSubcategoryFilter('todas');
+                      setStockStatusFilter('todos');
+                      setSearchTerm('');
+                    }}
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold px-2 py-1 rounded hover:bg-rose-50 cursor-pointer"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
+
+                <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+              </div>
+            </div>
+          </div>
+
+          {/* Lista Abreviada em Linha Única ou Grade (Cards) + Botão (+) para Modal Completa */}
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+            {filteredProducts.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-400">
+                <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                Nenhum produto encontrado com os filtros selecionados.
+              </div>
+            ) : viewMode === 'list' ? (
+              <div className="overflow-x-auto">
+                <table className="dense-table text-left text-xs">
+                  <thead>
+                    <tr>
+                      <th className="w-14 text-center">Foto</th>
+                      <th className="hidden md:table-cell">Código</th>
+                      <th>Produto</th>
+                      <th className="text-right">Varejo</th>
+                      <th className="hidden md:table-cell text-right">Atacado</th>
+                      <th className="text-center">Estoque</th>
+                      <th className="text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedProducts.map(p => {
+                      const isLow = p.currentStock <= p.minStock;
+                      const thumb = p.photos?.[0];
+                      return (
+                        <tr
+                          key={p.id}
+                          className="dense-row"
+                          onMouseEnter={(e) =>
+                            showTooltip(e, {
+                              title: p.name,
+                              subtitle: `${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}${p.brand ? ` · Marca: ${p.brand}` : ''}`,
+                              description: p.description || 'Produto cadastrado no catálogo de estoque e vendas.',
+                              imageUrl: thumb,
+                              imageAlt: p.name,
+                              showImageSlot: true,
+                              fields: [
+                                { label: 'Código / SKU', value: `${p.code}${p.sku ? ` · ${p.sku}` : ''}` },
+                                { label: 'EAN / NCM', value: `${p.barcode || '—'} · ${p.ncm}` },
+                                { label: 'Custo / Margem', value: `${formatBRL(p.costPrice)}${p.profitMarginPercent !== undefined ? ` (${p.profitMarginPercent}%)` : ''}` },
+                                { label: 'Varejo / Atacado', value: `${formatBRL(p.retailPrice)} · ${formatBRL(p.wholesalePrice)}` },
+                                { label: 'Estoque Atual', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` },
+                                { label: 'Modelo / Série', value: [p.model, p.serialNumber].filter(Boolean).join(' · ') || '—' }
+                              ]
+                            })
+                          }
+                          onMouseLeave={hideTooltip}
+                        >
+                          <td className="text-center">
+                            <ProductPhotoThumb
+                              src={thumb}
+                              alt={p.name}
+                              className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center mx-auto overflow-hidden"
+                              iconClassName="w-4 h-4 text-slate-400"
+                            />
+                          </td>
+                          <td className="hidden md:table-cell font-mono font-bold text-blue-600">{p.code}</td>
+                          <td className="font-semibold text-slate-900">
+                            <span className="inline-block truncate max-w-[150px] sm:max-w-[260px] align-bottom">{p.name}</span>
+                          </td>
+                          <td className="text-right font-mono font-bold text-slate-900 tabular-nums">
+                            {formatBRL(p.retailPrice)}
+                          </td>
+                          <td className="hidden md:table-cell text-right font-mono font-semibold text-indigo-700 tabular-nums">
+                            {formatBRL(p.wholesalePrice)}
+                          </td>
+                          <td className="text-center font-mono tabular-nums">
+                            <span className={`font-bold ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
+                              {p.currentStock} {p.unit}
+                            </span>
+                          </td>
+                          <td className="text-right">
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setDetailProduct(p)}
+                                className="list-plus-btn"
+                                title="Abrir todos os dados do produto"
+                                aria-label={`Ver detalhes de ${p.name}`}
+                              >
+                                +
+                              </button>
+                              {currentRole !== 'tecnico' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEdit(p)}
+                                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                    title="Editar produto"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm(`Excluir produto ${p.name}?`)) {
+                                        deleteProduct(p.id);
+                                      }
+                                    }}
+                                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                    title="Excluir produto"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 bg-slate-50/40">
+                {paginatedProducts.map(p => {
+                  const isLow = p.currentStock <= p.minStock;
+                  const thumb = p.photos?.[0];
+                  return (
+                    <div
+                      key={p.id}
+                      onMouseEnter={(e) =>
+                        showTooltip(e, {
+                          title: p.name,
+                          subtitle: `${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}${p.brand ? ` · Marca: ${p.brand}` : ''}`,
+                          description: p.description || 'Produto cadastrado no catálogo de estoque e vendas.',
+                          imageUrl: thumb,
+                          imageAlt: p.name,
+                          showImageSlot: true,
+                          fields: [
+                            { label: 'Código / SKU', value: `${p.code}${p.sku ? ` · ${p.sku}` : ''}` },
+                            { label: 'EAN / NCM', value: `${p.barcode || '—'} · ${p.ncm}` },
+                            { label: 'Custo / Margem', value: `${formatBRL(p.costPrice)}${p.profitMarginPercent !== undefined ? ` (${p.profitMarginPercent}%)` : ''}` },
+                            { label: 'Varejo / Atacado', value: `${formatBRL(p.retailPrice)} · ${formatBRL(p.wholesalePrice)}` },
+                            { label: 'Estoque Atual', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` },
+                            { label: 'Modelo / Série', value: [p.model, p.serialNumber].filter(Boolean).join(' · ') || '—' }
+                          ]
+                        })
+                      }
+                      onMouseLeave={hideTooltip}
+                      className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3 hover:border-slate-300 transition-colors"
+                    >
+                      <div className="space-y-3">
+                        <ProductPhotoThumb
+                          src={thumb}
+                          alt={p.name}
+                          className="w-full h-36 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden"
+                          iconClassName="w-8 h-8 text-slate-400"
+                          emptyLabel="Sem foto"
+                        />
+                        <div>
+                          <div className="flex items-center justify-between gap-2 text-[11px] tabular-nums">
+                            <span className="font-mono font-bold text-blue-600 truncate">
+                              {p.code}
+                            </span>
+                            <span className={`font-bold shrink-0 ${isLow ? 'text-amber-700' : 'text-emerald-700'}`}>
+                              {p.currentStock} {p.unit}
+                            </span>
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug mt-1">
+                            {p.name}
+                          </h3>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                            {p.category}{p.brand ? ` · ${p.brand}` : ''}
+                          </p>
+                        </div>
+
+                        {p.description && (
+                          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                            {p.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-2.5 border-t border-slate-100 space-y-2.5">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                            <span className="block text-[10px] font-semibold uppercase text-slate-400">Varejo</span>
+                            <span className="font-mono font-bold text-slate-900 tabular-nums">{formatBRL(p.retailPrice)}</span>
+                          </div>
+                          <div className="p-2 rounded-lg bg-indigo-50/50 border border-indigo-100">
+                            <span className="block text-[10px] font-semibold uppercase text-indigo-500">Atacado</span>
+                            <span className="font-mono font-bold text-indigo-700 tabular-nums">{formatBRL(p.wholesalePrice)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="text-[11px] text-slate-500 font-mono tabular-nums truncate">
+                            Custo: {formatBRL(p.costPrice)}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setDetailProduct(p)}
+                              className="list-plus-btn"
+                              title="Abrir todos os dados do produto"
+                              aria-label={`Ver detalhes de ${p.name}`}
+                            >
+                              +
+                            </button>
+                            {currentRole !== 'tecnico' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenHistory(p)}
+                                  className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                                  title="Histórico / Kardex"
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplicateProduct(p)}
+                                  className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
+                                  title="Duplicar produto"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEdit(p)}
+                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                  title="Editar produto"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm(`Excluir produto ${p.name}?`)) {
+                                      deleteProduct(p.id);
+                                    }
+                                  }}
+                                  className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                  title="Excluir produto"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Paginação da Tabela de Produtos */}
+            <TablePagination
+              currentPage={currentPage}
+              totalItems={filteredProducts.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemName="produtos cadastrados"
+            />
+          </div>
+
+          {/* Modal Completa do Produto (Aberta pelo botão +) */}
+          {(() => {
+            if (!detailProduct) return null;
+            const p = detailProduct;
+            const isLow = p.currentStock <= p.minStock;
+            return (
+              <RecordDetailModal
+                isOpen={true}
+                onClose={() => setDetailProduct(null)}
+                title={p.name}
+                subtitle={`${p.category}${p.subcategory ? ` / ${p.subcategory}` : ''}${p.brand ? ` · Marca: ${p.brand}` : ''}`}
+                statusText={isLow ? 'Estoque Baixo' : 'Estoque Normal'}
+                statusClassName={isLow ? 'text-amber-700' : 'text-emerald-700'}
+                sections={[
+                  {
+                    heading: 'Identificação & Classificação',
+                    fields: [
+                      { label: 'Código', value: p.code },
+                      { label: 'SKU', value: p.sku || '—' },
+                      { label: 'EAN-13 / Código de Barras', value: p.barcode || 'Não informado' },
+                      { label: 'Modelo / Nº de Série', value: [p.model, p.serialNumber].filter(Boolean).join(' · S/N ') || '—' },
+                      { label: 'NCM / ICMS', value: `${p.ncm} · ${p.icmsRate}%` },
+                      { label: 'Unidade', value: p.unit }
+                    ]
+                  },
+                  {
+                    heading: 'Preços, Margens & Estoque',
+                    fields: [
+                      { label: 'Preço de Custo', value: formatBRL(p.costPrice) },
+                      { label: 'Margem de Lucro', value: p.profitMarginPercent !== undefined ? `${p.profitMarginPercent}%` : '—' },
+                      { label: 'Preço Varejo', value: formatBRL(p.retailPrice) },
+                      { label: 'Preço Atacado', value: formatBRL(p.wholesalePrice) },
+                      { label: 'Estoque Atual / Mínimo', value: `${p.currentStock} ${p.unit} (mín. ${p.minStock})` }
+                    ]
+                  },
+                  ...(p.description || (p.tags && p.tags.length > 0)
+                    ? [
+                        {
+                          heading: 'Descrição & Tags',
+                          fields: [
+                            ...(p.description ? [{ label: 'Descrição', value: p.description, fullWidth: true }] : []),
+                            ...(p.tags && p.tags.length > 0 ? [{ label: 'Tags', value: p.tags.join(', '), fullWidth: true }] : [])
+                          ]
+                        }
+                      ]
+                    : [])
+                ]}
+                customContent={
+                  p.photos && p.photos.length > 0 ? (
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                        Fotos do Produto
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {p.photos.map((photo, idx) => (
+                          <img
+                            key={idx}
+                            src={photo}
+                            alt={`${p.name} ${idx + 1}`}
+                            referrerPolicy="no-referrer"
+                            className="w-20 h-20 rounded-lg object-cover border border-slate-200"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : undefined
+                }
+                actions={
+                  currentRole !== 'tecnico' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailProduct(null);
+                          handleOpenHistory(p);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        <span>Histórico / Kardex</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailProduct(null);
+                          handleDuplicateProduct(p);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Duplicar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailProduct(null);
+                          handleOpenEdit(p);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Excluir produto ${p.name}?`)) {
+                            deleteProduct(p.id);
+                            setDetailProduct(null);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Excluir</span>
+                      </button>
+                    </>
+                  ) : undefined
+                }
+              />
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Tab: Stock Movements */}
+      {activeTab === 'movements' && (
+        <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Livro de Movimentações de Estoque (Kardex)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Rastreabilidade de entradas via XML de fornecedores e baixas automáticas em Ordens de Serviço e Vendas.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[11px] font-semibold text-slate-500">Movimentação:</span>
+              <select
+                value={movementTypeFilter}
+                onChange={(e) => setMovementTypeFilter(e.target.value)}
+                className="p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700"
+              >
+                <option value="todos">Todos os Tipos ({stockMovements.length})</option>
+                <option value="entrada_xml">Entrada XML NF-e</option>
+                <option value="entrada_manual">Entrada Manual</option>
+                <option value="saida_os">Saída O.S.</option>
+                <option value="saida_venda">Saída Venda</option>
+                <option value="ajuste">Ajuste</option>
+              </select>
+            </div>
+          </div>
+
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+              <tr>
+                <th className="py-3 px-4">Data</th>
+                <th className="py-3 px-3">Tipo</th>
+                <th className="py-3 px-4">Produto</th>
+                <th className="py-3 px-3">Documento Ref.</th>
+                <th className="py-3 px-3 text-center">Quantidade</th>
+                <th className="py-3 px-4 text-right">Custo Unitário</th>
+                <th className="py-3 px-4">Histórico / Observação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-sans">
+              {stockMovements
+                .filter(m => movementTypeFilter === 'todos' || m.type === movementTypeFilter)
+                .map(m => {
+                const isEntry = m.type.startsWith('entrada');
+                const linkedProduct = products.find(
+                  pr => pr.id === m.productId || pr.name.toLowerCase() === m.productName.toLowerCase()
+                );
+                const thumb = linkedProduct?.photos?.[0];
+                return (
+                  <tr
+                    key={m.id}
+                    className="hover:bg-slate-50 transition-colors"
+                    onMouseEnter={(e) =>
+                      showTooltip(e, {
+                        title: m.productName,
+                        subtitle: `${m.date} · ${m.type.replace('_', ' ').toUpperCase()}`,
+                        description: m.notes || 'Movimentação registrada no Kardex de estoque.',
+                        imageUrl: thumb,
+                        imageAlt: m.productName,
+                        showImageSlot: true,
+                        fields: [
+                          { label: 'Documento Ref.', value: m.referenceDoc || '—' },
+                          { label: 'Quantidade', value: isEntry ? `+${m.quantity}` : `-${m.quantity}` },
+                          { label: 'Custo Unitário', value: formatBRL(m.unitCost) }
+                        ]
+                      })
+                    }
+                    onMouseLeave={hideTooltip}
+                  >
+                    <td className="py-3 px-4 font-mono text-slate-600">{m.date}</td>
+                    <td className="py-3 px-3">
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-semibold uppercase ${
+                        isEntry ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {m.type.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-semibold text-slate-900">
+                      <div className="flex items-center gap-2.5">
+                        <ProductPhotoThumb
+                          src={thumb}
+                          alt={m.productName}
+                          className="w-7 h-7 rounded-md border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden"
+                          iconClassName="w-3.5 h-3.5 text-slate-400"
+                        />
+                        <span>{m.productName}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 font-mono text-slate-600">{m.referenceDoc || '-'}</td>
+                    <td className="py-3 px-3 text-center font-mono font-bold">
+                      <span className={isEntry ? 'text-emerald-700' : 'text-rose-700'}>
+                        {isEntry ? `+${m.quantity}` : `-${m.quantity}`}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700">{formatBRL(m.unitCost)}</td>
+                    <td className="py-3 px-4 text-slate-500">{m.notes || '-'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Tab: XML NF-e Importer */}
+      {activeTab === 'xml' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+          <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <FileCode className="w-5 h-5 text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-900">
+                  Importador Automático de XML de NF-e de Compra
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                Ao carregar a NF-e do fornecedor, o sistema lê automaticamente os dados da nota fiscal, cadastra ou atualiza os produtos no estoque, recalcula o custo e gera a Conta a Pagar vinculada ao CNPJ do fornecedor.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setXmlText(sampleXmlExample);
+                  setXmlResult(null);
+                  handleProcessXmlForReview(sampleXmlExample);
+                }}
+                className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Exemplo: Fornecedor Homologado (TermoMax)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setXmlText(sampleXmlNewSupplier);
+                  setXmlResult(null);
+                  handleProcessXmlForReview(sampleXmlNewSupplier);
+                }}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-950 bg-amber-50 border border-amber-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                Exemplo: Fornecedor Novo (Solarium S/A)
+              </button>
+            </div>
+          </div>
+
+          {/* Upload Area */}
+          <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center bg-slate-50">
+            <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <div className="text-xs font-semibold text-slate-700">Selecione o arquivo XML da NF-e no seu computador</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">Formatos suportados: .xml (Padrão SEFAZ NF-e 4.0)</div>
+            <input
+              type="file"
+              accept=".xml"
+              onChange={handleFileUpload}
+              className="mt-3 text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+            />
+          </div>
+
+          {/* Direct XML text editor */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Ou cole o código XML da NF-e abaixo:
+            </label>
+            <textarea
+              rows={8}
+              placeholder="Cole aqui o conteúdo <nfeProc> ou <NFe>..."
+              value={xmlText}
+              onChange={(e) => setXmlText(e.target.value)}
+              className="w-full p-3 font-mono text-[11px] bg-slate-900 text-emerald-400 rounded-xl border border-slate-800 focus:outline-hidden"
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-xs text-slate-500">
+              {xmlResult && (
+                <div className={`p-2.5 rounded-lg border flex items-center gap-2 ${
+                  xmlResult.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
+                }`}>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-semibold">{xmlResult.message}</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleProcessXmlForReview()}
+              className="px-6 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
+            >
+              <Percent className="w-4 h-4" />
+              <span>Conferir & Ajustar Preços da NF-e →</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Novo/Editar/Clonar Produto com Todos os Campos Solicitados */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8 border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-900 to-[#53383e] text-white p-5 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-lg">
+                  {isDuplicating ? <Copy className="w-5 h-5 text-emerald-400" /> : <Package className="w-5 h-5 text-indigo-300" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">
+                    {isDuplicating ? 'Duplicar / Clonar Produto no Catálogo' : editingId ? 'Editar Produto do Catálogo' : 'Cadastrar Novo Produto no Estoque'}
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Preencha a ficha técnica completa, código de barras, fotos e parâmetros de margem de lucro.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsProductModalOpen(false)}
+                className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProduct} className="p-6 space-y-5 text-xs max-h-[78vh] overflow-y-auto">
+              {/* SEÇÃO 1: IDENTIFICAÇÃO, CÓDIGO E CÓDIGO DE BARRAS */}
+              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-3">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-[#53383e]" />
+                  1. Identificação, Código & Código de Barras
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Código SKU / Referência *</label>
+                    <input
+                      type="text"
+                      required
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#53383e] focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">Código de Barras (EAN-13 / GTIN)</label>
+                      <button
+                        type="button"
+                        onClick={generateEan13}
+                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                        title="Gerar código de barras brasileiro no padrão EAN-13"
+                      >
+                        <ScanBarcode className="w-3.5 h-3.5" /> Gerar Código
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Ex: 7898901234567"
+                        value={barcode}
+                        onChange={(e) => setBarcode(e.target.value)}
+                        className="w-full p-2 pl-8 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#53383e] focus:outline-hidden"
+                      />
+                      <Barcode className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 mb-1 font-semibold">Nome Comercial do Produto / Peça *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Reservatório Térmico Boiler 600L Alta Pressão Inox 316"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-900 focus:ring-2 focus:ring-[#53383e] focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-700 mb-1 font-semibold">Modelo</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: MaxTherm 600-AP Inox 316L"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Data</label>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Número de Série</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: SN-2026-9921"
+                      value={serialNumber}
+                      onChange={(e) => setSerialNumber(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Taxonomias: Categoria, Subcategoria, Marca e Unidade */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">Categoria *</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaxonomyTab('categories');
+                          setIsTaxonomyModalOpen(true);
+                        }}
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      >
+                        + Editar
+                      </button>
+                    </div>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-800"
+                    >
+                      {productCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">Subcategoria</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaxonomyTab('subcategories');
+                          setIsTaxonomyModalOpen(true);
+                        }}
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      >
+                        + Lista
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      list="subcategories-datalist"
+                      placeholder="Ex: Aquecedor Solar..."
+                      value={subcategory}
+                      onChange={(e) => setSubcategory(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-800"
+                    />
+                    <datalist id="subcategories-datalist">
+                      {productSubcategories.map(s => (
+                        <option key={s} value={s} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">Marca / Fabricante</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaxonomyTab('brands');
+                          setIsTaxonomyModalOpen(true);
+                        }}
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      >
+                        + Marcas
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      list="brands-datalist"
+                      placeholder="Ex: TermoMax, Dancor..."
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-800"
+                    />
+                    <datalist id="brands-datalist">
+                      {productBrands.map(b => (
+                        <option key={b} value={b} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Unidade de Medida</label>
+                    <select
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold uppercase text-slate-800"
+                    >
+                      <option value="UN">UN - Unidade</option>
+                      <option value="PC">PC - Peça</option>
+                      <option value="MT">MT - Metro</option>
+                      <option value="CX">CX - Caixa</option>
+                      <option value="KG">KG - Quilograma</option>
+                      <option value="L">L - Litro</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* URL Amigável (Slug) */}
+                <div className="bg-white p-3 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-slate-700 font-semibold flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-600" />
+                      URL Amigável (Slug para Catálogo Online & E-commerce)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSlug(generateSlug(name))}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                    >
+                      <Link2 className="w-3 h-3" /> Gerar do Nome do Produto
+                    </button>
+                  </div>
+                  <div className="flex items-center rounded-lg border border-slate-300 bg-slate-50 overflow-hidden focus-within:ring-2 focus-within:ring-[#53383e]">
+                    <span className="px-3 py-2 text-slate-500 font-mono text-[11px] bg-slate-100 border-r border-slate-200 shrink-0">
+                      loja.gestaopro.com/produtos/
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="reservatorio-termico-boiler-600l"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value)}
+                      className="w-full p-2 bg-white font-mono font-medium text-slate-900 border-0 focus:outline-hidden text-xs"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Estrutura indexável para motores de busca e compartilhamento direto com clientes em orçamentos e catálogos.
+                  </p>
+                </div>
+
+                {/* Tags do Produto */}
+                <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-slate-700 font-semibold flex items-center gap-1.5">
+                      <Hash className="w-3.5 h-3.5 text-emerald-600" />
+                      Tags & Palavras-Chave de Busca Interna
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Pressione Enter para adicionar
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 min-h-[34px] p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    {tags.map((t, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#53383e] text-white px-2 py-0.5 rounded-md"
+                      >
+                        #{t}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(t)}
+                          className="hover:bg-white/20 rounded-full p-0.5"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={tags.length === 0 ? "Digite uma tag e pressione Enter..." : "Adicionar tag..."}
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTag(tagInput);
+                        }
+                      }}
+                      className="flex-1 min-w-[120px] bg-transparent text-xs text-slate-800 border-0 focus:outline-hidden p-0.5"
+                    />
+                    {tagInput.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddTag(tagInput)}
+                        className="px-2 py-0.5 bg-slate-800 text-white rounded text-[10px] font-bold"
+                      >
+                        + Adicionar
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sugestões de tags do sistema */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-[10px] font-semibold text-slate-400">Tags salvas:</span>
+                    {productTags.filter(st => !tags.includes(st)).slice(0, 8).map(st => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => handleAddTag(st)}
+                        className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium border border-slate-200 cursor-pointer"
+                      >
+                        +{st}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTaxonomyTab('tags');
+                        setIsTaxonomyModalOpen(true);
+                      }}
+                      className="text-[10px] text-indigo-600 hover:underline font-bold"
+                    >
+                      Gerenciar todas
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* SEÇÃO 2: PREÇO DE CUSTO, MARGEM DE LUCRO (%) E PREÇO DE VENDA */}
+              <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-700" />
+                    2. Custos, Margem de Lucro (%) & Preços de Venda
+                  </h4>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                    Cálculo Automático
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Preço de Custo (R$) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={costPrice}
+                      onChange={(e) => handleCostChange(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                    />
+                    <span className="text-[10px] text-slate-500">Custo unitário NF</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">
+                      Margem de Lucro (%) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        required
+                        value={profitMarginPercent}
+                        onChange={(e) => handleMarginChange(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 pr-7 bg-white border border-emerald-300 rounded-lg font-mono font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <Percent className="w-3.5 h-3.5 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                    </div>
+                    <span className="text-[10px] text-emerald-700 font-medium">Markup sobre custo</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Preço Varejo (R$) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={retailPrice}
+                      onChange={(e) => handleRetailChange(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                    />
+                    <span className="text-[10px] text-slate-500">Preço balcão / OS</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">Preço Atacado (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={wholesalePrice}
+                      onChange={(e) => setWholesalePrice(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono text-indigo-700 font-semibold"
+                    />
+                    <span className="text-[10px] text-slate-500">Obras / instaladores</span>
+                  </div>
+                </div>
+
+                {/* Profit KPI Mini-Banner */}
+                <div className="bg-white p-3 rounded-lg border border-emerald-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold">Lucro Bruto Unitário:</span>
+                    <div className="font-mono font-bold text-emerald-700 text-sm">
+                      {formatBRL(retailPrice - costPrice)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold">Margem Real sobre Venda:</span>
+                    <div className="font-mono font-bold text-slate-800 text-sm">
+                      {retailPrice > 0 ? (((retailPrice - costPrice) / retailPrice) * 100).toFixed(1) : 0}%
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold">Multiplicador Markup:</span>
+                    <div className="font-mono font-bold text-slate-800 text-sm">
+                      {costPrice > 0 ? (retailPrice / costPrice).toFixed(2) : 1}x
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SEÇÃO 3: ESTOQUE E FISCAL */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+                <div>
+                  <label className="block text-slate-700 mb-1 font-semibold">Estoque Atual *</label>
+                  <input
+                    type="number"
+                    required
+                    value={currentStock}
+                    onChange={(e) => setCurrentStock(parseInt(e.target.value) || 0)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 mb-1 font-semibold">Estoque Mínimo</label>
+                  <input
+                    type="number"
+                    value={minStock}
+                    onChange={(e) => setMinStock(parseInt(e.target.value) || 0)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 mb-1 font-semibold">NCM Fiscal</label>
+                  <input
+                    type="text"
+                    value={ncm}
+                    onChange={(e) => setNcm(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 mb-1 font-semibold">Alíquota ICMS (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={icmsRate}
+                    onChange={(e) => setIcmsRate(parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* SEÇÃO 4: DESCRIÇÃO DETALHADA DO PRODUTO */}
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">
+                  Descrição Detalhada / Ficha Técnica do Produto
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Informações técnicas, especificações de diâmetro, pressão máxima suportada, compatibilidade com modelos de aquecedores, normas ABNT aplicáveis..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg text-xs leading-relaxed font-sans focus:ring-2 focus:ring-[#53383e] focus:outline-hidden"
+                />
+              </div>
+
+              {/* SEÇÃO 5: SEO, INDEXAÇÃO GOOGLE & META-TAGS */}
+              <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-indigo-600" />
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        5. SEO, Meta-Tags & Otimização para Motores de Busca
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Configure títulos e meta-descrições para indexação orgânica no Google e redes sociais.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!metaTitle && name) setMetaTitle(name);
+                      if (!metaDescription && description) setMetaDescription(description.slice(0, 155));
+                      if (!metaKeywords && tags.length > 0) setMetaKeywords(tags.join(', '));
+                    }}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                  >
+                    Auto-Preencher do Produto
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">
+                        Meta Title (Título SEO da Página)
+                      </label>
+                      <span className={`text-[10px] font-mono ${metaTitle.length > 60 ? 'text-amber-600 font-bold' : 'text-slate-400'}`}>
+                        {metaTitle.length}/60 caracteres recomendados
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder={name || "Ex: Reservatório Boiler 600L Inox 316L Alta Pressão | FIRE GESTÃO"}
+                      value={metaTitle}
+                      onChange={(e) => setMetaTitle(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-700 font-semibold">
+                        Meta Description (Resumo na Pesquisa Google)
+                      </label>
+                      <span className={`text-[10px] font-mono ${metaDescription.length > 160 ? 'text-amber-600 font-bold' : 'text-slate-400'}`}>
+                        {metaDescription.length}/160 caracteres recomendados
+                      </span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      placeholder={description?.slice(0, 155) || "Ex: Reservatório térmico para aquecimento solar 600 litros em aço inox 316. Alta durabilidade, isolamento em poliuretano expandido e garantia de fábrica."}
+                      value={metaDescription}
+                      onChange={(e) => setMetaDescription(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-sans leading-relaxed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 mb-1 font-semibold">
+                      Meta Keywords (Palavras-Chave Separadas por Vírgula)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="boiler solar, reservatorio 600l, aquecedor solar alta pressao, pecas para aquecedor"
+                      value={metaKeywords}
+                      onChange={(e) => setMetaKeywords(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-sans"
+                    />
+                  </div>
+
+                  {/* Google SERP Preview Card */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Pré-visualização do Resultado no Google (SERP Preview)
+                    </span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#202124]">
+                      <div className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600">
+                        G
+                      </div>
+                      <span className="font-medium text-slate-700">loja.gestaopro.com.br</span>
+                      <span className="text-slate-400">› produtos › {slug || 'reservatorio-termico'}</span>
+                    </div>
+                    <div className="text-blue-700 hover:underline font-medium text-sm font-sans cursor-pointer truncate">
+                      {metaTitle || name || 'Título do Produto | Loja FIRE GESTÃO'}
+                    </div>
+                    <p className="text-[11px] text-[#4d5156] line-clamp-2 leading-relaxed">
+                      {metaDescription || description || 'Descrição otimizada do produto indexada nos motores de busca com especificações e melhores condições de compra.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* SEÇÃO 6: LOCAL PARA INSERIR ATÉ 3 FOTOS */}
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-[#53383e]" />
+                      Galeria de Fotos do Produto (Até 3 Fotos)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Adicione fotos reais do produto, embalagem ou esquema de conexões.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-mono">
+                    {photos.length}/3 fotos inseridas
+                  </span>
+                </div>
+
+                {/* 3 Photo Slots */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[0, 1, 2].map((slotIdx) => {
+                    const photo = photos[slotIdx];
+                    return (
+                      <div
+                        key={slotIdx}
+                        className={`relative rounded-xl border-2 border-dashed p-3 flex flex-col items-center justify-center min-h-[140px] text-center transition-all ${
+                          photo 
+                            ? 'border-indigo-300 bg-white shadow-2xs' 
+                            : 'border-slate-300 bg-white/70 hover:bg-white hover:border-slate-400'
+                        }`}
+                      >
+                        {photo ? (
+                          <div className="w-full h-full flex flex-col items-center justify-between space-y-2">
+                            <img
+                              src={photo}
+                              alt={`Foto ${slotIdx + 1}`}
+                              className="w-full h-24 object-cover rounded-lg border border-slate-200"
+                            />
+                            <div className="flex items-center justify-between w-full px-1">
+                              <span className="text-[10px] font-bold text-slate-600 font-mono">
+                                Foto #{slotIdx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePhoto(slotIdx)}
+                                className="text-rose-600 hover:text-rose-800 p-1 hover:bg-rose-50 rounded-md transition-colors"
+                                title="Remover esta foto"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer w-full h-full flex flex-col items-center justify-center p-2 text-slate-500 hover:text-[#53383e]">
+                            <ImageIcon className="w-8 h-8 text-slate-400 mb-1.5" />
+                            <span className="text-[11px] font-bold">Adicionar Foto {slotIdx + 1}</span>
+                            <span className="text-[10px] text-slate-400 mt-0.5">Clique para carregar</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handlePhotoUpload(e, slotIdx)}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Quick URL input */}
+                {photos.length < 3 && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+                    <input
+                      type="url"
+                      placeholder="Ou cole a URL de uma imagem da internet (https://...)"
+                      value={photoUrlInput}
+                      onChange={(e) => setPhotoUrlInput(e.target.value)}
+                      className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddPhotoUrl}
+                      disabled={!photoUrlInput.trim()}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold"
+                    >
+                      Inserir URL
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsProductModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {isDuplicating ? 'Salvar Cópia do Produto' : editingId ? 'Atualizar Produto' : 'Cadastrar Produto'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Histórico Total do Produto (Kardex 360°, Entradas, Saídas em OS, Vendas Diretas e Lucro Bruto) */}
+      {isHistoryModalOpen && selectedProductForHistory && (() => {
+        const prod = selectedProductForHistory;
+
+        // Collect all service order usages for this product
+        const osUsages = serviceOrders.flatMap(os => 
+          (os.parts || [])
+            .filter(p => p.productId === prod.id || p.name.toLowerCase() === prod.name.toLowerCase())
+            .map(p => ({
+              id: `os-${os.id}-${p.id}`,
+              date: os.openDate || new Date().toISOString().split('T')[0],
+              type: 'saida_os' as const,
+              docCode: os.code,
+              clientName: os.clientName,
+              quantity: p.quantity,
+              unitPrice: p.price,
+              unitCost: p.cost,
+              totalPrice: p.price * p.quantity,
+              totalCost: p.cost * p.quantity,
+              notes: `Aplicação em Ordem de Serviço #${os.code}`
+            }))
+        );
+
+        // Collect all direct sale usages for this product
+        const saleUsages = directSales.flatMap(sale => 
+          (sale.items || [])
+            .filter(it => it.productId === prod.id || it.name.toLowerCase() === prod.name.toLowerCase())
+            .map(it => ({
+              id: `sale-${sale.id}-${it.id}`,
+              date: sale.date,
+              type: 'saida_venda' as const,
+              docCode: sale.code,
+              clientName: sale.clientName,
+              quantity: it.quantity,
+              unitPrice: it.price,
+              unitCost: it.cost,
+              totalPrice: it.price * it.quantity,
+              totalCost: it.cost * it.quantity,
+              notes: `Venda Direta / Balcão #${sale.code}`
+            }))
+        );
+
+        // Collect all stock movements
+        const movementsForProd = stockMovements.filter(m => 
+          m.productId === prod.id || m.productName.toLowerCase() === prod.name.toLowerCase()
+        );
+
+        // Calculations
+        const entriesMovements = movementsForProd.filter(m => m.type.startsWith('entrada'));
+        const totalEntriesQty = entriesMovements.reduce((acc, m) => acc + m.quantity, 0) || (prod.currentStock > 0 ? prod.currentStock : 0);
+        const totalEntriesValue = entriesMovements.reduce((acc, m) => acc + (m.quantity * (m.unitCost || prod.costPrice)), 0) || (totalEntriesQty * prod.costPrice);
+
+        const totalExitsQty = osUsages.reduce((a, b) => a + b.quantity, 0) + saleUsages.reduce((a, b) => a + b.quantity, 0);
+        const totalRevenue = osUsages.reduce((a, b) => a + b.totalPrice, 0) + saleUsages.reduce((a, b) => a + b.totalPrice, 0);
+        const totalExitsCost = osUsages.reduce((a, b) => a + b.totalCost, 0) + saleUsages.reduce((a, b) => a + b.totalCost, 0);
+        const totalGrossProfit = totalRevenue - totalExitsCost;
+        const profitMarginReal = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8 border border-slate-200 overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-slate-900 to-[#53383e] text-white p-5 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/10 rounded-lg">
+                    <History className="w-6 h-6 text-indigo-300" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-base">{prod.name}</h3>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/20 text-white font-bold">
+                        {prod.code}
+                      </span>
+                      {prod.barcode && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                          EAN: {prod.barcode}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      {prod.category} • Modelo: {prod.model || 'Padrão'} • Série: {prod.serialNumber || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+                {/* 4 KPI Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Card 1: Estoque Atual */}
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
+                    <div className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-1">
+                      <Boxes className="w-3.5 h-3.5 text-blue-600" />
+                      Saldo em Estoque
+                    </div>
+                    <div className="text-2xl font-bold font-mono text-slate-900">
+                      {prod.currentStock} <span className="text-sm font-normal text-slate-500">{prod.unit}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Custo Imobilizado: <strong>{formatBRL(prod.currentStock * prod.costPrice)}</strong>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Total Comprado */}
+                  <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40 space-y-1">
+                    <div className="text-[10px] uppercase font-bold text-indigo-700 flex items-center gap-1">
+                      <ArrowDownLeft className="w-3.5 h-3.5 text-indigo-600" />
+                      Total Comprado (Entradas)
+                    </div>
+                    <div className="text-2xl font-bold font-mono text-indigo-950">
+                      {totalEntriesQty} <span className="text-sm font-normal text-indigo-600">{prod.unit}</span>
+                    </div>
+                    <div className="text-[11px] text-indigo-800">
+                      Investido em Compras: <strong>{formatBRL(totalEntriesValue)}</strong>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Total Vendido / Aplicado */}
+                  <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-1">
+                    <div className="text-[10px] uppercase font-bold text-emerald-700 flex items-center gap-1">
+                      <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                      Total Saídas (OS & Vendas)
+                    </div>
+                    <div className="text-2xl font-bold font-mono text-emerald-950">
+                      {totalExitsQty} <span className="text-sm font-normal text-emerald-600">{prod.unit}</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-800">
+                      Faturamento Gerado: <strong>{formatBRL(totalRevenue)}</strong>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Lucro Bruto Total */}
+                  <div className="p-4 rounded-xl border border-amber-100 bg-amber-50/40 space-y-1">
+                    <div className="text-[10px] uppercase font-bold text-amber-800 flex items-center gap-1">
+                      <DollarSign className="w-3.5 h-3.5 text-amber-600" />
+                      Lucro Bruto Total
+                    </div>
+                    <div className="text-2xl font-bold font-mono text-amber-950">
+                      {formatBRL(totalGrossProfit)}
+                    </div>
+                    <div className="text-[11px] text-amber-900 font-semibold">
+                      Margem Média: +{profitMarginReal.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Technical Specifications Summary */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase text-slate-400 font-bold">Preço de Custo</span>
+                    <div className="font-mono font-bold text-slate-800">{formatBRL(prod.costPrice)}</div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase text-slate-400 font-bold">Venda Varejo</span>
+                    <div className="font-mono font-bold text-slate-900">{formatBRL(prod.retailPrice)}</div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase text-slate-400 font-bold">Venda Atacado</span>
+                    <div className="font-mono font-bold text-indigo-700">{formatBRL(prod.wholesalePrice)}</div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase text-slate-400 font-bold">Margem Cadastrada</span>
+                    <div className="font-mono font-bold text-emerald-700">+{prod.profitMarginPercent || 50}%</div>
+                  </div>
+                </div>
+
+                {prod.description && (
+                  <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs text-slate-700 leading-relaxed">
+                    <span className="font-bold text-slate-900 block mb-0.5">Descrição Técnica / Especificações:</span>
+                    {prod.description}
+                  </div>
+                )}
+
+                {/* Timeline & Transactions Table */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-[#53383e]" />
+                      Extrato Completo de Movimentações (Kardex & Rastreabilidade)
+                    </h4>
+                    <span className="text-xs text-slate-500 font-medium">
+                      {osUsages.length + saleUsages.length + movementsForProd.length} registros encontrados
+                    </span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                          <tr>
+                            <th className="py-2.5 px-3">Data</th>
+                            <th className="py-2.5 px-3">Tipo de Operação</th>
+                            <th className="py-2.5 px-3">Documento Ref.</th>
+                            <th className="py-2.5 px-3">Cliente / Destino / Fornecedor</th>
+                            <th className="py-2.5 px-3 text-center">Quantidade</th>
+                            <th className="py-2.5 px-3 text-right">Valor Unit.</th>
+                            <th className="py-2.5 px-3 text-right">Valor Total</th>
+                            <th className="py-2.5 px-3 text-right">Lucro</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-sans">
+                          {/* OS Usages */}
+                          {osUsages.map(item => (
+                            <tr key={item.id} className="hover:bg-slate-50">
+                              <td className="py-2.5 px-3 font-mono text-slate-600">{item.date}</td>
+                              <td className="py-2.5 px-3">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  <Wrench className="w-3 h-3" /> Aplicação em OS
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-bold text-indigo-600">
+                                {item.docCode}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-800 font-medium">
+                                {item.clientName}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-rose-600">
+                                -{item.quantity} {prod.unit}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                                {formatBRL(item.unitPrice)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                                {formatBRL(item.totalPrice)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600">
+                                +{formatBRL(item.totalPrice - item.totalCost)}
+                              </td>
+                            </tr>
+                          ))}
+
+                          {/* Direct Sale Usages */}
+                          {saleUsages.map(item => (
+                            <tr key={item.id} className="hover:bg-slate-50">
+                              <td className="py-2.5 px-3 font-mono text-slate-600">{item.date}</td>
+                              <td className="py-2.5 px-3">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <ShoppingBag className="w-3 h-3" /> Venda Balcão
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-bold text-emerald-600">
+                                {item.docCode}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-800 font-medium">
+                                {item.clientName}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-rose-600">
+                                -{item.quantity} {prod.unit}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                                {formatBRL(item.unitPrice)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                                {formatBRL(item.totalPrice)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600">
+                                +{formatBRL(item.totalPrice - item.totalCost)}
+                              </td>
+                            </tr>
+                          ))}
+
+                          {/* Raw Movements (XML Entries & Adjustments) */}
+                          {movementsForProd.map(m => {
+                            const isEntry = m.type.startsWith('entrada');
+                            return (
+                              <tr key={m.id} className="hover:bg-slate-50">
+                                <td className="py-2.5 px-3 font-mono text-slate-600">{m.date}</td>
+                                <td className="py-2.5 px-3">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    isEntry 
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  }`}>
+                                    {isEntry ? <ArrowDownLeft className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
+                                    {isEntry ? 'Entrada / NF-e XML' : 'Ajuste de Estoque'}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 font-mono text-slate-700">
+                                  {m.referenceDoc || '-'}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-600">
+                                  {m.notes || 'Movimentação registrada'}
+                                </td>
+                                <td className={`py-2.5 px-3 text-center font-mono font-bold ${isEntry ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                  {isEntry ? `+${m.quantity}` : m.quantity} {prod.unit}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono text-slate-600">
+                                  {formatBRL(m.unitCost || prod.costPrice)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                                  {formatBRL(m.quantity * (m.unitCost || prod.costPrice))}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono text-slate-400">
+                                  -
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                          {osUsages.length === 0 && saleUsages.length === 0 && movementsForProd.length === 0 && (
+                            <tr>
+                              <td colSpan={8} className="py-8 text-center text-slate-400">
+                                Nenhuma movimentação registrada até o momento para este produto.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Photos Gallery View inside History */}
+                {prod.photos && prod.photos.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-[#53383e]" />
+                      Fotos Registradas do Produto
+                    </h5>
+                    <div className="flex flex-wrap gap-3">
+                      {prod.photos.map((ph, idx) => (
+                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200">
+                          <img
+                            src={ph}
+                            alt={`${prod.name} ${idx + 1}`}
+                            className="w-28 h-28 object-cover hover:scale-105 transition-transform"
+                          />
+                          <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded font-mono">
+                            #{idx + 1}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryModalOpen(false)}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+                >
+                  Fechar Histórico
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal Gerenciador de Taxonomias do Sistema (Categorias, Subcategorias, Marcas e Tags) */}
+      {isTaxonomyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-900 to-[#53383e] text-white p-4 flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-lg">
+                  <SlidersHorizontal className="w-5 h-5 text-indigo-300" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">
+                    Gerenciador de Listas do Sistema
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    Edite, crie ou exclua Categorias, Subcategorias, Marcas e Tags salvas no catálogo de produtos.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsTaxonomyModalOpen(false);
+                  setEditingItemOldName(null);
+                  setEditingItemNewName('');
+                  setNewItemName('');
+                }}
+                className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex items-center gap-1 p-2 bg-slate-50 border-b border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxonomyTab('categories');
+                  setEditingItemOldName(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  taxonomyTab === 'categories'
+                    ? 'bg-[#53383e] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+                Categorias ({productCategories.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxonomyTab('subcategories');
+                  setEditingItemOldName(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  taxonomyTab === 'subcategories'
+                    ? 'bg-[#53383e] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Subcategorias ({productSubcategories.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxonomyTab('brands');
+                  setEditingItemOldName(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  taxonomyTab === 'brands'
+                    ? 'bg-[#53383e] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Bookmark className="w-3.5 h-3.5" />
+                Marcas ({productBrands.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTaxonomyTab('tags');
+                  setEditingItemOldName(null);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  taxonomyTab === 'tags'
+                    ? 'bg-[#53383e] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Hash className="w-3.5 h-3.5" />
+                Tags ({productTags.length})
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Add form */}
+              <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <input
+                  type="text"
+                  placeholder={
+                    taxonomyTab === 'categories'
+                      ? 'Nova categoria (ex: Climatizadores Solar)...'
+                      : taxonomyTab === 'subcategories'
+                      ? 'Nova subcategoria (ex: Aquecedor a Vácuo)...'
+                      : taxonomyTab === 'brands'
+                      ? 'Nova marca (ex: Bosch, Komeco)...'
+                      : 'Nova tag (ex: 220v, inox-316)...'
+                  }
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (!newItemName.trim()) return;
+                      if (taxonomyTab === 'categories') addProductCategory(newItemName);
+                      else if (taxonomyTab === 'subcategories') addProductSubcategory(newItemName);
+                      else if (taxonomyTab === 'brands') addProductBrand(newItemName);
+                      else if (taxonomyTab === 'tags') addProductTag(newItemName);
+                      setNewItemName('');
+                    }
+                  }}
+                  className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newItemName.trim()) return;
+                    if (taxonomyTab === 'categories') addProductCategory(newItemName);
+                    else if (taxonomyTab === 'subcategories') addProductSubcategory(newItemName);
+                    else if (taxonomyTab === 'brands') addProductBrand(newItemName);
+                    else if (taxonomyTab === 'tags') addProductTag(newItemName);
+                    setNewItemName('');
+                  }}
+                  className="px-3.5 py-2 bg-[#53383e] hover:bg-[#432c32] text-white font-bold rounded-lg transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar
+                </button>
+              </div>
+
+              {/* Items List */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                {(() => {
+                  let items: string[] = [];
+                  if (taxonomyTab === 'categories') items = productCategories;
+                  else if (taxonomyTab === 'subcategories') items = productSubcategories;
+                  else if (taxonomyTab === 'brands') items = productBrands;
+                  else if (taxonomyTab === 'tags') items = productTags;
+
+                  // Sempre organiza de forma alfabética
+                  items = [...items].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
+                  if (items.length === 0) {
+                    return (
+                      <div className="p-8 text-center text-slate-400">
+                        Nenhum item cadastrado nesta lista.
+                      </div>
+                    );
+                  }
+
+                  return items.map((item) => {
+                    const isEditing = editingItemOldName === item;
+                    const cleanItemTag = item.replace(/^#/, '');
+                    const linkedProductsCount = products.filter(p => {
+                      if (taxonomyTab === 'categories') return p.category === item;
+                      if (taxonomyTab === 'subcategories') return p.subcategory === item;
+                      if (taxonomyTab === 'brands') return p.brand === item;
+                      if (taxonomyTab === 'tags') return p.tags?.some(t => t.replace(/^#/, '').toLowerCase() === cleanItemTag.toLowerCase());
+                      return false;
+                    }).length;
+
+                    return (
+                      <div
+                        key={item}
+                        className="p-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors gap-3"
+                      >
+                        {isEditing ? (
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="text"
+                              value={editingItemNewName}
+                              onChange={(e) => setEditingItemNewName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (editingItemNewName.trim() && editingItemNewName !== item) {
+                                    if (taxonomyTab === 'categories') updateProductCategory(item, editingItemNewName);
+                                    else if (taxonomyTab === 'subcategories') updateProductSubcategory(item, editingItemNewName);
+                                    else if (taxonomyTab === 'brands') updateProductBrand(item, editingItemNewName);
+                                    else if (taxonomyTab === 'tags') updateProductTag(item, editingItemNewName);
+                                  }
+                                  setEditingItemOldName(null);
+                                }
+                              }}
+                              className="p-1.5 bg-white border border-indigo-400 rounded-lg text-xs flex-1 font-semibold text-slate-800"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (editingItemNewName.trim() && editingItemNewName !== item) {
+                                  if (taxonomyTab === 'categories') updateProductCategory(item, editingItemNewName);
+                                  else if (taxonomyTab === 'subcategories') updateProductSubcategory(item, editingItemNewName);
+                                  else if (taxonomyTab === 'brands') updateProductBrand(item, editingItemNewName);
+                                  else if (taxonomyTab === 'tags') updateProductTag(item, editingItemNewName);
+                                }
+                                setEditingItemOldName(null);
+                              }}
+                              className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors cursor-pointer"
+                              title="Salvar alteração (atualiza produtos vinculados automaticamente)"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingItemOldName(null)}
+                              className="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md transition-colors cursor-pointer"
+                              title="Cancelar"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-800">
+                                {taxonomyTab === 'tags' ? `#${cleanItemTag}` : item}
+                              </span>
+                              {linkedProductsCount > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 font-mono">
+                                  {linkedProductsCount} {linkedProductsCount === 1 ? 'produto' : 'produtos'}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingItemOldName(item);
+                                  setEditingItemNewName(item);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors cursor-pointer"
+                                title="Editar nome"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Excluir "${taxonomyTab === 'tags' ? '#' + cleanItemTag : item}" da lista do sistema?`)) {
+                                    if (taxonomyTab === 'categories') deleteProductCategory(item);
+                                    else if (taxonomyTab === 'subcategories') deleteProductSubcategory(item);
+                                    else if (taxonomyTab === 'brands') deleteProductBrand(item);
+                                    else if (taxonomyTab === 'tags') deleteProductTag(item);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                title="Excluir da lista"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+              <span className="text-[11px] text-slate-500">
+                As alterações são salvas automaticamente no sistema e propagadas para os produtos.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsTaxonomyModalOpen(false);
+                  setEditingItemOldName(null);
+                  setEditingItemNewName('');
+                  setNewItemName('');
+                }}
+                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-semibold transition-colors"
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Conferência e Precificação da Importação (Varejo, Atacado & Fornecedor) */}
+      {isStagingModalOpen && stagingNFe && (
+        <NFeImportStagingModal
+          initialParsedNFe={stagingNFe}
+          onClose={() => setIsStagingModalOpen(false)}
+          onSuccess={handleStagingSuccess}
+        />
+      )}
+
+      {/* Modal de Busca de NF-e no Gmail */}
+      {isGmailModalOpen && (
+        <GmailNfeSearchModal
+          isOpen={isGmailModalOpen}
+          onClose={() => setIsGmailModalOpen(false)}
+          onSelectXmlContent={(xmlContent) => {
+            setIsGmailModalOpen(false);
+            handleProcessXmlForReview(xmlContent);
+          }}
+        />
+      )}
+
+      {/* Modal de Alerta de Upload Duplicado (NF-e XML) */}
+      {duplicateUploadState.isOpen && duplicateUploadState.record && (
+        <DuplicateUploadModal
+          isOpen={duplicateUploadState.isOpen}
+          onClose={() => setDuplicateUploadState(prev => ({ ...prev, isOpen: false }))}
+          onProceedAnyway={() => {
+            const proceedFn = duplicateUploadState.onProceed;
+            setDuplicateUploadState(prev => ({ ...prev, isOpen: false }));
+            proceedFn();
+          }}
+          duplicateRecord={duplicateUploadState.record}
+          currentFileName={duplicateUploadState.fileName}
+          currentFileSize={duplicateUploadState.fileSize}
+        />
+      )}
+
+      {tooltipElement}
+    </div>
+  );
+};

@@ -1,6 +1,18 @@
 # Histórico de Versões e Alterações — FIRE GESTÃO
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.16`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.17`).
+
+---
+
+## [v2.7.17] — 18/11/2026
+**Arquitetura Modular (`src/modulos/`) + Arquivo de Ativação de Módulos & Topo Limpo**
+
+### Removido
+- **Cabeçalho (`Header`)**: removido o seletor de data e mês do topo do sistema.
+
+### Adicionado & Alterado
+- **Divisão em Módulos (`src/modulos/`)**: todos os 22 módulos do sistema foram organizados em subpastas independentes dentro de `src/modulos/`, exportados por `src/modulos/index.ts`.
+- **Arquivo de Ativação/Desativação (`src/modulos/ativarModulos.ts`)**: arquivo central dedicado onde cada módulo pode ser ligado (`true`) ou desligado (`false`), ocultando automaticamente o módulo do menu lateral, dos atalhos do topo e bloqueando o acesso à rota — além de sincronização com a nova aba **Configurações → Módulos do Sistema**.
 
 ---
 
