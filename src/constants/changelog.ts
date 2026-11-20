@@ -16,6 +16,40 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.18',
+    date: '19/11/2026',
+    title: 'Importação Seletiva Completa (Cadastrar Somente Produtos sem Enviar ao Financeiro)',
+    summary:
+      'Controle granular de importação em todas as centrais do FIRE GESTÃO (NF-e XML, Importação Universal CSV/Excel/TXT/XML/SQL/PDF e Restauração de Backup JSON), permitindo importar apenas os dados desejados — inclusive cadastrar somente produtos no catálogo sem gerar nenhum lançamento no Financeiro/DRE.',
+    highlights: [
+      'NF-e XML Seletiva: escolha em 1 clique "Somente Cadastrar Produtos (Sem Financeiro)", marque/desmarque cada item da nota, controle se soma no estoque, se cadastra fornecedor e se lança no Contas a Pagar (desmarcado por padrão)',
+      'Importação Universal Seletiva: marque linha a linha quais registros importar, com painel exclusivo para Produtos garantindo isolamento total do Financeiro e opções de zerar estoque inicial ou custo',
+      'Restauração de Backup JSON Seletiva: carregue um arquivo .json ou cole o backup, veja a contagem por módulo e selecione exatamente o que importar (com atalho "Somente Produtos (Sem Financeiro)")'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Painel de Importação Seletiva na conferência de NF-e XML com atalhos rápidos ("Somente Cadastrar Produtos (Sem Financeiro)", "Produtos + Estoque (Sem Financeiro)" e "Importação Completa"), checkboxes independentes por ação e seleção individual de cada produto da nota.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Na importação de XML NF-e, o lançamento automático no Financeiro (Contas a Pagar / DRE) passou a iniciar desmarcado por segurança, evitando qualquer impacto financeiro indesejado.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Na Importação Universal (CSV/XLSX/TXT/XML/SQL/PDF), adicionada seleção linha a linha na tabela de conferência e opções exclusivas para Produtos (cadastro 100% isolado do Financeiro, opção de estoque inicial zerado e controle de custo/preços de venda).'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Na aba Configurações → Backup & Restauração, adicionada restauração seletiva por categoria (11 módulos independentes com contagem prévia do JSON, upload de arquivo .json e atalho "Somente Produtos (Sem Financeiro)").'
+      }
+    ]
+  },
+  {
     version: 'v2.7.17',
     date: '18/11/2026',
     title: 'Arquitetura Modular (Pasta modulos + Controle de Ativação) e Topo Limpo sem Seletor de Data/Mês',

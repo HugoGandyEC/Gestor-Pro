@@ -1,6 +1,16 @@
 # Histórico de Versões e Alterações — FIRE GESTÃO
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.17`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.18`).
+
+---
+
+## [v2.7.18] — 19/11/2026
+**Importação Seletiva Completa (Somente Produtos & Proteção do Financeiro)**
+
+### Adicionado & Alterado
+- **Importação de NF-e XML (`NFeImportStagingModal` & `AppContext`)**: painel superior de **Importação Seletiva** com atalhos de 1 clique (*"Somente Cadastrar Produtos (Sem Financeiro)"*, *"Produtos + Estoque (Sem Financeiro)"* e *"Importação Completa"*), 4 chaves independentes (Produtos, Entrada no Estoque/Kardex, Fornecedor e Financeiro/Contas a Pagar — desmarcado por padrão) e seleção individual produto a produto na tabela.
+- **Importação Universal (`UniversalDataImportView`)**: seleção linha a linha na pré-visualização (*Marcar Todos / Desmarcar Todos*) e painel exclusivo para Produtos com garantia visual de isolamento total do Financeiro, além de opções para cadastrar com estoque inicial zerado, omitir custo ou controlar preços de venda.
+- **Restauração Seletiva de Backup JSON (`SystemSettingsView` & `AppContext`)**: upload direto de arquivo `.json`, prévia automática com contagem por módulo e checkboxes independentes para todas as 11 categorias, incluindo atalhos *"Somente Produtos (Sem Financeiro)"* e *"Somente Cadastros (Sem Financeiro)"*.
 
 ---
 

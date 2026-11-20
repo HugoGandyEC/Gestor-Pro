@@ -42,15 +42,78 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
 }) => {
   const { commitImportNFe } = useApp();
 
-  // Working copy of parsed NFe state
-  const [nfeData, setNfeData] = useState<ParsedXmlNFe>(initialParsedNFe);
+  // Working copy of parsed NFe state (garantindo flags seletivas inicializadas)
+  const [nfeData, setNfeData] = useState<ParsedXmlNFe>(() => ({
+    ...initialParsedNFe,
+    importProducts: initialParsedNFe.importProducts ?? true,
+    items: initialParsedNFe.items.map(it => ({
+      ...it,
+      selectedToImport: it.selectedToImport !== false
+    }))
+  }));
 
   // Bulk margin controls
   const [bulkRetailMargin, setBulkRetailMargin] = useState<number>(55);
   const [bulkWholesaleMargin, setBulkWholesaleMargin] = useState<number>(35);
 
-  // Supplier edit drawer / expanded toggle
+  // Supplier edit drawer / expanded toggle & inline error message
   const [isEditingSupplier, setIsEditingSupplier] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Presets rápidos de importação seletiva
+  const applyOnlyProductsPreset = () => {
+    setErrorMessage(null);
+    setNfeData(prev => ({
+      ...prev,
+      importProducts: true,
+      createAccountPayable: false,
+      supplier: {
+        ...prev.supplier,
+        registerIfNew: false
+      },
+      items: prev.items.map(it => ({
+        ...it,
+        selectedToImport: true,
+        updateStock: false
+      }))
+    }));
+  };
+
+  const applyProductsWithStockNoFinancialPreset = () => {
+    setErrorMessage(null);
+    setNfeData(prev => ({
+      ...prev,
+      importProducts: true,
+      createAccountPayable: false,
+      supplier: {
+        ...prev.supplier,
+        registerIfNew: !prev.supplier.isAlreadyRegistered
+      },
+      items: prev.items.map(it => ({
+        ...it,
+        selectedToImport: true,
+        updateStock: true
+      }))
+    }));
+  };
+
+  const applyCompleteImportPreset = () => {
+    setErrorMessage(null);
+    setNfeData(prev => ({
+      ...prev,
+      importProducts: true,
+      createAccountPayable: true,
+      supplier: {
+        ...prev.supplier,
+        registerIfNew: !prev.supplier.isAlreadyRegistered
+      },
+      items: prev.items.map(it => ({
+        ...it,
+        selectedToImport: true,
+        updateStock: true
+      }))
+    }));
+  };
 
   // Supplier helper updates
   const handleUpdateSupplier = (field: keyof ParsedXmlSupplier, value: any) => {
@@ -147,7 +210,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
   };
 
   // Bulk toggle checkboxes
-  const handleToggleAll = (field: 'updateRetailPrice' | 'updateWholesalePrice' | 'updateStock', value: boolean) => {
+  const handleToggleAll = (field: 'updateRetailPrice' | 'updateWholesalePrice' | 'updateStock' | 'selectedToImport', value: boolean) => {
     setNfeData(prev => ({
       ...prev,
       items: prev.items.map(item => ({
@@ -167,26 +230,40 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
         return {
           ...item,
           retailPrice: roundedRetail,
-          retailMarginPercent: Number((((roundedRetail / item.costPrice) - 1) * 100).toFixed(1)),
+          retailMarginPercent: item.costPrice > 0 ? Number((((roundedRetail / item.costPrice) - 1) * 100).toFixed(1)) : item.retailMarginPercent,
           wholesalePrice: roundedWholesale,
-          wholesaleMarginPercent: Number((((roundedWholesale / item.costPrice) - 1) * 100).toFixed(1))
+          wholesaleMarginPercent: item.costPrice > 0 ? Number((((roundedWholesale / item.costPrice) - 1) * 100).toFixed(1)) : item.wholesaleMarginPercent
         };
       })
     }));
   };
 
-  // Summary calculations
-  const totalCost = useMemo(() => {
-    return nfeData.items.reduce((acc, it) => acc + (it.costPrice * it.quantity), 0);
+  // Selected items & derived flags
+  const importProductsEnabled = nfeData.importProducts !== false;
+  const selectedItems = useMemo(() => {
+    return nfeData.items.filter(it => it.selectedToImport !== false);
   }, [nfeData.items]);
+
+  const allItemsSelected = nfeData.items.length > 0 && selectedItems.length === nfeData.items.length;
+  const anyStockUpdateEnabled = selectedItems.some(it => it.updateStock);
+  const willRegisterSupplier = !nfeData.supplier.isAlreadyRegistered && nfeData.supplier.registerIfNew;
+  const hasAnythingToImport =
+    (importProductsEnabled && selectedItems.length > 0) ||
+    willRegisterSupplier ||
+    nfeData.createAccountPayable;
+
+  // Summary calculations (considerando apenas os itens selecionados)
+  const totalCost = useMemo(() => {
+    return selectedItems.reduce((acc, it) => acc + (it.costPrice * it.quantity), 0);
+  }, [selectedItems]);
 
   const potentialRetailRevenue = useMemo(() => {
-    return nfeData.items.reduce((acc, it) => acc + (it.retailPrice * it.quantity), 0);
-  }, [nfeData.items]);
+    return selectedItems.reduce((acc, it) => acc + (it.retailPrice * it.quantity), 0);
+  }, [selectedItems]);
 
   const potentialWholesaleRevenue = useMemo(() => {
-    return nfeData.items.reduce((acc, it) => acc + (it.wholesalePrice * it.quantity), 0);
-  }, [nfeData.items]);
+    return selectedItems.reduce((acc, it) => acc + (it.wholesalePrice * it.quantity), 0);
+  }, [selectedItems]);
 
   const potentialRetailProfit = potentialRetailRevenue - totalCost;
 
@@ -202,6 +279,12 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
 
   // Final commit
   const handleConfirmAndCommit = () => {
+    setErrorMessage(null);
+    if (!hasAnythingToImport) {
+      setErrorMessage('Selecione ao menos um produto ou opção de importação (fornecedor ou financeiro) para continuar.');
+      return;
+    }
+
     const result = commitImportNFe(nfeData);
     if (result.success) {
       // Register in upload tracker history
@@ -210,7 +293,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
         fileSize: 0,
         checksum: nfeData.chNFe || `nfe-${nfeData.nNF}-${nfeData.supplier.cnpj}`,
         category: 'nfe_xml',
-        recordCount: nfeData.items.length,
+        recordCount: importProductsEnabled ? selectedItems.length : 0,
         metadata: {
           chNFe: nfeData.chNFe,
           nNF: nfeData.nNF,
@@ -223,7 +306,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
       });
       onSuccess(result.message);
     } else {
-      alert(result.message);
+      setErrorMessage(result.message);
     }
   };
 
@@ -275,8 +358,182 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
           </div>
         )}
 
+        {/* Inline Error Banner */}
+        {errorMessage && (
+          <div className="bg-rose-50 border-b border-rose-200 px-6 py-2.5 flex items-center justify-between gap-2 text-rose-800 text-xs">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span className="font-semibold">{errorMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setErrorMessage(null)}
+              className="text-rose-500 hover:text-rose-700 font-bold px-1.5"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs bg-slate-50">
+          {/* =========================================================================
+              0. CONTROLE DE IMPORTAÇÃO SELETIVA (ESCOLHA EXATAMENTE O QUE IMPORTAR)
+              ========================================================================= */}
+          <div className="bg-white p-4 rounded-xl border-2 border-amber-300 shadow-2xs space-y-3.5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-start gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                    O que você deseja importar desta NF-e? (Importação Seletiva)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Escolha exatamente quais dados entrarão no sistema. Por padrão, <strong>nada é enviado ao Financeiro</strong> até que você marque a opção abaixo.
+                  </p>
+                </div>
+              </div>
+
+              {/* Atalhos de 1 clique */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={applyOnlyProductsPreset}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                    importProductsEnabled && !anyStockUpdateEnabled && !nfeData.createAccountPayable && !willRegisterSupplier
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                  }`}
+                >
+                  Somente Cadastrar Produtos (Sem Financeiro)
+                </button>
+                <button
+                  type="button"
+                  onClick={applyProductsWithStockNoFinancialPreset}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                    importProductsEnabled && anyStockUpdateEnabled && !nfeData.createAccountPayable
+                      ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
+                      : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                  }`}
+                >
+                  Produtos + Estoque (Sem Financeiro)
+                </button>
+                <button
+                  type="button"
+                  onClick={applyCompleteImportPreset}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                    importProductsEnabled && anyStockUpdateEnabled && nfeData.createAccountPayable
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                      : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  Importação Completa (+ Financeiro)
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Checkboxes independentes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {/* 1. Cadastrar/Atualizar Produtos */}
+              <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
+                importProductsEnabled ? 'bg-blue-50/70 border-blue-300' : 'bg-slate-50 border-slate-200 opacity-75'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={importProductsEnabled}
+                  onChange={(e) => setNfeData(prev => ({ ...prev, importProducts: e.target.checked }))}
+                  className="w-4 h-4 mt-0.5 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 block text-xs">Cadastrar / Atualizar Produtos</span>
+                  <span className="text-[10px] text-slate-600 block mt-0.5">
+                    {importProductsEnabled
+                      ? `${selectedItems.length} de ${nfeData.items.length} item(ns) marcado(s) na tabela`
+                      : 'Produtos desta nota não serão gravados'}
+                  </span>
+                </div>
+              </label>
+
+              {/* 2. Dar Entrada nas Quantidades no Estoque */}
+              <label className={`flex items-start gap-2.5 p-3 rounded-xl border transition-colors ${
+                !importProductsEnabled
+                  ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
+                  : anyStockUpdateEnabled
+                    ? 'bg-emerald-50/70 border-emerald-300 cursor-pointer'
+                    : 'bg-slate-50 border-slate-200 cursor-pointer'
+              }`}>
+                <input
+                  type="checkbox"
+                  disabled={!importProductsEnabled}
+                  checked={importProductsEnabled && anyStockUpdateEnabled}
+                  onChange={(e) => handleToggleAll('updateStock', e.target.checked)}
+                  className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 block text-xs">Somar Quantidades no Estoque</span>
+                  <span className="text-[10px] text-slate-600 block mt-0.5">
+                    {anyStockUpdateEnabled && importProductsEnabled
+                      ? 'Dará entrada no Kardex / saldo'
+                      : 'Apenas cadastra no catálogo (saldo 0)'}
+                  </span>
+                </div>
+              </label>
+
+              {/* 3. Cadastrar Fornecedor */}
+              <label className={`flex items-start gap-2.5 p-3 rounded-xl border transition-colors ${
+                nfeData.supplier.isAlreadyRegistered
+                  ? 'bg-emerald-50/50 border-emerald-200 cursor-default'
+                  : nfeData.supplier.registerIfNew
+                    ? 'bg-amber-50/70 border-amber-300 cursor-pointer'
+                    : 'bg-slate-50 border-slate-200 cursor-pointer'
+              }`}>
+                <input
+                  type="checkbox"
+                  disabled={nfeData.supplier.isAlreadyRegistered}
+                  checked={nfeData.supplier.isAlreadyRegistered || nfeData.supplier.registerIfNew}
+                  onChange={(e) => handleUpdateSupplier('registerIfNew', e.target.checked)}
+                  className="w-4 h-4 mt-0.5 text-amber-600 rounded focus:ring-amber-500"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 block text-xs">Cadastrar Fornecedor</span>
+                  <span className="text-[10px] text-slate-600 block mt-0.5">
+                    {nfeData.supplier.isAlreadyRegistered
+                      ? 'Já cadastrado no sistema'
+                      : nfeData.supplier.registerIfNew
+                        ? 'Será incluído em Fornecedores'
+                        : 'Não cadastrar este fornecedor'}
+                  </span>
+                </div>
+              </label>
+
+              {/* 4. Lançar no Financeiro (Contas a Pagar & DRE) */}
+              <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
+                nfeData.createAccountPayable
+                  ? 'bg-rose-50/70 border-rose-300'
+                  : 'bg-emerald-50/60 border-emerald-300'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={nfeData.createAccountPayable}
+                  onChange={(e) => setNfeData(prev => ({ ...prev, createAccountPayable: e.target.checked }))}
+                  className="w-4 h-4 mt-0.5 text-rose-600 rounded focus:ring-rose-500"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 block text-xs">Lançar no Financeiro</span>
+                  <span className={`text-[10px] font-semibold block mt-0.5 ${
+                    nfeData.createAccountPayable ? 'text-rose-700' : 'text-emerald-700'
+                  }`}>
+                    {nfeData.createAccountPayable
+                      ? 'Criará Contas a Pagar (+28d) e DRE'
+                      : '✓ Sem lançamento no Financeiro/DRE'}
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* =========================================================================
               1. FORNECEDOR DA NOTA FISCAL (IDENTIFICAÇÃO & CADASTRO AUTOMÁTICO)
               ========================================================================= */}
@@ -537,21 +794,59 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
           {/* =========================================================================
               3. TABELA DE PRODUTOS ITEM A ITEM (AJUSTE FINO DE PREÇOS E MARGENS)
               ========================================================================= */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="p-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
-              <span className="font-bold text-slate-800 text-xs">
-                Itens da Nota Fiscal ({nfeData.items.length} produtos localizados)
-              </span>
-              <span className="text-[11px] text-slate-500">
-                Você pode ajustar a margem (%) ou o valor final (R$) de cada produto individualmente
-              </span>
+          <div className={`bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden transition-opacity ${
+            !importProductsEnabled ? 'opacity-50' : ''
+          }`}>
+            <div className="p-3 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="font-bold text-slate-800 text-xs">
+                  Itens da Nota Fiscal ({selectedItems.length} de {nfeData.items.length} selecionado(s))
+                </span>
+                {!importProductsEnabled && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                    Importação de produtos desmarcada acima
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!importProductsEnabled}
+                  onClick={() => handleToggleAll('selectedToImport', true)}
+                  className="px-2 py-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                >
+                  Marcar Todos
+                </button>
+                <button
+                  type="button"
+                  disabled={!importProductsEnabled}
+                  onClick={() => handleToggleAll('selectedToImport', false)}
+                  className="px-2 py-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                >
+                  Desmarcar Todos
+                </button>
+                <span className="text-[11px] text-slate-500 hidden md:inline">
+                  Marque apenas os produtos que deseja importar
+                </span>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="px-3 py-2.5 w-10 text-center">Status</th>
+                    <th className="px-3 py-2.5 w-12 text-center">
+                      <label className="inline-flex items-center gap-1 cursor-pointer" title="Selecionar ou desmarcar todos os produtos">
+                        <input
+                          type="checkbox"
+                          disabled={!importProductsEnabled}
+                          checked={allItemsSelected}
+                          onChange={(e) => handleToggleAll('selectedToImport', e.target.checked)}
+                          className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                        />
+                      </label>
+                    </th>
+                    <th className="px-3 py-2.5 w-14 text-center">Status</th>
                     <th className="px-3 py-2.5">Código / Produto / NCM</th>
                     <th className="px-3 py-2.5 text-center">Qtd / Un</th>
                     <th className="px-3 py-2.5 text-right">Custo Unit. (NF-e)</th>
@@ -572,11 +867,30 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {nfeData.items.map((item, index) => {
+                    const isRowSelected = item.selectedToImport !== false;
+                    const rowDisabled = !importProductsEnabled || !isRowSelected;
                     const retailProfit = item.retailPrice - item.costPrice;
                     const wholesaleProfit = item.wholesalePrice - item.costPrice;
 
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr
+                        key={item.id}
+                        className={`transition-colors ${
+                          rowDisabled ? 'bg-slate-50/80 opacity-50' : 'hover:bg-slate-50/80'
+                        }`}
+                      >
+                        {/* Checkbox de seleção do produto */}
+                        <td className="px-3 py-3 text-center align-middle">
+                          <input
+                            type="checkbox"
+                            disabled={!importProductsEnabled}
+                            checked={isRowSelected}
+                            onChange={(e) => handleUpdateItem(index, { selectedToImport: e.target.checked })}
+                            className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
+                            title={isRowSelected ? 'Produto selecionado para importação' : 'Produto ignorado na importação'}
+                          />
+                        </td>
+
                         {/* Status: Novo vs Existente */}
                         <td className="px-3 py-3 text-center align-middle">
                           {item.isNewProduct ? (
@@ -637,6 +951,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                             <label className="flex items-center gap-1.5 cursor-pointer">
                               <input
                                 type="checkbox"
+                                disabled={rowDisabled}
                                 checked={item.updateRetailPrice}
                                 onChange={(e) => handleUpdateItem(index, { updateRetailPrice: e.target.checked })}
                                 className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500"
@@ -652,7 +967,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                                 <input
                                   type="number"
                                   step="0.5"
-                                  disabled={!item.updateRetailPrice}
+                                  disabled={rowDisabled || !item.updateRetailPrice}
                                   value={item.retailMarginPercent}
                                   onChange={(e) => handleRetailMarginChange(index, Number(e.target.value))}
                                   className="w-full p-1.5 text-xs font-bold bg-white border border-slate-300 rounded font-mono text-blue-900 disabled:opacity-50 pr-5"
@@ -666,7 +981,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                                 <input
                                   type="number"
                                   step="0.01"
-                                  disabled={!item.updateRetailPrice}
+                                  disabled={rowDisabled || !item.updateRetailPrice}
                                   value={item.retailPrice}
                                   onChange={(e) => handleRetailPriceChange(index, Number(e.target.value))}
                                   className="w-full p-1.5 text-xs font-bold bg-white border border-slate-300 rounded font-mono text-emerald-700 disabled:opacity-50"
@@ -687,6 +1002,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                             <label className="flex items-center gap-1.5 cursor-pointer">
                               <input
                                 type="checkbox"
+                                disabled={rowDisabled}
                                 checked={item.updateWholesalePrice}
                                 onChange={(e) => handleUpdateItem(index, { updateWholesalePrice: e.target.checked })}
                                 className="w-3.5 h-3.5 text-purple-600 rounded focus:ring-purple-500"
@@ -702,7 +1018,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                                 <input
                                   type="number"
                                   step="0.5"
-                                  disabled={!item.updateWholesalePrice}
+                                  disabled={rowDisabled || !item.updateWholesalePrice}
                                   value={item.wholesaleMarginPercent}
                                   onChange={(e) => handleWholesaleMarginChange(index, Number(e.target.value))}
                                   className="w-full p-1.5 text-xs font-bold bg-white border border-slate-300 rounded font-mono text-purple-900 disabled:opacity-50 pr-5"
@@ -716,7 +1032,7 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                                 <input
                                   type="number"
                                   step="0.01"
-                                  disabled={!item.updateWholesalePrice}
+                                  disabled={rowDisabled || !item.updateWholesalePrice}
                                   value={item.wholesalePrice}
                                   onChange={(e) => handleWholesalePriceChange(index, Number(e.target.value))}
                                   className="w-full p-1.5 text-xs font-bold bg-white border border-slate-300 rounded font-mono text-purple-800 disabled:opacity-50"
@@ -736,12 +1052,13 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                           <label className="inline-flex flex-col items-center gap-1 cursor-pointer">
                             <input
                               type="checkbox"
+                              disabled={rowDisabled}
                               checked={item.updateStock}
                               onChange={(e) => handleUpdateItem(index, { updateStock: e.target.checked })}
                               className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
                             />
                             <span className="text-[10px] font-semibold text-slate-600">
-                              +{item.quantity} {item.unit}
+                              {item.updateStock ? `+${item.quantity} ${item.unit}` : 'Saldo 0'}
                             </span>
                           </label>
                         </td>
@@ -759,9 +1076,11 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Custo Total Compra</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Custo Itens Selecionados</span>
                 <span className="text-lg font-bold text-slate-900 font-mono">{formatBRL(totalCost)}</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">{nfeData.items.length} produtos conferidos</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">
+                  {selectedItems.length} de {nfeData.items.length} produto(s) selecionado(s)
+                </span>
               </div>
 
               <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200">
@@ -776,17 +1095,27 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
                 <span className="text-[10px] text-purple-700 font-semibold block mt-0.5">Preço especial revenda</span>
               </div>
 
-              <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 flex flex-col justify-between">
-                <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">Contas a Pagar</span>
+              <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                nfeData.createAccountPayable
+                  ? 'bg-rose-50/60 border-rose-200'
+                  : 'bg-emerald-50/60 border-emerald-200'
+              }`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                  nfeData.createAccountPayable ? 'text-rose-800' : 'text-emerald-800'
+                }`}>
+                  Financeiro / Contas a Pagar
+                </span>
                 <label className="flex items-center gap-2 cursor-pointer mt-1">
                   <input
                     type="checkbox"
                     checked={nfeData.createAccountPayable}
                     onChange={(e) => setNfeData(prev => ({ ...prev, createAccountPayable: e.target.checked }))}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                    className="w-4 h-4 text-rose-600 rounded focus:ring-rose-500"
                   />
                   <span className="text-xs font-bold text-slate-800">
-                    Lançar título no Contas a Pagar (+28 dias)
+                    {nfeData.createAccountPayable
+                      ? 'Lançar no Contas a Pagar (+28 dias)'
+                      : 'Não enviar ao Financeiro (Isolado)'}
                   </span>
                 </label>
               </div>
@@ -796,10 +1125,12 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
 
         {/* Modal Footer */}
         <div className="bg-white px-6 py-3.5 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              Ao confirmar, os valores de <strong>Varejo</strong> e <strong>Atacado</strong> selecionados serão gravados no catálogo e o fornecedor será homologado.
+              {nfeData.createAccountPayable
+                ? 'Importação seletiva ativa: incluirá os itens marcados e lançará o título no Financeiro (Contas a Pagar).'
+                : 'Importação sem impacto financeiro: nenhum título ou despesa será enviado ao Financeiro/DRE.'}
             </span>
           </div>
 
@@ -814,11 +1145,14 @@ export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
 
             <button
               type="button"
+              disabled={!hasAnythingToImport}
               onClick={handleConfirmAndCommit}
-              className="px-6 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              className="px-6 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Confirmar e Gravar Produtos no Estoque
+              {importProductsEnabled && selectedItems.length > 0 && !nfeData.createAccountPayable
+                ? `Importar ${selectedItems.length} Produto(s) (Sem Financeiro)`
+                : 'Confirmar Importação Selecionada'}
             </button>
           </div>
         </div>

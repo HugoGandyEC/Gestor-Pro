@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   UploadCloud, 
   FileSpreadsheet, 
@@ -30,7 +30,8 @@ import {
   BookOpen,
   Code2,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -686,11 +687,38 @@ export const UniversalDataImportView: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [parsedHeaders, setParsedHeaders] = useState<string[]>([]);
   const [parsedRows, setParsedRows] = useState<Record<string, any>[]>([]);
+  const [selectedRowIndices, setSelectedRowIndices] = useState<Set<number>>(new Set());
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [pasteText, setPasteText] = useState('');
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Opções seletivas específicas para cadastro de produtos (sempre isolado do Financeiro)
+  const [productZeroStock, setProductZeroStock] = useState(false);
+  const [productSkipCost, setProductSkipCost] = useState(false);
+  const [productImportSalePrices, setProductImportSalePrices] = useState(true);
+
+  useEffect(() => {
+    setSelectedRowIndices(new Set(parsedRows.map((_, i) => i)));
+  }, [parsedRows]);
+
+  const toggleRowSelection = (idx: number) => {
+    setSelectedRowIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const selectAllRows = () => {
+    setSelectedRowIndices(new Set(parsedRows.map((_, i) => i)));
+  };
+
+  const deselectAllRows = () => {
+    setSelectedRowIndices(new Set());
+  };
 
   // Duplicate Upload Alert Modal & File tracking
   const [duplicateUploadModalState, setDuplicateUploadModalState] = useState<{
@@ -1048,22 +1076,46 @@ export const UniversalDataImportView: React.FC = () => {
         setIsPasteModalOpen(false);
         setFeedbackMessage({ type: 'success', text: `${res.rows.length} registros extraídos do texto/PDF colado com sucesso!` });
       } else {
-        alert('Não foi possível reconhecer colunas no texto colado. Verifique se há separadores como tabulação, vírgula ou ponto-e-vírgula.');
+        setFeedbackMessage({
+          type: 'error',
+          text: 'Não foi possível reconhecer colunas no texto colado. Verifique se há separadores como tabulação, vírgula ou ponto-e-vírgula.'
+        });
       }
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Commit Import directly into ERP Database / AppContext
+  // Commit Import directly into ERP Database / AppContext (apenas linhas marcadas)
   const handleCommitImport = () => {
     if (parsedRows.length === 0) return;
+
+    const rowsToImport = parsedRows.filter((_, idx) => selectedRowIndices.has(idx));
+    if (rowsToImport.length === 0) {
+      setFeedbackMessage({
+        type: 'error',
+        text: 'Selecione pelo menos 1 registro na tabela de pré-visualização antes de efetivar a importação.'
+      });
+      return;
+    }
+
+    const parseBrNumber = (raw: any): number => {
+      const str = String(raw || '0').trim().replace(/[R$\s]/g, '');
+      if (!str) return 0;
+      if (str.includes(',') && str.includes('.')) {
+        return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+      }
+      if (str.includes(',')) {
+        return parseFloat(str.replace(',', '.')) || 0;
+      }
+      return parseFloat(str) || 0;
+    };
 
     try {
       let importedCount = 0;
 
       if (selectedEntity === 'clients') {
-        const mappedClients = parsedRows.map(row => {
+        const mappedClients = rowsToImport.map(row => {
           const rawType = String(row[columnMapping['customerType']] || '').trim().toLowerCase();
           const customerType: 'varejo' | 'atacado' = rawType.includes('atacad') ? 'atacado' : 'varejo';
           return {
@@ -1072,7 +1124,7 @@ export const UniversalDataImportView: React.FC = () => {
             customerType,
             document: String(row[columnMapping['document']] || '').trim(),
             phone: String(row[columnMapping['phone']] || '').trim() || '(11) 90000-0000',
-            email: String(row[columnMapping['email']] || '').trim() || 'cliente@gestaopro.com',
+            email: String(row[columnMapping['email']] || '').trim() || 'cliente@firegestao.com.br',
             city: String(row[columnMapping['city']] || '').trim() || 'Cidade',
             state: String(row[columnMapping['state']] || '').trim() || 'SP',
             street: String(row[columnMapping['street']] || '').trim() || 'Rua Principal',
@@ -1083,17 +1135,17 @@ export const UniversalDataImportView: React.FC = () => {
         });
         importedCount = batchImportClients(mappedClients, importMode);
       } else if (selectedEntity === 'services') {
-        const mappedServices = parsedRows.map(row => ({
+        const mappedServices = rowsToImport.map(row => ({
           code: String(row[columnMapping['code']] || '').trim() || `SRV-${Math.floor(100 + Math.random() * 900)}`,
           name: String(row[columnMapping['name']] || '').trim() || 'Serviço Importado',
           category: String(row[columnMapping['category']] || '').trim() || 'Serviços Gerais',
           defaultHours: parseFloat(String(row[columnMapping['defaultHours']] || '1')) || 1,
-          standardPrice: parseFloat(String(row[columnMapping['standardPrice']] || '0').replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
-          minPrice: parseFloat(String(row[columnMapping['minPrice']] || '0').replace(/[R$\s.]/g, '').replace(',', '.')) || 0
+          standardPrice: parseBrNumber(row[columnMapping['standardPrice']]),
+          minPrice: parseBrNumber(row[columnMapping['minPrice']])
         }));
         importedCount = batchImportServices(mappedServices, importMode);
       } else if (selectedEntity === 'serviceOrders') {
-        const mappedOrders = parsedRows.map(row => ({
+        const mappedOrders = rowsToImport.map(row => ({
           code: String(row[columnMapping['code']] || '').trim() || `OS-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
           clientId: 'cli-import',
           clientName: String(row[columnMapping['clientName']] || '').trim() || 'Cliente OS',
@@ -1122,8 +1174,8 @@ export const UniversalDataImportView: React.FC = () => {
         }));
         importedCount = batchImportServiceOrders(mappedOrders, importMode);
       } else if (selectedEntity === 'sales') {
-        const mappedSales = parsedRows.map(row => {
-          const totalVal = parseFloat(String(row[columnMapping['totalAmount']] || '0').replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
+        const mappedSales = rowsToImport.map(row => {
+          const totalVal = parseBrNumber(row[columnMapping['totalAmount']]);
           return {
             code: String(row[columnMapping['code']] || '').trim() || `PED-${Date.now().toString().slice(-5)}`,
             clientName: String(row[columnMapping['clientName']] || '').trim() || 'Cliente Venda',
@@ -1147,7 +1199,7 @@ export const UniversalDataImportView: React.FC = () => {
         });
         importedCount = batchImportDirectSales(mappedSales, importMode);
       } else if (selectedEntity === 'suppliers') {
-        const mappedSuppliers = parsedRows.map(row => ({
+        const mappedSuppliers = rowsToImport.map(row => ({
           name: String(row[columnMapping['name']] || '').trim() || 'Fornecedor Importado',
           tradeName: String(row[columnMapping['tradeName']] || '').trim() || undefined,
           cnpj: String(row[columnMapping['cnpj']] || '').trim() || '00.000.000/0001-00',
@@ -1161,10 +1213,10 @@ export const UniversalDataImportView: React.FC = () => {
         }));
         importedCount = batchImportSuppliers(mappedSuppliers, importMode);
       } else if (selectedEntity === 'payments') {
-        const mappedPayments = parsedRows.map(row => ({
+        const mappedPayments = rowsToImport.map(row => ({
           category: (row[columnMapping['category']] || 'manutencao_veiculo') as any,
           description: String(row[columnMapping['description']] || '').trim() || 'Despesa Importada',
-          cost: parseFloat(String(row[columnMapping['cost']] || '0').replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
+          cost: parseBrNumber(row[columnMapping['cost']]),
           supplier: String(row[columnMapping['supplier']] || '').trim() || 'Fornecedor',
           dueDate: String(row[columnMapping['dueDate']] || '').trim() || new Date().toISOString().split('T')[0],
           isPaid: String(row[columnMapping['isPaid']] || '').toLowerCase().includes('s') || String(row[columnMapping['isPaid']] || '').toLowerCase().includes('t'),
@@ -1172,23 +1224,29 @@ export const UniversalDataImportView: React.FC = () => {
         }));
         importedCount = batchImportPayments(mappedPayments, importMode);
       } else if (selectedEntity === 'products') {
-        const mappedProducts = parsedRows.map(row => ({
-          code: String(row[columnMapping['code']] || '').trim() || `PRD-${Math.floor(100 + Math.random() * 900)}`,
-          name: String(row[columnMapping['name']] || '').trim() || 'Produto Importado',
-          brand: String(row[columnMapping['brand']] || '').trim() || undefined,
-          category: String(row[columnMapping['category']] || '').trim() || 'Peças Gerais',
-          subcategory: String(row[columnMapping['subcategory']] || '').trim() || undefined,
-          costPrice: parseFloat(String(row[columnMapping['costPrice']] || '0').replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
-          retailPrice: parseFloat(String(row[columnMapping['retailPrice']] || '0').replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
-          wholesalePrice: (parseFloat(String(row[columnMapping['retailPrice']] || '0')) || 0) * 0.85,
-          currentStock: parseInt(String(row[columnMapping['currentStock']] || '0')) || 0,
-          minStock: 2,
-          unit: String(row[columnMapping['unit']] || 'UN').trim().toUpperCase(),
-          ncm: '8419.19.10',
-          icmsRate: 18,
-          pisRate: 1.65,
-          cofinsRate: 7.6
-        }));
+        const mappedProducts = rowsToImport.map(row => {
+          const parsedCost = productSkipCost ? 0 : parseBrNumber(row[columnMapping['costPrice']]);
+          const parsedRetail = productImportSalePrices ? parseBrNumber(row[columnMapping['retailPrice']]) : 0;
+          const parsedWholesale = productImportSalePrices ? Number((parsedRetail * 0.85).toFixed(2)) : 0;
+          const parsedStock = productZeroStock ? 0 : (parseInt(String(row[columnMapping['currentStock']] || '0'), 10) || 0);
+          return {
+            code: String(row[columnMapping['code']] || '').trim() || `PRD-${Math.floor(100 + Math.random() * 900)}`,
+            name: String(row[columnMapping['name']] || '').trim() || 'Produto Importado',
+            brand: String(row[columnMapping['brand']] || '').trim() || undefined,
+            category: String(row[columnMapping['category']] || '').trim() || 'Peças Gerais',
+            subcategory: String(row[columnMapping['subcategory']] || '').trim() || undefined,
+            costPrice: parsedCost,
+            retailPrice: parsedRetail,
+            wholesalePrice: parsedWholesale,
+            currentStock: parsedStock,
+            minStock: 2,
+            unit: String(row[columnMapping['unit']] || 'UN').trim().toUpperCase(),
+            ncm: '8419.19.10',
+            icmsRate: 18,
+            pisRate: 1.65,
+            cofinsRate: 7.6
+          };
+        });
         importedCount = batchImportProducts(mappedProducts, importMode);
       }
 
@@ -1207,9 +1265,16 @@ export const UniversalDataImportView: React.FC = () => {
         });
       }
 
+      const financialNote =
+        selectedEntity === 'products'
+          ? ' Nenhum lançamento foi enviado para o Financeiro (Contas a Pagar / DRE).'
+          : selectedEntity === 'payments'
+            ? ' Os títulos selecionados foram incluídos no Financeiro.'
+            : ' Apenas os registros selecionados foram importados (sem afetar o Financeiro).';
+
       setFeedbackMessage({
         type: 'success',
-        text: `Sucesso! ${importedCount} registros de ${currentEntityConfig.label} foram importados e salvos no sistema!`
+        text: `Sucesso! ${importedCount} registro(s) selecionado(s) de ${currentEntityConfig.label} importado(s) no sistema.${financialNote}`
       });
 
       // Clear preview
@@ -1687,10 +1752,10 @@ export const UniversalDataImportView: React.FC = () => {
             <div>
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Table className="w-4 h-4 text-emerald-600" />
-                3. Conferência e Mapeamento de Colunas ({parsedRows.length} registros prontos)
+                3. Conferência Seletiva & Mapeamento ({selectedRowIndices.size} de {parsedRows.length} selecionado(s))
               </h2>
               <p className="text-xs text-slate-500">
-                Arquivo ativo: <strong>{fileName || 'Lista Importada'}</strong>. Confira o mapeamento e visualize os dados antes de gravar.
+                Arquivo ativo: <strong>{fileName || 'Lista Importada'}</strong>. Marque apenas os registros e opções que deseja importar.
               </p>
             </div>
 
@@ -1708,14 +1773,124 @@ export const UniversalDataImportView: React.FC = () => {
               </button>
               <button
                 type="button"
+                disabled={selectedRowIndices.size === 0}
                 onClick={handleCommitImport}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
-                <span>Efetivar Importação de {parsedRows.length} {currentEntityConfig.label}</span>
+                <span>
+                  {selectedEntity === 'products'
+                    ? `Cadastrar ${selectedRowIndices.size} Produto(s) (Sem Financeiro)`
+                    : `Importar ${selectedRowIndices.size} ${currentEntityConfig.label}`}
+                </span>
               </button>
             </div>
           </div>
+
+          {/* Opções de Importação Seletiva (destaque para Produtos sem Financeiro) */}
+          {selectedEntity === 'products' ? (
+            <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
+                      Cadastro Seletivo de Produtos — 100% Isolado do Financeiro
+                    </h3>
+                    <p className="text-[11px] text-emerald-800 mt-0.5">
+                      Esta importação grava <strong>somente no catálogo de Produtos / Estoque</strong> e <strong>NÃO gera nenhum lançamento no Financeiro (Contas a Pagar ou DRE)</strong>.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProductZeroStock(true);
+                      setProductSkipCost(false);
+                      setProductImportSalePrices(true);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                      productZeroStock
+                        ? 'bg-emerald-700 text-white border-emerald-800'
+                        : 'bg-white text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                    }`}
+                  >
+                    Somente Catálogo (Estoque 0)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProductZeroStock(false);
+                      setProductSkipCost(false);
+                      setProductImportSalePrices(true);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                      !productZeroStock && !productSkipCost && productImportSalePrices
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    Produtos + Saldo Inicial
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                <label className="flex items-start gap-2 p-2.5 bg-white rounded-lg border border-emerald-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={productZeroStock}
+                    onChange={(e) => setProductZeroStock(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">Zerar estoque inicial (qtd = 0)</span>
+                    <span className="text-[10px] text-slate-500">Cadastra apenas a ficha do produto sem saldo.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2 p-2.5 bg-white rounded-lg border border-emerald-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={productSkipCost}
+                    onChange={(e) => setProductSkipCost(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">Não importar preço de custo</span>
+                    <span className="text-[10px] text-slate-500">Grava custo inicial como R$ 0,00.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2 p-2.5 bg-white rounded-lg border border-emerald-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={productImportSalePrices}
+                    onChange={(e) => setProductImportSalePrices(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">Importar preços de venda</span>
+                    <span className="text-[10px] text-slate-500">Preenche Varejo e Atacado da planilha.</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          ) : (
+            <div className={`p-3 rounded-xl border text-xs flex items-center gap-2.5 ${
+              selectedEntity === 'payments'
+                ? 'bg-amber-50 border-amber-200 text-amber-900'
+                : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}>
+              <ShieldCheck className={`w-4 h-4 shrink-0 ${selectedEntity === 'payments' ? 'text-amber-600' : 'text-emerald-600'}`} />
+              <span>
+                {selectedEntity === 'payments'
+                  ? 'Atenção: você selecionou Contas a Pagar / Pagamentos. Apenas as linhas marcadas na tabela abaixo serão enviadas ao Financeiro.'
+                  : 'Importação seletiva ativa: somente os registros marcados abaixo serão importados, sem criar lançamentos no Financeiro.'}
+              </span>
+            </div>
+          )}
 
           {/* Mapping Grid */}
           <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200 space-y-3">
@@ -1748,16 +1923,45 @@ export const UniversalDataImportView: React.FC = () => {
             </div>
           </div>
 
-          {/* Live Preview Table */}
+          {/* Live Preview Table with Per-Row Selective Checkboxes */}
           <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-            <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-700">
-              <span>Pré-visualização dos 10 Primeiros Registros Mapeados</span>
-              <span className="font-mono text-slate-500">Total: {parsedRows.length} linhas</span>
+            <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-700">
+              <div className="flex items-center gap-2">
+                <span>Seleção de Registros para Importar</span>
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono text-[11px] font-bold">
+                  {selectedRowIndices.size} / {parsedRows.length} marcados
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={selectAllRows}
+                  className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-100 cursor-pointer"
+                >
+                  Marcar Todos
+                </button>
+                <button
+                  type="button"
+                  onClick={deselectAllRows}
+                  className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-100 cursor-pointer"
+                >
+                  Desmarcar Todos
+                </button>
+              </div>
             </div>
-            <div className="overflow-x-auto max-h-72">
+            <div className="overflow-x-auto max-h-96">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 text-slate-700 font-semibold sticky top-0 border-b border-slate-200">
+                <thead className="bg-slate-100 text-slate-700 font-semibold sticky top-0 border-b border-slate-200 z-10">
                   <tr>
+                    <th className="py-2 px-3 text-center w-12">
+                      <input
+                        type="checkbox"
+                        checked={parsedRows.length > 0 && selectedRowIndices.size === parsedRows.length}
+                        onChange={(e) => (e.target.checked ? selectAllRows() : deselectAllRows())}
+                        className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                        title="Marcar ou desmarcar todas as linhas"
+                      />
+                    </th>
                     <th className="py-2 px-3 text-center">#</th>
                     {currentEntityConfig.fields.map(f => (
                       <th key={f.key} className="py-2 px-3 whitespace-nowrap">
@@ -1767,25 +1971,44 @@ export const UniversalDataImportView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {parsedRows.slice(0, 10).map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="py-2 px-3 text-center font-mono text-slate-400 text-[10px]">
-                        {idx + 1}
-                      </td>
-                      {currentEntityConfig.fields.map(f => {
-                        const colKey = columnMapping[f.key];
-                        const val = colKey ? row[colKey] : '';
-                        return (
-                          <td key={f.key} className="py-2 px-3 truncate max-w-xs text-slate-800">
-                            {val ? String(val) : <span className="text-slate-300 italic">—</span>}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                  {parsedRows.slice(0, 200).map((row, idx) => {
+                    const isChecked = selectedRowIndices.has(idx);
+                    return (
+                      <tr
+                        key={idx}
+                        className={`transition-colors ${isChecked ? 'hover:bg-slate-50' : 'bg-slate-50/70 opacity-45'}`}
+                      >
+                        <td className="py-2 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleRowSelection(idx)}
+                            className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-center font-mono text-slate-400 text-[10px]">
+                          {idx + 1}
+                        </td>
+                        {currentEntityConfig.fields.map(f => {
+                          const colKey = columnMapping[f.key];
+                          const val = colKey ? row[colKey] : '';
+                          return (
+                            <td key={f.key} className="py-2 px-3 truncate max-w-xs text-slate-800">
+                              {val ? String(val) : <span className="text-slate-300 italic">—</span>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            {parsedRows.length > 200 && (
+              <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 text-[11px] text-slate-500">
+                Exibindo os primeiros 200 registros na pré-visualização. Os botões "Marcar Todos / Desmarcar Todos" controlam todas as {parsedRows.length} linhas do arquivo.
+              </div>
+            )}
           </div>
         </div>
       )}

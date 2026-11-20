@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Building2, 
   CreditCard, 
@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import { useApp, formatBRL } from '../../context/AppContext';
 import { UsersManagementPanel } from '../../components/UsersManagementPanel';
-import { CardBrand, CardMachineRate, CompanySettings, UserRole, SequenceSettings, WarrantyPolicy } from '../../types';
+import { CardBrand, CardMachineRate, CompanySettings, UserRole, SequenceSettings, WarrantyPolicy, SelectiveBackupImportOptions } from '../../types';
 import { 
   defaultWhatsAppTemplates, 
   renderWhatsAppTemplate, 
@@ -212,9 +212,90 @@ export const SystemSettingsView: React.FC = () => {
     setTimeout(() => setSaveSuccessMsg(null), 4000);
   };
 
-  // Backup restore states
+  // Backup restore states (com importação seletiva por categoria)
   const [restoreJsonInput, setRestoreJsonInput] = useState('');
   const [restoreFeedback, setRestoreFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const backupFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [backupImportOptions, setBackupImportOptions] = useState<Required<SelectiveBackupImportOptions>>({
+    products: true,
+    stockMovements: true,
+    clients: true,
+    suppliers: true,
+    employees: true,
+    serviceOrders: true,
+    directSales: true,
+    financial: true,
+    fleet: true,
+    appointments: true,
+    settings: true
+  });
+
+  const parsedBackupPreview = useMemo(() => {
+    if (!restoreJsonInput.trim()) return null;
+    try {
+      const parsed = JSON.parse(restoreJsonInput);
+      const data = parsed?.data || parsed;
+      if (!data || typeof data !== 'object') return null;
+      return {
+        products: Array.isArray(data.products) ? data.products.length : 0,
+        stockMovements: Array.isArray(data.stockMovements) ? data.stockMovements.length : 0,
+        clients: Array.isArray(data.clients) ? data.clients.length : 0,
+        suppliers: Array.isArray(data.suppliers) ? data.suppliers.length : 0,
+        employees: Array.isArray(data.employees) ? data.employees.length : 0,
+        serviceOrders: Array.isArray(data.serviceOrders) ? data.serviceOrders.length : 0,
+        directSales: Array.isArray(data.directSales) ? data.directSales.length : 0,
+        financial: (Array.isArray(data.generalExpenses) ? data.generalExpenses.length : 0) +
+          (Array.isArray(data.setupCosts) ? data.setupCosts.length : 0),
+        fleet: (Array.isArray(data.vehicles) ? data.vehicles.length : 0) +
+          (Array.isArray(data.vehicleLogs) ? data.vehicleLogs.length : 0),
+        appointments: Array.isArray(data.appointments) ? data.appointments.length : 0,
+        settings: (data.companySettings || data.cardRates || data.warrantyPolicies || data.sequenceSettings) ? 1 : 0
+      };
+    } catch {
+      return null;
+    }
+  }, [restoreJsonInput]);
+
+  const handleLoadBackupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      setRestoreJsonInput(text);
+      setRestoreFeedback({
+        type: 'success',
+        message: `Arquivo "${file.name}" carregado. Marque abaixo exatamente quais módulos deseja importar antes de clicar em Executar Restauração.`
+      });
+    };
+    reader.readAsText(file);
+    if (backupFileInputRef.current) backupFileInputRef.current.value = '';
+  };
+
+  const handleExecuteSelectiveRestore = () => {
+    if (!restoreJsonInput.trim()) {
+      setRestoreFeedback({
+        type: 'error',
+        message: 'Cole o conteúdo JSON na caixa de texto abaixo ou carregue um arquivo .json de backup para executar a restauração.'
+      });
+      return;
+    }
+    const anySelected = Object.values(backupImportOptions).some(Boolean);
+    if (!anySelected) {
+      setRestoreFeedback({
+        type: 'error',
+        message: 'Marque pelo menos uma categoria de dados para importar do backup JSON.'
+      });
+      return;
+    }
+    const res = restoreDatabaseJson(restoreJsonInput, backupImportOptions);
+    if (res.success) {
+      setRestoreFeedback({ type: 'success', message: res.message });
+      setRestoreJsonInput('');
+    } else {
+      setRestoreFeedback({ type: 'error', message: res.message });
+    }
+  };
 
   // CNPJ automatic lookup states
   const [isSearchingCnpj, setIsSearchingCnpj] = useState(false);
@@ -2091,30 +2172,15 @@ export const SystemSettingsView: React.FC = () => {
                 <span>Restaurar Padrão Limpo</span>
               </button>
 
-              {/* 3. Botão Executar Restauração JSON */}
+              {/* 3. Botão Executar Restauração JSON Seletiva */}
               <button
                 type="button"
-                onClick={() => {
-                  if (!restoreJsonInput.trim()) {
-                    setRestoreFeedback({
-                      type: 'error',
-                      message: 'Cole o conteúdo JSON na caixa de texto abaixo ou selecione um arquivo de backup para executar a restauração.'
-                    });
-                    return;
-                  }
-                  const res = restoreDatabaseJson(restoreJsonInput);
-                  if (res.success) {
-                    setRestoreFeedback({ type: 'success', message: res.message });
-                    setRestoreJsonInput('');
-                  } else {
-                    setRestoreFeedback({ type: 'error', message: res.message });
-                  }
-                }}
+                onClick={handleExecuteSelectiveRestore}
                 className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                title="Executar restauração a partir do texto JSON ou arquivo"
+                title="Executar restauração seletiva a partir do texto JSON ou arquivo"
               >
                 <Upload className="w-4 h-4 text-white" />
-                <span>Executar Restauração JSON</span>
+                <span>Executar Restauração Seletiva</span>
               </button>
             </div>
           </div>
@@ -2244,32 +2310,216 @@ export const SystemSettingsView: React.FC = () => {
             </div>
           </div>
 
-          {/* Paste JSON manually */}
+          {/* Restauração Seletiva de Backup JSON */}
           <div className="border-t border-slate-200 pt-6 space-y-4">
-            <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Inserção Manual de JSON para Executar Restauração</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-amber-600" />
+                  <span>Importação Seletiva de Backup JSON (Escolha exatamente o que importar)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Carregue um arquivo <code>.json</code> ou cole o backup abaixo e marque <strong>somente os dados que precisa</strong> — você pode importar apenas Produtos sem tocar no seu Financeiro.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  ref={backupFileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleLoadBackupFile}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => backupFileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Carregar Arquivo .JSON</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Atalhos rápidos de seleção */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Selecione as Categorias para Importar:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBackupImportOptions({
+                        products: true,
+                        stockMovements: false,
+                        clients: false,
+                        suppliers: false,
+                        employees: false,
+                        serviceOrders: false,
+                        directSales: false,
+                        financial: false,
+                        fleet: false,
+                        appointments: false,
+                        settings: false
+                      })
+                    }
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                      backupImportOptions.products && !backupImportOptions.financial && !backupImportOptions.clients && !backupImportOptions.serviceOrders
+                        ? 'bg-emerald-600 text-white border-emerald-700'
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                    }`}
+                  >
+                    Somente Produtos (Sem Financeiro)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBackupImportOptions({
+                        products: true,
+                        stockMovements: false,
+                        clients: true,
+                        suppliers: true,
+                        employees: true,
+                        serviceOrders: false,
+                        directSales: false,
+                        financial: false,
+                        fleet: false,
+                        appointments: false,
+                        settings: false
+                      })
+                    }
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
+                    Somente Cadastros (Sem Financeiro)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBackupImportOptions({
+                        products: true,
+                        stockMovements: true,
+                        clients: true,
+                        suppliers: true,
+                        employees: true,
+                        serviceOrders: true,
+                        directSales: true,
+                        financial: true,
+                        fleet: true,
+                        appointments: true,
+                        settings: true
+                      })
+                    }
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Selecionar Tudo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBackupImportOptions({
+                        products: false,
+                        stockMovements: false,
+                        clients: false,
+                        suppliers: false,
+                        employees: false,
+                        serviceOrders: false,
+                        directSales: false,
+                        financial: false,
+                        fleet: false,
+                        appointments: false,
+                        settings: false
+                      })
+                    }
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-slate-500 border border-slate-300 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Limpar Seleção
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {([
+                  { key: 'products', label: 'Produtos / Catálogo de Estoque', desc: 'Sem afetar o Financeiro' },
+                  { key: 'stockMovements', label: 'Movimentações de Estoque (Kardex)', desc: 'Histórico de entradas/saídas' },
+                  { key: 'clients', label: 'Clientes', desc: 'Base cadastral de clientes' },
+                  { key: 'suppliers', label: 'Fornecedores', desc: 'Cadastro de fornecedores' },
+                  { key: 'employees', label: 'Funcionários & Equipe', desc: 'Colaboradores e funções' },
+                  { key: 'serviceOrders', label: 'Ordens de Serviço (O.S.)', desc: 'Orçamentos e atendimentos' },
+                  { key: 'directSales', label: 'Vendas Diretas / PDV', desc: 'Histórico de vendas' },
+                  { key: 'financial', label: 'Financeiro (Contas a Pagar & Custos)', desc: 'Despesas, contas e custos iniciais' },
+                  { key: 'fleet', label: 'Frota & Veículos', desc: 'Veículos e diários de abastecimento' },
+                  { key: 'appointments', label: 'Agenda / Compromissos', desc: 'Agendamentos salvos' },
+                  { key: 'settings', label: 'Configurações, Taxas & Garantias', desc: 'Dados da empresa e regras' }
+                ] as const).map(item => {
+                  const checked = backupImportOptions[item.key];
+                  const isFinancial = item.key === 'financial';
+                  const previewCount = parsedBackupPreview ? parsedBackupPreview[item.key] : null;
+                  return (
+                    <label
+                      key={item.key}
+                      className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                        isFinancial
+                          ? checked
+                            ? 'bg-rose-50/70 border-rose-300'
+                            : 'bg-emerald-50/60 border-emerald-300'
+                          : checked
+                            ? 'bg-white border-amber-300 shadow-2xs'
+                            : 'bg-slate-100/70 border-slate-200 opacity-75'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) =>
+                          setBackupImportOptions(prev => ({ ...prev, [item.key]: e.target.checked }))
+                        }
+                        className="w-4 h-4 mt-0.5 text-amber-600 rounded focus:ring-amber-500"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold text-slate-900 truncate">{item.label}</span>
+                          {previewCount !== null && (
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700 shrink-0">
+                              {previewCount}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-[10px] block ${
+                          isFinancial && !checked ? 'text-emerald-700 font-semibold' : 'text-slate-500'
+                        }`}>
+                          {isFinancial && !checked ? '✓ Protegido — nenhum dado irá ao Financeiro' : item.desc}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
             <textarea
               rows={4}
-              placeholder="Cole aqui o conteúdo JSON do backup caso prefira inserção direta..."
+              placeholder="Cole aqui o conteúdo JSON do backup ou utilize o botão 'Carregar Arquivo .JSON' acima..."
               value={restoreJsonInput}
               onChange={(e) => setRestoreJsonInput(e.target.value)}
               className="w-full p-3 border border-slate-200 rounded-lg text-xs font-mono bg-slate-50"
             />
-            <div className="flex items-center justify-end">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-xs text-slate-500">
+                {backupImportOptions.financial
+                  ? 'Atenção: a opção Financeiro está marcada e importará contas/despesas do backup.'
+                  : '✓ Financeiro desmarcado: nenhuma conta a pagar ou despesa será importada.'}
+              </span>
               <button
                 type="button"
                 disabled={!restoreJsonInput.trim()}
-                onClick={() => {
-                  const res = restoreDatabaseJson(restoreJsonInput);
-                  if (res.success) {
-                    setRestoreFeedback({ type: 'success', message: res.message });
-                    setRestoreJsonInput('');
-                  } else {
-                    setRestoreFeedback({ type: 'error', message: res.message });
-                  }
-                }}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs"
+                onClick={handleExecuteSelectiveRestore}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
               >
-                Executar Restauração JSON
+                {backupImportOptions.products && !backupImportOptions.financial
+                  ? 'Importar Selecionados (Sem Financeiro)'
+                  : 'Executar Restauração Seletiva'}
               </button>
             </div>
           </div>

@@ -37,7 +37,8 @@ import {
   PaymentSplit,
   PaymentReceipt,
   PaymentReceiptItem,
-  PaymentReceiptKind
+  PaymentReceiptKind,
+  SelectiveBackupImportOptions
 } from '../types';
 import {
   computeEmployeeNominalPay,
@@ -166,7 +167,7 @@ interface AppContextType {
 
   // Database Backup / Restore
   exportDatabaseJson: () => string;
-  restoreDatabaseJson: (jsonStr: string) => { success: boolean; message: string };
+  restoreDatabaseJson: (jsonStr: string, options?: SelectiveBackupImportOptions) => { success: boolean; message: string };
 
   // Entities
   clients: Client[];
@@ -1314,42 +1315,126 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     return JSON.stringify(backupData, null, 2);
   };
 
-  // Restore Database from JSON
-  const restoreDatabaseJson = (jsonStr: string): { success: boolean; message: string } => {
+  // Restore Database from JSON (with optional selective category filters)
+  const restoreDatabaseJson = (
+    jsonStr: string,
+    options?: SelectiveBackupImportOptions
+  ): { success: boolean; message: string } => {
     try {
       const data = JSON.parse(jsonStr);
       if (!data || typeof data !== 'object') {
         return { success: false, message: 'Arquivo JSON inválido ou vazio.' };
       }
-      if (data.companySettings) setCompanySettings(data.companySettings);
-      if (data.sequenceSettings) setSequenceSettings(data.sequenceSettings);
-      if (data.warrantyPolicies) setWarrantyPolicies(data.warrantyPolicies);
-      if (data.serviceCatalog) setServiceCatalog(data.serviceCatalog);
-      if (data.checklistTemplates) setChecklistTemplates(data.checklistTemplates);
-      if (data.clients) setClients(data.clients);
-      if (data.suppliers) setSuppliers(data.suppliers);
-      if (data.products) setProducts(data.products);
-      if (data.productCategories) setProductCategories(data.productCategories);
-      if (data.productSubcategories) setProductSubcategories(data.productSubcategories);
-      if (data.productBrands) setProductBrands(data.productBrands);
-      if (data.productTags) setProductTags(data.productTags);
-      if (data.stockMovements) setStockMovements(data.stockMovements);
-      if (data.cardRates) setCardRates(data.cardRates);
-      if (data.cardOperators) setCardOperators(data.cardOperators);
-      if (data.customerTickets) setCustomerTickets(data.customerTickets);
-      if (data.auditLogs) setAuditLogs(data.auditLogs);
-      if (data.employees) setEmployees(data.employees);
-      if (data.vehicles) setVehicles(data.vehicles);
-      if (data.vehicleExpenses) setVehicleExpenses(data.vehicleExpenses);
-      if (data.generalExpenses) setGeneralExpenses(data.generalExpenses);
-      if (data.serviceOrders) setServiceOrders(data.serviceOrders);
-      if (data.directSales) setDirectSales(data.directSales);
-      if (data.setupCosts) setSetupCosts(data.setupCosts);
-      if (data.appointments) setAppointments(data.appointments);
+
+      const sel: Required<SelectiveBackupImportOptions> = {
+        products: options ? Boolean(options.products) : true,
+        stockMovements: options ? Boolean(options.stockMovements) : true,
+        clients: options ? Boolean(options.clients) : true,
+        suppliers: options ? Boolean(options.suppliers) : true,
+        employees: options ? Boolean(options.employees) : true,
+        serviceOrders: options ? Boolean(options.serviceOrders) : true,
+        directSales: options ? Boolean(options.directSales) : true,
+        financial: options ? Boolean(options.financial) : true,
+        fleet: options ? Boolean(options.fleet) : true,
+        appointments: options ? Boolean(options.appointments) : true,
+        settings: options ? Boolean(options.settings) : true
+      };
+
+      const importedSections: string[] = [];
+
+      if (sel.settings) {
+        let anySetting = false;
+        if (data.companySettings) { setCompanySettings(data.companySettings); anySetting = true; }
+        if (data.sequenceSettings) { setSequenceSettings(data.sequenceSettings); anySetting = true; }
+        if (data.warrantyPolicies) { setWarrantyPolicies(data.warrantyPolicies); anySetting = true; }
+        if (data.serviceCatalog) { setServiceCatalog(data.serviceCatalog); anySetting = true; }
+        if (data.checklistTemplates) { setChecklistTemplates(data.checklistTemplates); anySetting = true; }
+        if (data.cardRates) { setCardRates(data.cardRates); anySetting = true; }
+        if (data.cardOperators) { setCardOperators(data.cardOperators); anySetting = true; }
+        if (anySetting) importedSections.push('Configurações');
+      }
+
+      if (sel.clients && Array.isArray(data.clients)) {
+        setClients(data.clients);
+        importedSections.push(`Clientes (${data.clients.length})`);
+      }
+      if (sel.suppliers && Array.isArray(data.suppliers)) {
+        setSuppliers(data.suppliers);
+        importedSections.push(`Fornecedores (${data.suppliers.length})`);
+      }
+      if (sel.products && Array.isArray(data.products)) {
+        setProducts(data.products);
+        if (Array.isArray(data.productCategories)) setProductCategories(data.productCategories);
+        if (Array.isArray(data.productSubcategories)) setProductSubcategories(data.productSubcategories);
+        if (Array.isArray(data.productBrands)) setProductBrands(data.productBrands);
+        if (Array.isArray(data.productTags)) setProductTags(data.productTags);
+        importedSections.push(`Produtos (${data.products.length})`);
+      }
+      if (sel.stockMovements && Array.isArray(data.stockMovements)) {
+        setStockMovements(data.stockMovements);
+        importedSections.push(`Mov. Estoque (${data.stockMovements.length})`);
+      }
+      if (sel.employees && Array.isArray(data.employees)) {
+        setEmployees(data.employees);
+        importedSections.push(`Funcionários (${data.employees.length})`);
+      }
+      if (sel.serviceOrders && Array.isArray(data.serviceOrders)) {
+        setServiceOrders(data.serviceOrders);
+        if (Array.isArray(data.customerTickets)) setCustomerTickets(data.customerTickets);
+        importedSections.push(`Ordens de Serviço (${data.serviceOrders.length})`);
+      }
+      if (sel.directSales && Array.isArray(data.directSales)) {
+        setDirectSales(data.directSales);
+        importedSections.push(`Vendas (${data.directSales.length})`);
+      }
+      if (sel.financial) {
+        let finCount = 0;
+        if (Array.isArray(data.generalExpenses)) {
+          setGeneralExpenses(data.generalExpenses);
+          finCount += data.generalExpenses.length;
+        }
+        if (Array.isArray(data.setupCosts)) {
+          setSetupCosts(data.setupCosts);
+          finCount += data.setupCosts.length;
+        }
+        if (finCount > 0 || data.generalExpenses || data.setupCosts) {
+          importedSections.push(`Financeiro (${finCount})`);
+        }
+      }
+      if (sel.fleet) {
+        let fleetCount = 0;
+        if (Array.isArray(data.vehicles)) {
+          setVehicles(data.vehicles);
+          fleetCount += data.vehicles.length;
+        }
+        if (Array.isArray(data.vehicleExpenses)) {
+          setVehicleExpenses(data.vehicleExpenses);
+          fleetCount += data.vehicleExpenses.length;
+        }
+        if (fleetCount > 0) importedSections.push(`Frota (${fleetCount})`);
+      }
+      if (sel.appointments && Array.isArray(data.appointments)) {
+        setAppointments(data.appointments);
+        importedSections.push(`Agenda (${data.appointments.length})`);
+      }
+      if (!options && Array.isArray(data.auditLogs)) {
+        setAuditLogs(data.auditLogs);
+      }
+
+      if (importedSections.length === 0) {
+        return {
+          success: false,
+          message: 'Nenhum dado correspondente às opções selecionadas foi encontrado neste arquivo JSON.'
+        };
+      }
 
       broadcastSync('FULL');
-      addAuditLog('Restauração de Backup', 'Base de dados restaurada com sucesso a partir de arquivo de backup JSON.');
-      return { success: true, message: 'Backup restaurado com sucesso! Todos os dados foram atualizados.' };
+      const finNote = sel.financial ? '' : ' Nenhum dado foi enviado para o Financeiro.';
+      addAuditLog('Importação Seletiva de Backup', `Importados: ${importedSections.join(', ')}.${finNote}`);
+      return {
+        success: true,
+        message: `Importação concluída: ${importedSections.join(', ')}.${finNote}`
+      };
     } catch {
       return { success: false, message: 'Erro ao interpretar o arquivo JSON de backup.' };
     }
@@ -1663,6 +1748,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
 
           parsedItems.push({
             id: `xml-item-${Date.now()}-${i}`,
+            selectedToImport: true,
             code: cProd,
             name: xProd,
             ncm,
@@ -1697,7 +1783,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         totalValue: finalTotal,
         supplier: parsedSupplier,
         items: parsedItems,
-        createAccountPayable: true
+        importProducts: true,
+        createAccountPayable: false
       };
 
       return {
@@ -1710,13 +1797,14 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     }
   };
 
-  // Commit and write parsed/confirmed NF-e into products, stock, supplier and accounts payable
+  // Commit and write parsed/confirmed NF-e selectively into products, stock, supplier and accounts payable
   const commitImportNFe = (confirmedNFe: ParsedXmlNFe) => {
     try {
       let finalSupplierId = confirmedNFe.supplier.existingSupplierId;
       let finalSupplierName = confirmedNFe.supplier.name;
+      let supplierRegisteredNow = false;
 
-      // 1. Cadastra Fornecedor se não estiver cadastrado e se o usuário confirmou
+      // 1. Cadastra Fornecedor apenas se não estiver cadastrado e o usuário marcou esta opção
       if (!confirmedNFe.supplier.isAlreadyRegistered && confirmedNFe.supplier.registerIfNew) {
         const newSup: Supplier = {
           id: `sup-${Date.now()}`,
@@ -1736,95 +1824,108 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         setSuppliers(prev => [newSup, ...prev]);
         finalSupplierId = newSup.id;
         finalSupplierName = newSup.name;
+        supplierRegisteredNow = true;
         addAuditLog('Novo Fornecedor', `Fornecedor ${newSup.name} (CNPJ: ${newSup.cnpj}) cadastrado via importação de NF-e.`);
       }
 
-      // 2. Atualiza ou insere os produtos com as margens e preços conferidos
+      // 2. Atualiza ou insere SOMENTE os produtos selecionados (se importProducts !== false)
+      const shouldImportProducts = confirmedNFe.importProducts !== false;
+      const selectedItems = shouldImportProducts
+        ? confirmedNFe.items.filter(it => it.selectedToImport !== false)
+        : [];
+
       let updatedCount = 0;
       let newCount = 0;
+      let stockEntriesCount = 0;
 
       const newMovements: StockMovement[] = [];
 
-      setProducts(prevProducts => {
-        let currentList = [...prevProducts];
+      if (selectedItems.length > 0) {
+        setProducts(prevProducts => {
+          let currentList = [...prevProducts];
 
-        confirmedNFe.items.forEach((item, idx) => {
-          const existing = currentList.find(p => 
-            p.id === item.existingProductId ||
-            p.code.toLowerCase() === item.code.toLowerCase() ||
-            p.name.toLowerCase() === item.name.toLowerCase()
-          );
+          selectedItems.forEach((item, idx) => {
+            const existing = currentList.find(p =>
+              p.id === item.existingProductId ||
+              p.code.toLowerCase() === item.code.toLowerCase() ||
+              p.name.toLowerCase() === item.name.toLowerCase()
+            );
 
-          if (existing) {
-            // Atualiza produto existente
-            currentList = currentList.map(p => {
-              if (p.id === existing.id) {
-                return {
-                  ...p,
-                  costPrice: item.costPrice,
-                  retailPrice: item.updateRetailPrice ? item.retailPrice : p.retailPrice,
-                  wholesalePrice: item.updateWholesalePrice ? item.wholesalePrice : p.wholesalePrice,
-                  currentStock: item.updateStock ? (p.currentStock + item.quantity) : p.currentStock,
-                  ncm: item.ncm || p.ncm
-                };
-              }
-              return p;
-            });
-            updatedCount++;
-          } else {
-            // Insere novo produto
-            const newProd: Product = {
-              id: `prod-${Date.now()}-${idx}`,
-              code: item.code,
-              name: item.name,
-              category: item.category,
-              costPrice: item.costPrice,
-              retailPrice: item.retailPrice,
-              wholesalePrice: item.wholesalePrice,
-              currentStock: item.updateStock ? item.quantity : 0,
-              minStock: 2,
-              unit: item.unit || 'UN',
-              ncm: item.ncm,
-              icmsRate: 12.0,
-              pisRate: 1.65,
-              cofinsRate: 7.6
-            };
-            currentList = [newProd, ...currentList];
-            newCount++;
-          }
+            if (existing) {
+              currentList = currentList.map(p => {
+                if (p.id === existing.id) {
+                  return {
+                    ...p,
+                    costPrice: item.costPrice,
+                    retailPrice: item.updateRetailPrice ? item.retailPrice : p.retailPrice,
+                    wholesalePrice: item.updateWholesalePrice ? item.wholesalePrice : p.wholesalePrice,
+                    currentStock: item.updateStock ? (p.currentStock + item.quantity) : p.currentStock,
+                    ncm: item.ncm || p.ncm
+                  };
+                }
+                return p;
+              });
+              updatedCount++;
+            } else {
+              const newProd: Product = {
+                id: `prod-${Date.now()}-${idx}`,
+                code: item.code,
+                name: item.name,
+                category: item.category,
+                costPrice: item.costPrice,
+                retailPrice: item.updateRetailPrice ? item.retailPrice : 0,
+                wholesalePrice: item.updateWholesalePrice ? item.wholesalePrice : 0,
+                currentStock: item.updateStock ? item.quantity : 0,
+                minStock: 2,
+                unit: item.unit || 'UN',
+                ncm: item.ncm,
+                icmsRate: 12.0,
+                pisRate: 1.65,
+                cofinsRate: 7.6
+              };
+              currentList = [newProd, ...currentList];
+              newCount++;
+            }
 
-          // Registra movimentação de estoque se houve entrada de quantidade
-          if (item.updateStock) {
-            newMovements.push({
-              id: `sm-${Date.now()}-${idx}`,
-              productId: item.code,
-              productName: item.name,
-              type: 'entrada_xml',
-              quantity: item.quantity,
-              unitCost: item.costPrice,
-              date: new Date().toISOString().split('T')[0],
-              referenceDoc: `NF-e ${confirmedNFe.nNF} (${finalSupplierName})`,
-              notes: `Entrada conferida: Varejo R$ ${item.retailPrice.toFixed(2)} (${item.retailMarginPercent}%) | Atacado R$ ${item.wholesalePrice.toFixed(2)} (${item.wholesaleMarginPercent}%)`
-            });
-          }
+            if (item.updateStock) {
+              stockEntriesCount++;
+              newMovements.push({
+                id: `sm-${Date.now()}-${idx}`,
+                productId: item.code,
+                productName: item.name,
+                type: 'entrada_xml',
+                quantity: item.quantity,
+                unitCost: item.costPrice,
+                date: new Date().toISOString().split('T')[0],
+                referenceDoc: `NF-e ${confirmedNFe.nNF} (${finalSupplierName})`,
+                notes: `Entrada conferida: Varejo R$ ${item.retailPrice.toFixed(2)} (${item.retailMarginPercent}%) | Atacado R$ ${item.wholesalePrice.toFixed(2)} (${item.wholesaleMarginPercent}%)`
+              });
+            }
+          });
+
+          return currentList;
         });
-
-        return currentList;
-      });
+      }
 
       if (newMovements.length > 0) {
         setStockMovements(prev => [...newMovements, ...prev]);
       }
 
-      // 3. Gera Conta a Pagar se selecionado
-      if (confirmedNFe.createAccountPayable && confirmedNFe.totalValue > 0) {
+      // 3. Gera Conta a Pagar no Financeiro SOMENTE se explicitamente marcado pelo usuário
+      const allItemsSelected = selectedItems.length === confirmedNFe.items.length;
+      const payableValue = allItemsSelected
+        ? confirmedNFe.totalValue
+        : selectedItems.reduce((acc, it) => acc + (it.costPrice * it.quantity), 0);
+
+      let financialCreated = false;
+      if (confirmedNFe.createAccountPayable && payableValue > 0) {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 28);
         const newExpense: GeneralExpense = {
           id: `ge-${Date.now()}`,
           category: 'compra_produtos_xml',
           description: `Compra Mercadorias p/ Estoque - NF-e ${confirmedNFe.nNF} (${finalSupplierName})`,
-          cost: confirmedNFe.totalValue,
+          cost: Number(payableValue.toFixed(2)),
           dueDate: dueDate.toISOString().split('T')[0],
           isPaid: false,
           supplierId: finalSupplierId,
@@ -1833,16 +1934,45 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
           isRecurring: false
         };
         setGeneralExpenses(prev => [newExpense, ...prev]);
+        financialCreated = true;
+      }
+
+      if (!supplierRegisteredNow && newCount === 0 && updatedCount === 0 && !financialCreated) {
+        return {
+          success: false,
+          message: 'Nenhuma opção ou produto foi selecionado para importação.',
+          updatedProductsCount: 0,
+          newProductsCount: 0,
+          supplierName: finalSupplierName
+        };
+      }
+
+      const partsSummary: string[] = [];
+      if (newCount > 0 || updatedCount > 0) {
+        partsSummary.push(`${newCount} novo(s) e ${updatedCount} atualizado(s) no catálogo`);
+      }
+      if (stockEntriesCount > 0) {
+        partsSummary.push(`entrada de estoque em ${stockEntriesCount} item(ns)`);
+      } else if (newCount > 0 || updatedCount > 0) {
+        partsSummary.push('sem movimentação de saldo');
+      }
+      if (supplierRegisteredNow) {
+        partsSummary.push('fornecedor cadastrado');
+      }
+      if (financialCreated) {
+        partsSummary.push(`título de ${formatBRL(payableValue)} lançado no Financeiro`);
+      } else {
+        partsSummary.push('nenhum lançamento enviado ao Financeiro');
       }
 
       addAuditLog(
-        'Importação NF-e Conferida',
-        `NF-e ${confirmedNFe.nNF}: ${newCount} produtos novos cadastrados, ${updatedCount} atualizados com ajuste de margens e preços.`
+        'Importação Seletiva NF-e',
+        `NF-e ${confirmedNFe.nNF}: ${partsSummary.join(' · ')}.`
       );
 
       return {
         success: true,
-        message: `Importação da NF-e ${confirmedNFe.nNF} finalizada com sucesso! ${newCount} novo(s) produto(s) e ${updatedCount} atualizado(s) no estoque com as margens de varejo e atacado aplicadas.`,
+        message: `Importação da NF-e ${confirmedNFe.nNF} concluída! (${partsSummary.join(' · ')}).`,
         updatedProductsCount: updatedCount,
         newProductsCount: newCount,
         supplierName: finalSupplierName

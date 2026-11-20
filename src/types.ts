@@ -239,6 +239,7 @@ export interface Product {
 
 export interface ParsedXmlItem {
   id: string; // ID temporário para o staging
+  selectedToImport?: boolean; // Permite escolher quais itens da nota importar
   code: string;
   name: string;
   ncm: string;
@@ -288,7 +289,22 @@ export interface ParsedXmlNFe {
   totalValue: number;
   supplier: ParsedXmlSupplier;
   items: ParsedXmlItem[];
-  createAccountPayable: boolean;
+  importProducts?: boolean; // Se true, cadastra/atualiza produtos selecionados
+  createAccountPayable: boolean; // Se false, NÃO lança nada no Financeiro / Contas a Pagar / DRE
+}
+
+export interface SelectiveBackupImportOptions {
+  products?: boolean;
+  stockMovements?: boolean;
+  clients?: boolean;
+  suppliers?: boolean;
+  employees?: boolean;
+  serviceOrders?: boolean;
+  directSales?: boolean;
+  financial?: boolean; // Despesas / Contas a Pagar + Custos Iniciais
+  fleet?: boolean;     // Veículos + Manutenções de Frota
+  appointments?: boolean;
+  settings?: boolean;  // Empresa, Numerações, Garantias, Taxas de Cartão, Serviços e Checklists
 }
 
 export interface StockMovement {
