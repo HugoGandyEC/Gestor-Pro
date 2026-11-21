@@ -65,49 +65,50 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
   const sections: ManualSection[] = [
     {
       id: 'fluxo_geral',
-      title: '1. Visão Geral & Vínculos Integrados do Sistema',
+      title: '1. Visão Geral, Identidade FIRE GESTÃO & Fluxos Integrados',
       badge: 'Arquitetura',
       icon: TrendingUp,
       targetTab: 'dashboard',
-      summary: 'Entenda como o sistema interliga Vendas, Ordens de Serviço, PDV, Recibos, Estoque, Equipe, Contas a Pagar/Receber, BI e DRE com precisão matemática.',
+      summary: 'Entenda como o FIRE GESTÃO interliga Vendas, Ordens de Serviço, PDV, Recibos, Estoque, Equipe, Financeiro, BI e DRE a partir de uma base limpa (Zero Absoluto) e arquitetura modular.',
       steps: [
-        'Abertura de Ordem de Serviço ou Venda: O cliente e os produtos/serviços são buscados na base; itens do estoque têm baixa e estorno automáticos por movimentação Kardex.',
-        'Envio ao PDV & Formas de Pagamento: Tanto O.S. quanto Vendas podem ser enviadas ao PDV ou baixadas com uma ou múltiplas formas de pagamento e bandeiras de cartão diferentes (ex.: PIX + Crédito Visa 3x + Débito Mastercard).',
-        'Emissão Automática de Recibo: Todo pagamento confirmado no PDV/Caixa, O.S., Venda ou Financeiro gera na hora o Recibo de Pagamento com controle de saldo parcial ou carimbo de QUITADO.',
-        'Integração Automática de Custos: Salários, horas trabalhadas, comissões, compras de materiais/XML e contas recorrentes ou parceladas alimentam automaticamente Contas a Pagar, DRE e BI sem duplicidade.',
-        'DRE, BI e Painéis: Os dados consolidam a Receita Bruta, deduzem CMV, taxas de cartão, folha, frota e custos fixos para apurar o Lucro Líquido Real em tempo real.'
+        'Base Limpa (Zero Absoluto): O FIRE GESTÃO inicia 100% limpo, sem vendas, clientes, agendamentos ou faturamentos fictícios pré-alimentados, pronto para operação real mantendo apenas o usuário administrador padrão e suas configurações.',
+        'Arquitetura Modular & Topo Limpo: Os 22 módulos ficam organizados em pastas independentes e podem ser ativados ou desativados a qualquer momento (ocultando automaticamente do menu e atalhos), enquanto o cabeçalho superior permanece limpo sem seletor de data/mês.',
+        'Abertura de Ordem de Serviço ou Venda: O cliente pode ser buscado ou cadastrado na hora via atalho na própria OS; produtos do estoque têm baixa e estorno automáticos por movimentação Kardex.',
+        'Envio ao PDV, Formas de Pagamento & Recibo Automático: Tanto O.S. quanto Vendas podem ser enviadas ao PDV ou baixadas com múltiplas formas e bandeiras diferentes, gerando automaticamente o Recibo de Pagamento (A4 ou 80mm) com controle de saldo parcial ou carimbo de QUITADO.',
+        'Importação Seletiva, Custos Integrados & DRE Reconciliado: Você escolhe exatamente o que importar (inclusive cadastrar somente produtos sem enviar nada ao Financeiro), enquanto folha, compras confirmadas e custos fixos alimentam o DRE reconciliado centavo por centavo.'
       ],
       tips: [
-        'Acesse "Visão Geral" (Dashboard) para acompanhar faturamento, margens, cards de O.S. com status padronizados e pendências do mês.',
-        'Vendas e movimentações canceladas são excluídas automaticamente dos totalizadores do Dashboard, BI, DRE e fechamento contábil, mantendo o registro apenas na auditoria.'
+        'Acesse "Visão Geral" (Dashboard) para acompanhar faturamento real, margens, cards de O.S. com status padronizados e pendências da competência atual.',
+        'Vendas canceladas, O.S. canceladas e orçamentos não aprovados são excluídos automaticamente dos totalizadores do Dashboard, BI, DRE e fechamento contábil.'
       ],
       rules: [
-        'Vendas Diretas ativas e Ordens de Serviço faturadas no período são consolidadas na Receita Bruta.',
-        'Todos os módulos operam sincronizados em tempo real com a nuvem (PC ↔ Celular).'
+        'Vendas Diretas ativas e Ordens de Serviço aprovadas/faturadas no período são consolidadas na Receita Bruta.',
+        'Todos os módulos operam sincronizados em tempo real com a nuvem (PC ↔ Celular) e respeitam a ativação configurada em Módulos do Sistema.'
       ]
     },
     {
       id: 'ordens_servico',
-      title: '2. Ordens de Serviço (OS), Status Unificados & Busca no Estoque',
+      title: '2. Ordens de Serviço (OS): Cadastro Rápido de Cliente, Fotos (Início & Entrega) & Estoque',
       badge: 'Operações',
       icon: ClipboardList,
       targetTab: 'orders',
-      summary: 'Abertura completa de O.S. e Orçamentos com busca ao vivo de produtos cadastrados no Estoque, status idênticos em todo o sistema, deslocamento por KM, checklists, fotos e assinatura digital.',
+      summary: 'Abertura completa de O.S. com atalho para cadastrar novos clientes sem sair da tela, captura fotográfica dedicada do Início (antes dos serviços) e do Local de Entrega (câmera ao vivo + galeria + impressão A4), busca no Estoque, status unificados e assinatura digital.',
       steps: [
-        'Clique em "+ Nova Ordem de Serviço" no topo da tela ou na aba Ordens de Serviço.',
-        'Selecione o Cliente (ou cadastre rapidamente sem obrigatoriedade de CPF) e escolha o endereço de atendimento.',
+        'Abertura de O.S. & Atalho de Cadastro Rápido de Cliente: Clique em "+ Nova Ordem de Serviço" ou use o botão "Cadastrar Cliente" no topo da tela de O.S. Dentro da criação/edição da O.S., clique em "+ Cadastrar Cliente" ao lado do seletor de cliente para cadastrar Pessoa Física/Jurídica (Varejo ou Atacado) com busca automática de CEP e CNPJ — ao salvar, o novo cliente já é selecionado automaticamente na O.S.',
         'Status Padronizados: Escolha o estágio da O.S. ("Orçamento Aberto", "Aguardando Aprovação", "Aprovada / Em Andamento", "Aguardando Peças", "Concluída (Aguardando Retirada)", "Entregue / Finalizada" ou "Cancelada"). O mesmo nome e cor aparecem na O.S., nos cards, no Dashboard, no Painel do Técnico, no Portal do Cliente e no PDV.',
         'Busca e Inclusão de Produtos do Estoque: Use o campo de busca ao vivo (nome, código, SKU, marca, categoria ou código de barras) ou a lista suspensa para incluir peças cadastradas com aplicação automática de preço Varejo ou Atacado.',
-        'Serviços, Checklists, Fotos e Assinatura: Adicione serviços do catálogo ou avulsos, preencha checklists inteligentes, anexe fotos de entrada/saída e colete a assinatura digital na tela.',
-        'Deslocamento e Despesas de Campo: Para atendimentos externos, informe a quilometragem (calculada automaticamente sobre R$ 1,80/km ida e volta) e despesas de viagem (pedágio, alimentação, estacionamento) para apurar lucro ou prejuízo real da O.S.',
+        'Registro Fotográfico — Início (Antes de Começar os Serviços) & Local de Entrega: Na criação/edição, nos detalhes da O.S. ou clicando diretamente no ícone de câmera de qualquer linha/card da listagem, utilize os dois blocos dedicados lado a lado ("Início — Antes de Começar os Serviços" e "Local de Entrega dos Serviços"). Clique em "Fotografar Agora" para abrir a câmera ao vivo (com inversão entre câmera traseira e frontal e fallback automático para a câmera nativa do celular) ou em "Anexar da Galeria".',
+        'Ampliação, Salvamento & Impressão das Fotos: Todas as fotos passam por compressão automática para economizar espaço, podem ser ampliadas em tela cheia com legenda de etapa/data e são salvas imediatamente nos detalhes da O.S. Ao imprimir ou salvar em PDF A4, as fotos de Início e Local de Entrega saem organizadas na seção de Registro Fotográfico do documento oficial.',
+        'Serviços, Checklists, Assinatura & Deslocamento: Adicione serviços do catálogo ou avulsos, preencha checklists inteligentes, colete a assinatura digital na tela e informe quilometragem/despesas de campo (pedágio, alimentação, estacionamento) para apurar lucro ou prejuízo real da O.S.',
         'Envio ao PDV & Impressão A4: Envie a O.S. para o PDV pelo botão "Cobrar (PDV)" ou imprima/salve em PDF padrão A4.'
       ],
       tips: [
-        'No Dashboard, clicar em qualquer card ou status de O.S. filtra automaticamente a tela de Ordens de Serviço no status correspondente.',
-        'Em Configurações > Gestão de Dados você pode carregar a massa de exemplos realistas de O.S. (com cenários lucrativos e de prejuízo) para demonstrações.'
+        'Use o botão de câmera direto em cada linha ou card da listagem de O.S. para fotografar rapidamente o início do serviço ou o local da entrega pelo celular em campo, sem precisar editar toda a O.S.',
+        'No Dashboard, clicar em qualquer card ou status de O.S. filtra automaticamente a tela de Ordens de Serviço no status correspondente.'
       ],
       rules: [
         'As peças aplicadas na O.S. movimentam o Estoque e compõem o Custo de Mercadorias Vendidas (CMV).',
+        'Orçamentos ainda não aprovados e O.S. canceladas não entram na Receita Bruta do DRE, Dashboard ou Contas a Receber até serem aprovados/faturados.',
         'O rótulo e a cor de cada status são centralizados em uma única fonte de verdade para evitar divergências entre telas.'
       ]
     },
@@ -186,24 +187,24 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
     },
     {
       id: 'financeiro_dre',
-      title: '6. Financeiro, Contas a Receber, Contas a Pagar & DRE Gerencial',
+      title: '6. Financeiro, Contas a Pagar/Receber & DRE Reconciliado (Zero Absoluto)',
       badge: 'Financeiro',
       icon: DollarSign,
       targetTab: 'financial',
-      summary: 'Conciliação de receitas e despesas com baixa integrada à geração de recibos, sincronização automática de custos de equipe/compras/recorrentes e DRE Gerencial do período.',
+      summary: 'Conciliação financeira a partir de base 100% limpa (Zero Absoluto), baixa integrada à geração de recibos, sincronização sem duplicidade e DRE Gerencial reconciliado centavo por centavo.',
       steps: [
-        'Contas a Receber: Visualize todas as Ordens de Serviço e Vendas ativas da competência, conferindo valores recebidos, saldos pendentes e atalho de quitação com emissão automática de recibo.',
-        'Contas a Pagar: Acompanhe fornecedores (incluindo entradas de estoque/XML NF-e), folha salarial, horas trabalhadas, comissões e custos fixos/recorrentes sincronizados automaticamente.',
+        'Contas a Receber: Visualize somente Ordens de Serviço aprovadas/faturadas e Vendas ativas da competência, com desconto correto de entradas/pagamentos parciais e atalho de quitação com emissão automática de recibo.',
+        'Contas a Pagar: Acompanhe fornecedores (somente compras lançadas ou NF-e em que você optou por lançar no Financeiro), folha salarial de ativos, horas trabalhadas, comissões e custos fixos/recorrentes sincronizados automaticamente.',
         'Baixas e Conciliação: Clique para liquidar contas pendentes em Contas a Pagar ou Receber mantendo o fluxo de caixa atualizado em tempo real.',
-        'DRE Gerencial: Consulte o Demonstrativo de Resultado com Receita Bruta (Serviços + Vendas), Deduções/Taxas de Cartão, CMV, Custos de Pessoal, Frota, Custos Fixos e Lucro Líquido.'
+        'DRE Gerencial 100% Reconciliado: A Seção 1 detalha Serviços Brutos + Peças Brutas − Descontos (com rateio proporcional evitando receita negativa) + Vendas Diretas. Em seguida deduz apenas as taxas de cartão absorvidas pela empresa, CMV, Pessoal, Frota, Custos Fixos, Outras Despesas Operacionais e parcelas de dívidas para apurar o Lucro Líquido real.'
       ],
       tips: [
-        'Filtre por competência mensal e status (Pendentes / Pagas) para focar nas liquidações do dia.',
-        'Os cálculos evitam duplicidade entre despesas já lançadas manualmente e provisões automáticas da folha e recorrências.'
+        'A competência acompanha automaticamente o mês atual e lista todos os meses que possuem movimentação real, sem valores fictícios.',
+        'Os cálculos evitam duplicidade entre despesas já lançadas manualmente e provisões automáticas da folha, compras e recorrências.'
       ],
       rules: [
-        'Vendas e O.S. canceladas não compõem a Receita Bruta nem os resultados do DRE.',
-        'As taxas de cartão das bandeiras são deduzidas conforme configuração da operadora.'
+        'Vendas canceladas, O.S. canceladas e orçamentos ainda não aprovados não compõem a Receita Bruta, Contas a Receber, BI nem o DRE.',
+        'Funcionários inativos sem atividade no mês são excluídos da folha; apenas taxas de cartão absorvidas pela empresa são deduzidas na receita líquida.'
       ]
     },
     {
@@ -295,21 +296,23 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
     },
     {
       id: 'importacao_nfe',
-      title: '11. Importação Multi-Formato & Leitura de NF-e (XML) Anti-Duplicidade',
-      badge: 'Integrações',
+      title: '11. Importação Seletiva: NF-e (XML), Planilhas & Backup JSON (Sem Enviar ao Financeiro)',
+      badge: 'Importação Seletiva',
       icon: UploadCloud,
       targetTab: 'cadastros',
-      summary: 'Leitura automática de XML de NF-e com cadastro de fornecedor, atualização de estoque, lançamento financeiro de compra e proteção SHA-256 contra importação duplicada.',
+      summary: 'Controle total para importar somente os dados que você precisa — inclusive cadastrar apenas produtos no catálogo sem gerar nenhum lançamento no Financeiro/DRE — disponível na NF-e XML, Importação Universal e Restauração de Backup JSON.',
       steps: [
-        'Acesse "Estoque" ou "Central de Cadastros > Importação Multi-Formato & XML".',
-        'Envie o arquivo .xml da NF-e do fornecedor (ou planilhas CSV/XLSX/TXT/PDF/SQL nos importadores).',
-        'Conferência Automática: O sistema extrai CNPJ/dados do fornecedor, NCM, código, quantidade, custo e sugere preços de Varejo (+55%) e Atacado (+35%).',
-        'Confirme a Importação: O fornecedor é atualizado/criado sem duplicar, os produtos entram no Estoque (Kardex) e a conta a pagar da compra é lançada automaticamente no Financeiro.'
+        'Importação Seletiva de NF-e (XML): Em "Estoque" ou "Central de Cadastros → Importação", envie o arquivo .xml da nota fiscal. No painel superior "O que você deseja importar desta NF-e?", use os atalhos de 1 clique ("Somente Cadastrar Produtos (Sem Financeiro)", "Produtos + Estoque (Sem Financeiro)" ou "Importação Completa (+ Financeiro)") ou marque individualmente as 4 chaves: Cadastrar/Atualizar Produtos, Somar Entrada no Estoque (Kardex), Cadastrar/Atualizar Fornecedor e Lançar no Financeiro (Contas a Pagar).',
+        'Proteção do Financeiro & Seleção por Item na NF-e: Por segurança, a opção "Lançar no Financeiro" inicia DESMARCADA por padrão. Além disso, você pode marcar ou desmarcar cada produto individualmente na tabela da nota (com opção de selecionar todos/nenhum) antes de confirmar.',
+        'Importação Universal Seletiva (CSV, XLSX, TXT, XML, SQL, PDF): Após carregar o arquivo, marque ou desmarque linha a linha quais registros deseja importar ("Marcar Todos" / "Desmarcar Todos"). Ao importar Produtos, um painel exclusivo garante isolamento 100% do Financeiro e permite cadastrar com estoque inicial zerado (qtd = 0), omitir custo (R$ 0,00) ou definir como aplicar os preços de venda.',
+        'Restauração Seletiva de Backup JSON: Em "Configurações → Backup & Restauração", carregue um arquivo .json (ou cole o conteúdo) para visualizar a contagem automática de registros por categoria. Escolha exatamente quais das 11 categorias importar ou use os atalhos rápidos "Somente Produtos (Sem Financeiro)" e "Somente Cadastros (Sem Financeiro)".'
       ],
       tips: [
-        'Detector Anti-Duplicidade: Caso o mesmo XML já tenha sido importado antes (conferência por chave NF-e e hash SHA-256), o sistema avisa imediatamente permitindo cancelar ou reprocessar.'
+        'Detector Anti-Duplicidade: Na importação de XML NF-e, o sistema verifica a chave da nota e hash SHA-256 para avisar caso o mesmo XML já tenha sido processado antes.',
+        'Use "Somente Cadastrar Produtos (Sem Financeiro)" sempre que quiser montar seu catálogo rapidamente usando notas de compra antigas ou planilhas sem alterar o Contas a Pagar nem o DRE.'
       ],
       rules: [
+        'Nenhum lançamento financeiro ou conta a pagar é criado automaticamente em NF-e XML, Importação Universal de Produtos ou Restauração Seletiva de Produtos, a menos que o usuário marque explicitamente a opção financeira.',
         'Fornecedores são conciliados pelo CNPJ e produtos por código/nome para evitar cadastros repetidos.'
       ]
     },
@@ -411,25 +414,47 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
     },
     {
       id: 'configuracoes_seguranca',
-      title: '17. Configurações Unificadas: Senha Mestra PDV, Temas, Auditoria, Dados & Drive',
+      title: '17. Configurações Unificadas: Temas FIRE GESTÃO, Senha Mestra PDV, Auditoria & Backup',
       badge: 'Administração',
       icon: KeyRound,
       targetTab: 'configuracoes',
-      summary: 'Centralização administrativa: definição da senha de exclusão de vendas no PDV/Vendas, Temas Visuais e Logs de Auditoria movidos para Configurações, gestão de base de dados, MySQL e Google Drive.',
+      summary: 'Centralização administrativa do FIRE GESTÃO: 2 temas oficiais (Chama Alegre e Azul Cobalto), Senha Mestra de exclusão no PDV, Logs de Auditoria, limpeza Zero Absoluto, Backup JSON seletivo, MySQL e Google Drive.',
       steps: [
+        'Temas & Identidade Visual FIRE GESTÃO: Em "Configurações → Temas & Identidade Visual", escolha entre os 2 temas oficiais do sistema: "Fire Gestão · Chama Alegre" (padrão inspirado no favicon mini chama amarelo e laranja harmonizado com verde petróleo, esmeralda e fundo marfim suave) ou "Azul Cobalto". A tela de login e o favicon acompanham a identidade alegre da chama.',
         'Segurança do PDV & Vendas (Senha de Exclusão): Em "Configurações → Dados da Empresa", preencha o campo "Senha Mestra de Exclusão no PDV". Além disso, em "Configurações → Usuários e Acesso", defina quais colaboradores podem excluir vendas utilizando sua própria senha.',
-        'Temas & Identidade Visual (Centralizados em Configurações): Os menus de troca de tema foram movidos da barra superior para "Configurações → Temas & Identidade Visual", permitindo alternar entre as paletas visuais mantendo o topo mais limpo.',
-        'Logs & Auditoria (Centralizados em Configurações): O histórico imutável de criação, edição, cancelamento e exclusão (antes no topo) agora fica em "Configurações → Logs & Auditoria" com busca por usuário e ação.',
-        'Gestão de Dados (Zerar Sistema vs Demo vs MySQL): Em "Configurações → Gestão de Dados", use "Limpar Dados (Zerar Sistema)" para entrar em produção real, "Carregar Dados de Exemplo" para demonstrações, ou baixe o script completo .sql para MySQL.',
-        'Backup JSON & Google Drive: Exporte/restaure backups completos em JSON em "Configurações → Backup" ou conecte sua conta na aba "Google Drive" do menu lateral.'
+        'Logs & Auditoria (Centralizados em Configurações): O histórico imutável de criação, edição, cancelamento e exclusão fica em "Configurações → Logs & Auditoria" com busca por usuário e ação.',
+        'Gestão de Dados (Zero Absoluto & Script MySQL): Em "Configurações → Gestão de Dados", você pode zerar a base para iniciar do zero absoluto mantendo configurações, ou baixar o script completo .sql para MySQL.',
+        'Backup JSON Seletivo & Google Drive: Em "Configurações → Backup", exporte cópias completas ou faça Restauração Seletiva (escolhendo entre 11 categorias ou "Somente Produtos (Sem Financeiro)"), ou conecte sua conta na aba "Google Drive" do menu lateral.'
       ],
       tips: [
         'Defina a Senha Mestra de Exclusão no PDV logo na implantação para garantir que apenas o Administrador ou equipe autorizada exclua vendas definitivamente.',
         'No celular, menus administrativos avançados ficam ocultos para manter a operação em campo enxuta e rápida.'
       ],
       rules: [
-        'Apenas Administradores acessam a definição de Senha Mestra, restauração de backup e limpeza total da base.',
+        'Apenas Administradores acessam a definição de Senha Mestra, restauração de backup, gestão de módulos e limpeza total da base.',
         'Todas as alterações críticas e exclusões autorizadas geram registro permanente nos Logs de Auditoria.'
+      ]
+    },
+    {
+      id: 'modulos_sistema',
+      title: '18. Módulos do Sistema: Ativar & Desativar Módulos (Arquitetura Modular)',
+      badge: 'Modularidade',
+      icon: Layers,
+      targetTab: 'configuracoes',
+      summary: 'Todos os 22 módulos do FIRE GESTÃO são organizados de forma independente e podem ser ligados ou desligados tanto visualmente em Configurações quanto pelo arquivo central de ativação.',
+      steps: [
+        'Ativação/Desativação em Tempo Real (Tela de Configurações): Acesse "Configurações → Módulos do Sistema" para visualizar todos os módulos agrupados por área (Operacional, Financeiro, Cadastros, Integrações e Sistema) e ligue ou desligue cada chave em 1 clique.',
+        'Controle por Arquivo Central (Para VPS / Implantação): Todos os módulos ficam dentro da pasta dedicada "modulos" junto ao arquivo de ativação ("ativarModulos.ts"), onde cada módulo possui uma chave simples "true" (ativado) ou "false" (desativado).',
+        'Ocultação Automática & Segurança de Rotas: Ao desativar um módulo, ele desaparece automaticamente do menu lateral, dos atalhos do cabeçalho superior e fica bloqueado contra acesso direto, redirecionando para um módulo ativo.',
+        'Preservação Total dos Dados: Desativar um módulo apenas oculta a tela e o acesso operacional — nenhum dado já cadastrado ou salvo na nuvem é apagado, voltando a ficar disponível assim que o módulo for reativado.'
+      ],
+      tips: [
+        'Desative módulos que sua empresa ainda não utiliza (como Frota, Google Drive ou Portal do Cliente) para deixar o menu lateral ainda mais objetivo para sua equipe.',
+        'Os módulos essenciais de Configurações e Manual permanecem sempre protegidos para que você nunca perca o acesso para reativar os demais módulos.'
+      ],
+      rules: [
+        'Apenas Administradores podem alterar os módulos ativos na aba Configurações → Módulos do Sistema.',
+        'O cabeçalho superior foi simplificado (sem seletor de data/mês) e exibe apenas atalhos de módulos que estejam ativos.'
       ]
     }
   ];

@@ -16,6 +16,64 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.20',
+    date: '21/11/2026',
+    title: 'Manual do Sistema, Ajuda Rápida & Documentação Técnica Atualizados (18 Capítulos)',
+    summary:
+      'Atualização completa de todos os manuais internos do FIRE GESTÃO (Manual Operacional com novo Capítulo 18, Ajuda Rápida por Módulo e Especificação Técnica) incorporando todas as novas funcionalidades recentes e removendo referências desatualizadas.',
+    highlights: [
+      'Manual Operacional Expandido (18 Capítulos): inclusão do Capítulo 18 dedicado à Arquitetura Modular (ativar/desativar módulos) e atualização dos capítulos de OS, Financeiro/DRE, Importação Seletiva e Configurações',
+      'OS, Importação Seletiva & Temas Documentados: passo a passo claro do Atalho Cadastrar Cliente na OS, Fotos de Início (Antes) e Local de Entrega, Importação Somente Produtos sem Financeiro (NF-e XML, Planilhas e Backup JSON) e os 2 temas oficiais FIRE GESTÃO',
+      'Ajuda Rápida & Especificação Técnica Sincronizadas: atualização dos módulos MOD-1.1, MOD-1.2, MOD-1.4, MOD-2.6, MOD-3.3, MOD-4.4, MOD-4.5, MOD-6.1, MOD-6.2, novo MOD-4.7 e revisão do modal técnico'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Novo Capítulo 18 no Manual Operacional e novo módulo MOD-4.7 na Ajuda Rápida explicando a Arquitetura Modular (pasta modulos, ativarModulos.ts e Configurações → Módulos do Sistema) e o cabeçalho limpo sem seletor de data/mês.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Atualizados os capítulos e módulos de Ordens de Serviço (Atalho Cadastrar Cliente com CEP/CNPJ e Registro Fotográfico de Início/Entrega com câmera ao vivo, galeria e impressão A4), Importação Seletiva (Somente Produtos sem Financeiro na NF-e XML, Importação Universal e Backup JSON) e Financeiro/DRE (Zero Absoluto e DRE reconciliado).'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Removidas referências antigas a temas descontinuados e dados de exemplo em todos os manuais e na Especificação Técnica, refletindo os 2 temas oficiais (Fire Gestão · Chama Alegre e Azul Cobalto) e a nova tela de login solar.'
+      }
+    ]
+  },
+  {
+    version: 'v2.7.19',
+    date: '21/11/2026',
+    title: 'Ordens de Serviço: Atalho de Cadastro Rápido de Cliente & Fotos de Início e Local de Entrega',
+    summary:
+      'Adicionado atalho direto na tela de Ordens de Serviço (cabeçalho e formulário da OS) para cadastrar novos clientes sem sair do atendimento, e novo painel fotográfico integrado com câmera ao vivo e galeria para registrar fotos do início (antes dos serviços) e do local de entrega.',
+    highlights: [
+      'Atalho Cadastrar Cliente na OS: botão no topo da tela de Ordens de Serviço e ao lado do campo Cliente no formulário, com consulta automática de CEP/CNPJ e seleção imediata do cliente recém-cadastrado',
+      'Fotos do Início (Antes dos Serviços) & Local de Entrega: câmera ao vivo (com inversão frontal/traseira e fallback nativo no celular) + envio da galeria com compressão automática e ampliação em tela cheia',
+      'Acesso Rápido & Impressão A4: botão de câmera direto em cada linha/card da lista, painel interativo nos detalhes da OS com salvamento imediato e exibição das fotos no documento oficial A4'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Atalho "Cadastrar Cliente" no cabeçalho de Ordens de Serviço e botão "+ Cadastrar Cliente" junto ao seletor de cliente na abertura/edição de OS, abrindo modal de cadastro rápido com busca de CEP e CNPJ.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Painel de Registro Fotográfico da OS separado em "Início — Antes de Começar os Serviços" e "Local de Entrega dos Serviços", com captura direta pela câmera ao vivo, câmera nativa do celular ou galeria e visualização em tela cheia.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Removidas fotos fictícias automáticas na criação de OS e adicionada seção de Registro Fotográfico (Início & Entrega) na visualização/impressão A4 da Ordem de Serviço.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.18',
     date: '19/11/2026',
     title: 'Importação Seletiva Completa (Cadastrar Somente Produtos sem Enviar ao Financeiro)',

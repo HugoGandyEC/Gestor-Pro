@@ -528,6 +528,52 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
         </div>
       </div>
 
+      {/* Registro Fotográfico (Início / Antes dos Serviços & Local de Entrega) */}
+      {((os.entryPhotos && os.entryPhotos.length > 0) || (os.exitPhotos && os.exitPhotos.length > 0)) && (
+        <div className="mb-4 border border-slate-300 rounded-sm overflow-hidden page-break-inside-avoid">
+          <div className="bg-[#eef3f8] px-2.5 py-1 border-b border-slate-300 font-bold text-[10px] text-slate-800 uppercase tracking-wide">
+            REGISTRO FOTOGRÁFICO — INÍCIO (ANTES DOS SERVIÇOS) &amp; LOCAL DE ENTREGA
+          </div>
+          <div className="p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white">
+            {/* Início (Antes) */}
+            <div>
+              <div className="text-[9px] font-bold uppercase text-amber-800 mb-1.5">
+                Início — Antes de Começar os Serviços ({os.entryPhotos?.length || 0})
+              </div>
+              {os.entryPhotos && os.entryPhotos.length > 0 ? (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {os.entryPhotos.map((src, idx) => (
+                    <div key={`p-entry-${idx}`} className="border border-slate-200 rounded-xs overflow-hidden bg-slate-50 aspect-4/3">
+                      <img src={src} alt={`Início ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[9px] text-slate-400 italic">Sem fotos registradas nesta etapa.</div>
+              )}
+            </div>
+
+            {/* Entrega */}
+            <div>
+              <div className="text-[9px] font-bold uppercase text-emerald-800 mb-1.5">
+                Local de Entrega dos Serviços ({os.exitPhotos?.length || 0})
+              </div>
+              {os.exitPhotos && os.exitPhotos.length > 0 ? (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {os.exitPhotos.map((src, idx) => (
+                    <div key={`p-exit-${idx}`} className="border border-slate-200 rounded-xs overflow-hidden bg-slate-50 aspect-4/3">
+                      <img src={src} alt={`Entrega ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[9px] text-slate-400 italic">Sem fotos registradas nesta etapa.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Signatures */}
       <div className="pt-3 border-t border-slate-300 page-break-inside-avoid">
         <div className="grid grid-cols-2 gap-6 text-center">

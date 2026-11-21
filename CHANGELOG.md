@@ -1,6 +1,24 @@
 # Histórico de Versões e Alterações — FIRE GESTÃO
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.18`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.20`).
+
+---
+
+## [v2.7.20] — 21/11/2026
+**Manual do Sistema, Ajuda Rápida & Documentação Técnica Atualizados (18 Capítulos)**
+
+### Adicionado & Alterado
+- **Manual Operacional (`SystemManualView`, 18 capítulos)**: novo **Capítulo 18** dedicado à Arquitetura Modular (*Configurações → Módulos do Sistema* e `src/modulos/ativarModulos.ts`) e atualização detalhada dos capítulos de Visão Geral (Zero Absoluto e topo limpo), Ordens de Serviço (Atalho Cadastrar Cliente + Fotos de Início e Local de Entrega), Financeiro/DRE (DRE reconciliado), Importação Seletiva (NF-e XML, Importação Universal e Backup JSON sem impacto no Financeiro) e Configurações (identidade FIRE GESTÃO e 2 temas oficiais).
+- **Ajuda Rápida por Módulo (`SystemHelpModal`) & Especificação Técnica (`SystemDocumentationModal`)**: atualização completa dos módulos de OS, Estoque/Importação, Financeiro, Backup, Temas e Login, inclusão do novo módulo `MOD-4.7` (Ativar/Desativar Módulos) e remoção de textos obsoletos sobre temas antigos e carregamento de dados de exemplo.
+
+---
+
+## [v2.7.19] — 21/11/2026
+**Ordens de Serviço: Atalho de Cadastro Rápido de Cliente & Registro Fotográfico (Início e Local de Entrega)**
+
+### Adicionado & Alterado
+- **Atalho Cadastrar Cliente na tela de O.S. (`QuickClientModal`, `ServiceOrdersView`)**: botão **Cadastrar Cliente** no topo da tela de Ordens de Serviço e botão **+ Cadastrar Cliente** ao lado do campo Cliente dentro da criação/edição de OS, com busca automática de CEP/CNPJ e seleção imediata do novo cliente na OS.
+- **Fotografar Início (Antes dos Serviços) & Local de Entrega (`ServiceOrderPhotosPanel`, `ServiceOrdersView`, `ServiceOrderPrintTemplate`)**: painel dedicado com captura pela câmera ao vivo (com inversão de lente e fallback automático para câmera nativa/galeria), compressão automática de imagens, ampliação em tela cheia, botão rápido de fotos em cada OS da lista/cards, salvamento automático nos detalhes da OS e exibição das fotos no documento A4 para impressão/PDF.
 
 ---
 

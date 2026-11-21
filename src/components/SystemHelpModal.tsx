@@ -105,36 +105,36 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'os_create',
           moduleCode: 'MOD-1.1',
-          title: 'Abertura & Gestão de Ordens de Serviço (OS)',
+          title: 'Abertura de OS & Atalho de Cadastro Rápido de Cliente',
           icon: ClipboardList,
           badge: 'Operação Central',
-          objective: 'Registrar atendimentos técnicos, diagnósticos, serviços de mão de obra e peças com cálculo automático de totais.',
-          summary: 'Ciclo completo desde o orçamento até a entrega do equipamento (reservatórios térmicos, piscinas, bombas e tubulações).',
+          objective: 'Registrar atendimentos técnicos, cadastrar novos clientes sem sair da tela de OS e calcular totais automaticamente.',
+          summary: 'Ciclo completo com botão "Cadastrar Cliente" no topo da OS e "+ Cadastrar Cliente" no formulário (com consulta automática de CEP/CNPJ e seleção imediata).',
           howToUse: [
-            'Clique no botão "+ Nova OS" no cabeçalho ou na tela de Ordens de Serviço.',
-            'Selecione o cliente já cadastrado ou digite seu nome para puxar endereço e telefone automaticamente.',
+            'Clique em "+ Nova OS" ou use o atalho "Cadastrar Cliente" no topo da tela de Ordens de Serviço.',
+            'Dentro do formulário da OS, se o cliente ainda não existir, clique em "+ Cadastrar Cliente" ao lado do seletor para abrir o cadastro rápido (PF/PJ, Varejo/Atacado, busca automática de CEP e CNPJ). Ao salvar, ele já entra selecionado na OS.',
             'Informe o equipamento (tipo, modelo e número de série) e relate o problema apresentado.',
-            'Adicione os serviços de mão de obra (com horas estimadas) e as peças necessárias do estoque.',
-            'O sistema calcula a taxa de visita, subtotal, descontos e prazo previsto de conclusão.'
+            'Adicione serviços de mão de obra e peças buscadas ao vivo no Estoque.',
+            'O sistema calcula automaticamente subtotal, deslocamento, descontos e prazo previsto.'
           ],
-          tips: 'A numeração segue sua regra personalizada configurada na aba de Configurações.',
+          tips: 'A numeração segue sua regra personalizada configurada na aba Configurações → Numerações & Séries.',
           targetTab: 'orders'
         },
         {
           id: 'os_print_a4',
           moduleCode: 'MOD-1.2',
-          title: 'Impressão da OS em Folha A4 Oficial & PDF',
+          title: 'Impressão da OS em Folha A4 Oficial & PDF (Com Fotos)',
           icon: Printer,
           badge: 'Documento Oficial',
-          objective: 'Gerar o documento oficial da OS com logotipo, número da OS no canto superior direito e formato A4 sem barras.',
-          summary: 'Regra condicional inteligente: se for só venda, imprime só produtos; se for só serviço, imprime mão de obra; se conjugado, imprime ambos.',
+          objective: 'Gerar o documento oficial da OS com logotipo, fotos de Início e Local de Entrega, assinatura digital e formato A4 limpo.',
+          summary: 'Regra condicional inteligente para produtos/serviços + seção automática de Registro Fotográfico (Antes dos Serviços e Local de Entrega).',
           howToUse: [
             'Na listagem de OS, clique no botão "Imprimir" ou no ícone da impressora dentro do card.',
-            'A tela abre com o modelo padronizado preenchido e logotipo da empresa.',
-            'O título da aba no navegador é atualizado para "OS-2026-XXX" para que o PDF seja salvo com o nome correto.',
+            'A tela abre com o modelo padronizado preenchido, logotipo da empresa e as fotos registradas do início e da entrega.',
+            'O título da aba no navegador é atualizado para o código da OS para que o PDF seja salvo com o nome correto.',
             'Selecione a impressora física ou clique em "Salvar como PDF" nas opções de impressão do navegador.'
           ],
-          tips: 'Se houver assinatura digital coletada, o carimbo oficial autenticado sai impresso automaticamente no rodapé.',
+          tips: 'Assinatura digital, checklist e fotos de Início/Entrega saem organizados automaticamente no documento A4.',
           targetTab: 'orders'
         },
         {
@@ -157,18 +157,19 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'os_checklists_photos',
           moduleCode: 'MOD-1.4',
-          title: 'Checklists Inteligentes & Vistoria com Fotos Touch',
+          title: 'Fotos do Início (Antes) & Local de Entrega + Checklists Touch',
           icon: Camera,
-          badge: 'Vistoria Técnica',
-          objective: 'Registrar laudo visual e fotográfico de entrada e saída do equipamento para proteção jurídica.',
-          summary: 'Checklist separado por categorias: Estrutura/Tanque, Hidráulica, Elétrica e Segurança, com foto e assinatura em tela.',
+          badge: 'Registro Fotográfico',
+          objective: 'Fotografar o estado inicial antes de começar os serviços e o local de entrega na finalização, além de registrar checklist e assinatura digital.',
+          summary: 'Dois espaços dedicados ("Início — Antes de Começar os Serviços" e "Local de Entrega") com câmera ao vivo, troca de lente, galeria, compressão automática e atalho direto na lista de OS.',
           howToUse: [
-            'Ao editar ou abrir a OS, vá na aba "Checklists & Vistoria".',
-            'Marque o status de cada item verificado: "Conforme", "Defeito" ou "Não se aplica".',
-            'Anexe até fotos do equipamento na chegada e após a conclusão da manutenção.',
-            'Colete a assinatura do cliente diretamente na tela do tablet ou smartphone com o dedo ou caneta touch.'
+            'Ao criar/editar a OS, nos detalhes da OS ou clicando no botão de câmera direto em qualquer linha/card da listagem, abra o Registro Fotográfico.',
+            'Escolha o bloco "Início — Antes de Começar os Serviços" ou "Local de Entrega dos Serviços".',
+            'Clique em "Fotografar Agora" para abrir a câmera ao vivo (com opção de alternar entre câmera traseira e frontal e fallback automático para a câmera nativa no celular) ou clique em "Anexar da Galeria".',
+            'Clique em qualquer foto para ampliar em tela cheia; na ficha de detalhes, cada nova foto é salva automaticamente na OS.',
+            'Preencha também o checklist técnico e colete a assinatura digital do cliente diretamente na tela.'
           ],
-          tips: 'A assinatura e o checklist saem impressos diretamente no relatório final da OS.',
+          tips: 'Todas as fotos de Início e Local de Entrega são comprimidas automaticamente e incluídas na impressão/PDF A4 oficial da OS.',
           targetTab: 'orders'
         },
         {
@@ -314,18 +315,18 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'xml_nfe_import',
           moduleCode: 'MOD-2.6',
-          title: 'Importação de NF-e via Arquivo XML (Anti-Duplicidade)',
+          title: 'Importação Seletiva: NF-e (XML) & Planilhas (Somente Produtos sem Financeiro)',
           icon: Download,
-          badge: 'Automação Fiscal',
-          objective: 'Abastecer o Estoque e cadastrar novos produtos automaticamente através do XML da nota fiscal com proteção anti-duplicidade.',
-          summary: 'Leitura automática de código, NCM, quantidade e custo unitário, bloqueando XML já importado e gerando compra no Contas a Pagar.',
+          badge: 'Importação Seletiva',
+          objective: 'Importar somente os dados necessários (inclusive cadastrar apenas produtos sem lançar nada no Financeiro) via XML de NF-e ou planilhas CSV/XLSX/TXT/SQL/PDF.',
+          summary: 'NF-e XML com Financeiro DESMARCADO por padrão, atalho "Somente Cadastrar Produtos (Sem Financeiro)", seleção item a item e proteção anti-duplicidade SHA-256.',
           howToUse: [
-            'Na tela de Estoque ou Central de Cadastros, clique em "Importar XML de NF-e".',
-            'Selecione o arquivo .xml emitido pelo seu fornecedor.',
-            'Confira a listagem dos itens importados (o sistema alerta caso a chave NF-e já tenha sido lançada) e confirme.',
-            'Os itens são somados ao Estoque e o custo de reposição entra automaticamente no Contas a Pagar do mês.'
+            'Em "Estoque" ou "Central de Cadastros → Importação", selecione o arquivo .xml da NF-e ou sua planilha (CSV, XLSX, TXT, XML, SQL, PDF).',
+            'Na NF-e XML, use os atalhos de 1 clique ("Somente Cadastrar Produtos (Sem Financeiro)", "Produtos + Estoque (Sem Financeiro)" ou "Importação Completa") ou ligue/desligue individualmente: Produtos, Estoque/Kardex, Fornecedor e Financeiro (desmarcado por padrão).',
+            'Marque ou desmarque cada item individualmente na tabela da nota (ou linha a linha na Importação Universal).',
+            'Na Importação Universal de Produtos, conte com isolamento 100% do Financeiro e opções para zerar estoque inicial (qtd = 0) ou omitir custo.'
           ],
-          tips: 'Evita digitação manual, elimina entradas duplicadas de nota e mantém o financeiro sincronizado.',
+          tips: 'Perfeito para alimentar seu catálogo de produtos usando notas antigas ou planilhas sem gerar nenhuma conta a pagar nem impactar o DRE.',
           targetTab: 'products'
         },
         {
@@ -408,17 +409,17 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'financial_pay_receive',
           moduleCode: 'MOD-3.3',
-          title: 'Contas a Pagar & Contas a Receber',
+          title: 'Contas a Pagar, Contas a Receber & DRE Reconciliado',
           icon: DollarSign,
-          badge: 'Fluxo de Caixa',
-          objective: 'Controlar vencimentos de fornecedores, impostos, aluguel e faturas pendentes de clientes.',
-          summary: 'Visão unificada das contas do mês com alerta de pendências e botão de quitação imediata.',
+          badge: 'Fluxo & DRE',
+          objective: 'Controlar vencimentos, faturas pendentes e apurar o DRE centavo por centavo a partir de uma base 100% limpa (Zero Absoluto).',
+          summary: 'Receita aberta em Serviços + Peças − Descontos (rateados) + Vendas, excluindo cancelados e orçamentos não aprovados, com liquidação integrada a recibos.',
           howToUse: [
-            'Acesse "Contas a Pagar / Receber" no menu Financeiro.',
-            'Filtre pelo mês ou status (Pendentes, Pagas, Vencidas).',
-            'Clique em "Pagar" ou "Dar Baixa" para registrar a liquidação com data e comprovante.'
+            'Acesse "Financeiro & DRE" no menu lateral.',
+            'Filtre pelo mês ou status (Pendentes, Pagas, Vencidas) acompanhando automaticamente a competência real.',
+            'Clique em "Pagar" ou "Dar Baixa" para registrar liquidações com emissão automática de recibo.'
           ],
-          tips: 'Todas as saídas de NF-e importadas entram automaticamente no contas a pagar.',
+          tips: 'Na importação de NF-e XML, o lançamento no Contas a Pagar é opcional (desmarcado por padrão), evitando lançamentos indesejados no Financeiro.',
           targetTab: 'financial'
         },
         {
@@ -568,30 +569,31 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'backup_restore',
           moduleCode: 'MOD-4.4',
-          title: 'Backup Completo em JSON & Restauração 1-Clique',
+          title: 'Backup JSON & Restauração Seletiva (Somente Produtos / Sem Financeiro)',
           icon: Download,
           badge: 'Segurança Total',
-          objective: 'Exportar uma cópia integral de todos os dados do sistema para segurança e migração.',
-          summary: 'Salva clientes, produtos, histórico, ordens de serviço, finanças e configurações em um único arquivo.',
+          objective: 'Exportar cópia completa em JSON e restaurar tudo ou apenas as categorias escolhidas sem tocar no Financeiro.',
+          summary: 'Upload de arquivo .json com contagem prévia em 11 módulos independentes + atalhos "Somente Produtos (Sem Financeiro)" e "Somente Cadastros (Sem Financeiro)".',
           howToUse: [
-            'Em "Configurações", clique na aba "Backup & Banco de Dados".',
-            'Clique em "Exportar Backup Agora" para salvar o arquivo no seu computador.',
-            'Para restaurar os dados em outra máquina ou após formatação, basta arrastar o arquivo JSON em "Restaurar Backup".'
+            'Em "Configurações", clique na aba "Backup & Restauração".',
+            'Clique em "Exportar Backup Agora" para salvar o arquivo JSON no seu computador.',
+            'Para restaurar, carregue o arquivo .json (ou cole o conteúdo) e veja a prévia automática de quantos registros existem em cada módulo.',
+            'Use o atalho "Somente Produtos (Sem Financeiro)", "Somente Cadastros (Sem Financeiro)" ou marque manualmente quais das 11 categorias deseja importar.'
           ],
-          tips: 'Recomendamos salvar um backup semanalmente para garantir total tranquilidade na operação.',
+          tips: 'Em "Configurações → Gestão de Dados" você também pode zerar toda a base (Zero Absoluto) preservando as configurações da empresa.',
           targetTab: 'configuracoes'
         },
         {
           id: 'themes_system',
           moduleCode: 'MOD-4.5',
-          title: 'Temas & Identidade Visual (Paletas Personalizadas)',
+          title: 'Temas Oficiais FIRE GESTÃO (Chama Alegre & Azul Cobalto)',
           icon: Palette,
           badge: 'Personalização Visual',
-          objective: 'Alternar entre as identidades visuais do sistema: Clássico, Terra & Oliva, Claro Ouro, Terracota Mineral e Solar Alegre.',
-          summary: 'Permite selecionar a paleta visual ideal com 1 clique diretamente nas configurações do sistema.',
+          objective: 'Alternar entre os 2 temas oficiais do FIRE GESTÃO: Fire Gestão · Chama Alegre e Azul Cobalto.',
+          summary: 'Paletas limpas e harmoniosas: o tema padrão Chama Alegre (amarelo, laranja, verde petróleo, esmeralda e marfim suave) e o tema Azul Cobalto.',
           howToUse: [
             'Acesse "Configurações" no menu lateral e clique na aba "Temas & Identidade Visual".',
-            'Escolha entre o Clássico, as paletas minerais terrosas (#615F6D/#A67153/#594A3C/#26241E/#F2E6D8) ou o tema Solar Cobalto vívido e alegre.',
+            'Escolha entre "Fire Gestão · Chama Alegre" (inspirado no favicon mini chama) ou "Azul Cobalto".',
             'O sistema atualiza instantaneamente todo o layout sem necessidade de recarregar.'
           ],
           tips: 'Sua escolha de tema fica salva automaticamente no navegador para os próximos acessos.',
@@ -613,6 +615,23 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           ],
           tips: 'Qualquer exclusão de arquivo exige confirmação explícita na tela por segurança.',
           targetTab: 'googleDrive'
+        },
+        {
+          id: 'system_modules_toggle',
+          moduleCode: 'MOD-4.7',
+          title: 'Ativar & Desativar Módulos do Sistema (Arquitetura Modular)',
+          icon: Layers,
+          badge: 'Modularidade',
+          objective: 'Ligar ou desligar qualquer um dos 22 módulos do FIRE GESTÃO conforme a necessidade da sua empresa, sem apagar dados.',
+          summary: 'Controle em tempo real via Configurações → Módulos do Sistema ou pelo arquivo central ativarModulos.ts (chaves true/false) na pasta modulos.',
+          howToUse: [
+            'Acesse "Configurações → Módulos do Sistema" para visualizar todos os módulos organizados por categoria.',
+            'Ative ou desative qualquer módulo com 1 clique: módulos desativados somem imediatamente do menu lateral, dos atalhos do topo e das rotas.',
+            'Para implantação em servidor/VPS, também é possível editar diretamente as chaves true/false no arquivo central ativarModulos.ts dentro da pasta modulos.',
+            'Sempre que quiser voltar a usar um módulo desativado, basta religar a chave — todos os dados permanecem preservados.'
+          ],
+          tips: 'O cabeçalho superior também foi limpo (sem campo de data/mês) para oferecer uma navegação mais leve e focada nos módulos ativos.',
+          targetTab: 'configuracoes'
         }
       ]
     },
@@ -696,41 +715,40 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
     },
     {
       id: 'temas_seguranca',
-      title: 'Acessos, Login & Identidade Visual',
+      title: 'Acessos, Login FIRE GESTÃO & Identidade Visual',
       icon: Palette,
-      description: 'Autenticação de usuários, 3 temas visuais com cores vibrantes, menu lateral retrátil e auditoria.',
+      description: 'Autenticação limpa (Zero Absoluto), tela de login solar, favicon mini chama, 2 temas oficiais, menu lateral retrátil e auditoria.',
       modules: [
         {
           id: 'login_auth',
           moduleCode: 'MOD-6.1',
-          title: 'Tela de Login com Usuário, Senha & Perfis',
+          title: 'Tela de Login FIRE GESTÃO (Cores da Chama & Perfis)',
           icon: Lock,
           badge: 'Autenticação Segura',
-          objective: 'Proteger o sistema com tela de autenticação por usuário e senha, adaptando os menus por perfil.',
-          summary: 'Suporte a Administrador, Técnico em Campo, Vendedor, Contador e Cliente.',
+          objective: 'Proteger o sistema com tela de login nas cores alegres do favicon mini chama (amarelo solar e laranja) e controle de perfis.',
+          summary: 'Suporte a Administrador, Colaborador, Técnico em Campo, Vendedor, Contador e Cliente em base limpa (Zero Absoluto).',
           howToUse: [
-            'Na tela de login, informe seu usuário (ou e-mail) e sua senha cadastrada.',
-            'Você pode utilizar o seletor visual de temas já na tela de login para escolher as cores de sua preferência.',
-            'Para demonstração rápida, utilize os botões de atalho dos usuários demo disponíveis.',
+            'Na tela de login do FIRE GESTÃO, informe seu usuário (ou e-mail) e sua senha cadastrada.',
+            'Na instalação inicial (Zero Absoluto), utilize o acesso Administrador padrão e cadastre os demais usuários reais da sua equipe em Configurações → Usuários e Acesso.',
             'Para sair com segurança, clique no botão "Sair" no cabeçalho ou rodapé do menu lateral.'
           ],
-          tips: 'A sessão permanece salva com segurança no navegador do dispositivo.',
+          tips: 'A sessão permanece salva com segurança no navegador do dispositivo e respeita os módulos ativos.',
           targetTab: 'dashboard'
         },
         {
           id: 'visual_themes_palettes',
           moduleCode: 'MOD-6.2',
-          title: '3 Temas Visuais com Paletas Vibrantes e Suaves',
+          title: '2 Temas Oficiais: Fire Gestão · Chama Alegre & Azul Cobalto',
           icon: Palette,
           badge: 'Identidade Visual',
-          objective: 'Alternar instantaneamente as cores do sistema entre 3 temas desenhados com alto contraste e elegância.',
-          summary: 'Tema MP Piscina Clássico, Tema Terra & Oliva Vibrante (Paleta 1) e Tema Claro & Suave com Ouro Vibrante (Paleta 2).',
+          objective: 'Alternar instantaneamente entre as 2 paletas oficiais com alto contraste, conforto visual e identidade da marca FIRE GESTÃO.',
+          summary: 'Tema Fire Gestão · Chama Alegre (amarelo + laranja + verde petróleo + esmeralda + marfim suave) e Tema Azul Cobalto.',
           howToUse: [
             'Acesse "Configurações" no menu lateral e clique na aba "Temas & Identidade Visual".',
-            'Escolha entre os temas disponíveis com amostra das cores oficiais.',
-            'A aplicação atualiza as cores de menus, botões, tabelas e cabeçalhos imediatamente.'
+            'Escolha entre "Fire Gestão · Chama Alegre" ou "Azul Cobalto" visualizando a amostra de cores.',
+            'A aplicação atualiza menus, botões, tabelas e cabeçalhos imediatamente.'
           ],
-          tips: 'O tema Claro & Suave com Ouro Vibrante oferece leitura agradável para atendimentos diurnos. O seletor foi movido para Configurações para deixar o cabeçalho superior mais limpo.',
+          tips: 'O favicon mini chama amarela e laranja identifica a aba do navegador e a identidade do FIRE GESTÃO em todo o sistema.',
           targetTab: 'configuracoes'
         },
         {
