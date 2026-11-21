@@ -16,6 +16,25 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.21',
+    date: '21/11/2026',
+    title: 'Ordens de Serviço: Campo Opcional de Referência do Contrato',
+    summary:
+      'Adicionado campo opcional "Referência do Contrato" nas Ordens de Serviço (criação, edição, busca, listagem, cards, detalhes e impressão/PDF A4), exibido automaticamente sempre que houver um contrato vinculado.',
+    highlights: [
+      'Campo Opcional na Abertura e Edição de O.S.: registre número ou identificação de contrato (ex.: Contrato nº 045/2026, Manutenção Mensal) com botão rápido de limpeza',
+      'Busca, Listagem, Cards & Detalhes: pesquise Ordens de Serviço pela referência do contrato e visualize o vínculo na tabela, nos cards, no tooltip e no modal de detalhes',
+      'Impressão & PDF A4: quando preenchida, a Referência do Contrato sai impressa automaticamente no quadro Prazos e Responsável do documento oficial da O.S.'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Campo opcional "Referência do Contrato" (contractReference) no formulário de criação/edição de Ordens de Serviço, nos filtros/busca ao vivo, na listagem, nos cards, no modal de detalhes e nos modelos de impressão A4.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.20',
     date: '21/11/2026',
     title: 'Manual do Sistema, Ajuda Rápida & Documentação Técnica Atualizados (18 Capítulos)',

@@ -113,7 +113,7 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
           howToUse: [
             'Clique em "+ Nova OS" ou use o atalho "Cadastrar Cliente" no topo da tela de Ordens de Serviço.',
             'Dentro do formulário da OS, se o cliente ainda não existir, clique em "+ Cadastrar Cliente" ao lado do seletor para abrir o cadastro rápido (PF/PJ, Varejo/Atacado, busca automática de CEP e CNPJ). Ao salvar, ele já entra selecionado na OS.',
-            'Informe o equipamento (tipo, modelo e número de série) e relate o problema apresentado.',
+            'Informe o equipamento (tipo, modelo e número de série), a Referência do Contrato (opcional, caso exista contrato vinculado) e relate o problema apresentado.',
             'Adicione serviços de mão de obra e peças buscadas ao vivo no Estoque.',
             'O sistema calcula automaticamente subtotal, deslocamento, descontos e prazo previsto.'
           ],

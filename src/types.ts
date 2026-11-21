@@ -440,6 +440,7 @@ export interface ServiceOrder {
   vehicleId?: string; // Veículo utilizado
   kmDriven: number;
   status: ServiceOrderStatus;
+  contractReference?: string; // Referência do contrato vinculado (opcional, caso exista)
   openDate: string;
   forecastDate: string;
   completionDate?: string;

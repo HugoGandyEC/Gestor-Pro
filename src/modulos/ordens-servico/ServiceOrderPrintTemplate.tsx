@@ -194,6 +194,12 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
                 {employee?.name || 'Hugo Gandy'}
               </span>
             </div>
+            {os.contractReference && (
+              <div>
+                <span className="font-bold text-slate-700">REF. CONTRATO: </span>
+                <span className="font-semibold text-slate-900">{os.contractReference}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

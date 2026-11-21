@@ -43,7 +43,8 @@ import {
   ChevronDown,
   ChevronUp,
   Calculator,
-  UserPlus
+  UserPlus,
+  FileText
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../../context/AppContext';
 import { 
@@ -229,6 +230,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [forecastDate, setForecastDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [completionDate, setCompletionDate] = useState<string>('');
   const [status, setStatus] = useState<ServiceOrderStatus>('orcamento_aberto');
+  const [contractReference, setContractReference] = useState<string>('');
 
   // Quick Status & Delivery Date Modal + Detail Modal Inline Controls
   const [statusModalOS, setStatusModalOS] = useState<ServiceOrder | null>(null);
@@ -870,6 +872,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     setEditingOSId(null);
     setEditingOSCode(null);
     setStatus('orcamento_aberto');
+    setContractReference('');
     setForecastDate(today);
     setCompletionDate('');
     setHasCustomPayments(false);
@@ -917,6 +920,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     setForecastDate(os.forecastDate || today);
     setCompletionDate(os.completionDate || '');
     setStatus(os.status);
+    setContractReference(os.contractReference || '');
     setEquipmentType(os.equipmentType || '');
     setEquipmentModel(os.equipmentModel || '');
     setEquipmentSerial(os.equipmentSerial || '');
@@ -1016,6 +1020,13 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     const streetPart = addressParts[0] || os.clientAddress || '';
     const cityStatePart = addressParts[1] || 'Brasília / DF';
     const technician = employees.find(e => e.id === os.employeeId)?.name || 'Hugo Gandy';
+    const safeContractRef = os.contractReference
+      ? os.contractReference
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+      : '';
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1107,6 +1118,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
         <div style="margin-top: 3px;">
           <span class="label">TÉCNICO: </span><span style="font-weight: bold; text-transform: uppercase;">${technician}</span>
         </div>
+        ${safeContractRef ? `<div style="margin-top: 3px;"><span class="label">REF. CONTRATO: </span><span style="font-weight: bold;">${safeContractRef}</span></div>` : ''}
       </div>
     </div>
   </div>
@@ -1532,6 +1544,8 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       ? getTodayIso()
       : undefined;
 
+    const normalizedContractRef = contractReference.trim() || undefined;
+
     if (editingOSId) {
       updateServiceOrder(editingOSId, {
         clientId: clientObj.id,
@@ -1543,6 +1557,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         vehicleId: vehicleId || undefined,
         kmDriven: Number(kmDriven) || 0,
         status,
+        contractReference: normalizedContractRef,
         forecastDate,
         completionDate: resolvedCompletionDate,
         equipmentType,
@@ -1566,6 +1581,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       });
       setEditingOSId(null);
       setEditingOSCode(null);
+      setContractReference('');
       setHasCustomPayments(false);
       setEntryPhotos([]);
       setExitPhotos([]);
@@ -1583,6 +1599,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       vehicleId: vehicleId || undefined,
       kmDriven: Number(kmDriven) || 0,
       status,
+      contractReference: normalizedContractRef,
       openDate: new Date().toISOString().split('T')[0],
       forecastDate,
       completionDate: resolvedCompletionDate,
@@ -1609,6 +1626,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
     setHasCustomPayments(false);
     setCompletionDate('');
+    setContractReference('');
     setEntryPhotos([]);
     setExitPhotos([]);
     setIsNewModalOpen(false);
@@ -1682,6 +1700,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
     const matchesSearch = 
       o.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (o.contractReference && o.contractReference.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (o.equipmentSerial && o.equipmentSerial.toLowerCase().includes(searchTerm.toLowerCase())) ||
       o.description.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -1771,7 +1790,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
           <LiveSearchInput
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder="Buscar por código, cliente, S/N do equipamento ou laudo..."
+            placeholder="Buscar por código, cliente, contrato, S/N do equipamento ou laudo..."
             emptyLabel="Nenhuma OS"
             inputClassName="w-full pl-9 pr-8 py-1.5 text-xs bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#53383e] focus:bg-white"
             getOptions={(query) => {
@@ -1781,6 +1800,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   o =>
                     o.code.toLowerCase().includes(q) ||
                     o.clientName.toLowerCase().includes(q) ||
+                    (o.contractReference && o.contractReference.toLowerCase().includes(q)) ||
                     (o.equipmentSerial && o.equipmentSerial.toLowerCase().includes(q)) ||
                     (o.description || '').toLowerCase().includes(q)
                 )
@@ -1791,7 +1811,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   return {
                     id: o.id,
                     title: `OS ${o.code} · ${o.clientName}`,
-                    subtitle: `${getServiceOrderStatusMeta(o.status).label} · ${o.equipmentType || o.description || 'Atendimento Técnico'}`,
+                    subtitle: `${getServiceOrderStatusMeta(o.status).label}${o.contractReference ? ` · Contrato: ${o.contractReference}` : ''} · ${o.equipmentType || o.description || 'Atendimento Técnico'}`,
                     priceText: formatBRL(total),
                     badgeText: o.paymentStatus === 'pago' ? 'Pago' : 'Pendente',
                     badgeClassName:
@@ -1886,13 +1906,24 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                                 ? formatBRL(techEarnings)
                                 : `${formatBRL(grandTotal)} (${os.paymentStatus === 'pago' ? 'Pago' : 'Pendente'})`
                             },
+                            ...(os.contractReference ? [{ label: 'Referência do Contrato', value: os.contractReference }] : []),
                             ...(os.clientAddress ? [{ label: 'Endereço', value: os.clientAddress, fullWidth: true }] : [])
                           ]
                         })
                       }
                       onMouseLeave={hideTooltip}
                     >
-                      <td className="font-mono font-bold text-[#53383e]">{os.code}</td>
+                      <td className="font-mono font-bold text-[#53383e]">
+                        <div>{os.code}</div>
+                        {os.contractReference && (
+                          <div
+                            className="text-[10px] font-sans font-semibold text-indigo-700 truncate max-w-[140px]"
+                            title={`Referência do Contrato: ${os.contractReference}`}
+                          >
+                            Ctr: {os.contractReference}
+                          </div>
+                        )}
+                      </td>
                       <td>
                         {canEditStatus ? (
                           <select
@@ -2088,6 +2119,12 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                       <div className="truncate font-medium text-slate-800">
                         {os.equipmentType || 'Atendimento Técnico'}
                       </div>
+                      {os.contractReference && (
+                        <div className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-800 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded max-w-full">
+                          <FileText className="w-3 h-3 text-indigo-600 shrink-0" />
+                          <span className="truncate">Contrato: {os.contractReference}</span>
+                        </div>
+                      )}
                       {os.description && (
                         <p className="text-[11px] text-slate-500 line-clamp-2">{os.description}</p>
                       )}
@@ -2187,6 +2224,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                   { label: 'Telefone', value: os.clientPhone || 'Não informado' },
                   { label: 'CPF / CNPJ', value: os.clientDocument || 'Não informado' },
                   { label: 'Data de Entrega dos Serviços', value: os.completionDate ? formatDateBR(os.completionDate) : 'Ainda não entregue' },
+                  ...(os.contractReference ? [{ label: 'Referência do Contrato', value: os.contractReference, fullWidth: true }] : []),
                   { label: 'Endereço Completo', value: os.clientAddress || 'Não informado', fullWidth: true }
                 ]
               },
@@ -3002,6 +3040,38 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                         </button>
                       )}
                     </div>
+                  </div>
+                </div>
+
+                {/* Referência do Contrato (Opcional — caso exista) */}
+                <div className="pt-2.5 border-t border-slate-200">
+                  <label className="flex items-center justify-between gap-2 text-slate-700 mb-1 font-semibold">
+                    <span className="inline-flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Referência do Contrato</span>
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-500">
+                      Opcional — preencha apenas caso exista contrato vinculado
+                    </span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={contractReference}
+                      onChange={(e) => setContractReference(e.target.value)}
+                      placeholder="Ex: Contrato nº 045/2026, Manutenção Mensal Condomínio, Aditivo 02..."
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-[#53383e]"
+                    />
+                    {contractReference && (
+                      <button
+                        type="button"
+                        onClick={() => setContractReference('')}
+                        className="px-2 py-2 text-[11px] font-semibold bg-white border border-slate-200 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-500 cursor-pointer shrink-0"
+                        title="Limpar referência do contrato"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,6 +1,14 @@
 # Histórico de Versões e Alterações — FIRE GESTÃO
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.20`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.21`).
+
+---
+
+## [v2.7.21] — 21/11/2026
+**Ordens de Serviço: Campo Opcional de Referência do Contrato**
+
+### Adicionado
+- **Referência do Contrato na Ordem de Serviço (`types`, `ServiceOrdersView`, `ServiceOrderPrintTemplate`)**: campo opcional **Referência do Contrato** na abertura e edição de O.S., integrado à busca/filtro, exibido apenas quando preenchido na listagem, cards, tooltip, detalhes e na impressão/PDF A4 oficial.
 
 ---
 
