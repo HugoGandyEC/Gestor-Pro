@@ -47,6 +47,7 @@ import {
   formatBytes
 } from '../../services/fileUploadTracker';
 import { DuplicateUploadModal } from '../../components/DuplicateUploadModal';
+import { UniversalProductReconciliationPanel } from '../estoque/UniversalProductReconciliationPanel';
 
 export type ImportEntity = 
   | 'clients' 
@@ -171,6 +172,7 @@ const ENTITIES_CONFIG: EntityDefinition[] = [
     description: 'Estoque de reservatórios, bombas, conexões, marcas e custos.',
     fields: [
       { key: 'code', label: 'Código SKU', required: true, sample: 'PROD-600L' },
+      { key: 'barcode', label: 'Código de Barras / EAN', required: false, sample: '7898912345601' },
       { key: 'name', label: 'Nome do Produto', required: true, sample: 'Reservatório Boiler 600L Alta Pressão' },
       { key: 'brand', label: 'Marca / Fabricante', required: false, sample: 'TermoMax' },
       { key: 'category', label: 'Categoria', required: true, sample: 'Reservatórios Térmicos' },
@@ -425,6 +427,7 @@ export const ENTITY_SAMPLES_MAP: Record<ImportEntity, Record<string, string>[]> 
   products: [
     {
       'Código SKU': 'PROD-600L',
+      'Código de Barras / EAN': '7898912345601',
       'Nome do Produto': 'Reservatório Boiler 600L Alta Pressão Inox 316',
       'Marca / Fabricante': 'TermoMax',
       'Categoria': 'Reservatórios Térmicos',
@@ -436,6 +439,7 @@ export const ENTITY_SAMPLES_MAP: Record<ImportEntity, Record<string, string>[]> 
     },
     {
       'Código SKU': 'BOMBA-1CV',
+      'Código de Barras / EAN': '7898912345618',
       'Nome do Produto': 'Bomba Autoaspirante 1.0 CV Monofásica 220V',
       'Marca / Fabricante': 'Dancor',
       'Categoria': 'Bombas & Motores',
@@ -447,6 +451,7 @@ export const ENTITY_SAMPLES_MAP: Record<ImportEntity, Record<string, string>[]> 
     },
     {
       'Código SKU': 'VALV-ALIV-34',
+      'Código de Barras / EAN': '7898912345625',
       'Nome do Produto': 'Válvula de Alívio e Segurança 3/4 6 Bar',
       'Marca / Fabricante': 'Emmeti',
       'Categoria': 'Hidráulica & Conexões',
@@ -463,6 +468,8 @@ export const getFieldRuleHint = (key: string): string => {
   switch (key) {
     case 'name':
       return 'Texto livre (Razão Social ou Nome Completo)';
+    case 'barcode':
+      return 'Código de barras EAN-13 / GTIN para conciliação De-Para exata';
     case 'document':
       return 'CPF (000.000.000-00) ou CNPJ (00.000.000/0001-00)';
     case 'phone':
@@ -760,6 +767,7 @@ export const UniversalDataImportView: React.FC = () => {
         if (hNorm === fieldNorm || hNorm === fieldLabelNorm) return true;
         // Common aliases
         if (field.key === 'name' && (hNorm.includes('nome') || hNorm.includes('razao') || hNorm.includes('cliente') || hNorm.includes('descricao'))) return true;
+        if (field.key === 'barcode' && (hNorm.includes('ean') || hNorm.includes('gtin') || hNorm.includes('barras') || hNorm.includes('barcode') || hNorm.includes('cean'))) return true;
         if (field.key === 'document' && (hNorm.includes('cpf') || hNorm.includes('cnpj') || hNorm.includes('documento') || hNorm.includes('doc'))) return true;
         if (field.key === 'phone' && (hNorm.includes('tel') || hNorm.includes('cel') || hNorm.includes('fone') || hNorm.includes('contato'))) return true;
         if (field.key === 'email' && (hNorm.includes('mail'))) return true;
@@ -1771,113 +1779,24 @@ export const UniversalDataImportView: React.FC = () => {
               >
                 Limpar
               </button>
-              <button
-                type="button"
-                disabled={selectedRowIndices.size === 0}
-                onClick={handleCommitImport}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                <span>
-                  {selectedEntity === 'products'
-                    ? `Cadastrar ${selectedRowIndices.size} Produto(s) (Sem Financeiro)`
-                    : `Importar ${selectedRowIndices.size} ${currentEntityConfig.label}`}
-                </span>
-              </button>
+              {selectedEntity !== 'products' && (
+                <button
+                  type="button"
+                  disabled={selectedRowIndices.size === 0}
+                  onClick={handleCommitImport}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {`Importar ${selectedRowIndices.size} ${currentEntityConfig.label}`}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Opções de Importação Seletiva (destaque para Produtos sem Financeiro) */}
-          {selectedEntity === 'products' ? (
-            <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                <div className="flex items-start gap-2.5">
-                  <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                      Cadastro Seletivo de Produtos — 100% Isolado do Financeiro
-                    </h3>
-                    <p className="text-[11px] text-emerald-800 mt-0.5">
-                      Esta importação grava <strong>somente no catálogo de Produtos / Estoque</strong> e <strong>NÃO gera nenhum lançamento no Financeiro (Contas a Pagar ou DRE)</strong>.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProductZeroStock(true);
-                      setProductSkipCost(false);
-                      setProductImportSalePrices(true);
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
-                      productZeroStock
-                        ? 'bg-emerald-700 text-white border-emerald-800'
-                        : 'bg-white text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                    }`}
-                  >
-                    Somente Catálogo (Estoque 0)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProductZeroStock(false);
-                      setProductSkipCost(false);
-                      setProductImportSalePrices(true);
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
-                      !productZeroStock && !productSkipCost && productImportSalePrices
-                        ? 'bg-slate-900 text-white border-slate-900'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    Produtos + Saldo Inicial
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-                <label className="flex items-start gap-2 p-2.5 bg-white rounded-lg border border-emerald-200 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={productZeroStock}
-                    onChange={(e) => setProductZeroStock(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">Zerar estoque inicial (qtd = 0)</span>
-                    <span className="text-[10px] text-slate-500">Cadastra apenas a ficha do produto sem saldo.</span>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-2 p-2.5 bg-white rounded-lg border border-emerald-200 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={productSkipCost}
-                    onChange={(e) => setProductSkipCost(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">Não importar preço de custo</span>
-                    <span className="text-[10px] text-slate-500">Grava custo inicial como R$ 0,00.</span>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-2 p-2.5 bg-white rounded-lg border border-emerald-200 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={productImportSalePrices}
-                    onChange={(e) => setProductImportSalePrices(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">Importar preços de venda</span>
-                    <span className="text-[10px] text-slate-500">Preenche Varejo e Atacado da planilha.</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-          ) : (
+          {/* Banner de importação seletiva para demais entidades (não-produtos) */}
+          {selectedEntity !== 'products' && (
             <div className={`p-3 rounded-xl border text-xs flex items-center gap-2.5 ${
               selectedEntity === 'payments'
                 ? 'bg-amber-50 border-amber-200 text-amber-900'
@@ -1923,93 +1842,127 @@ export const UniversalDataImportView: React.FC = () => {
             </div>
           </div>
 
-          {/* Live Preview Table with Per-Row Selective Checkboxes */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-            <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-700">
-              <div className="flex items-center gap-2">
-                <span>Seleção de Registros para Importar</span>
-                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono text-[11px] font-bold">
-                  {selectedRowIndices.size} / {parsedRows.length} marcados
-                </span>
+          {/* Para Estoque/Produtos: motor completo Etapa 1 (De-Para, Fator de Conversão, Rateio, Custo e Financeiro Seletivo) */}
+          {selectedEntity === 'products' ? (
+            <UniversalProductReconciliationPanel
+              parsedRows={parsedRows}
+              columnMapping={columnMapping}
+              fileName={fileName}
+              onClear={() => {
+                setParsedRows([]);
+                setParsedHeaders([]);
+                setFileName(null);
+              }}
+              onCommitted={({ count, message }) => {
+                if (count > 0) {
+                  registerUploadedFile({
+                    fileName: fileName || 'importacao_products.dat',
+                    fileSize: loadedFileSize || 0,
+                    checksum: loadedFileChecksum || `products_${Date.now()}`,
+                    category: 'cadastro_upload',
+                    entity: 'products',
+                    recordCount: count,
+                    metadata: {
+                      entityLabel: currentEntityConfig.label,
+                      importMode,
+                    },
+                  });
+                }
+                setFeedbackMessage({ type: 'success', text: message });
+                setParsedRows([]);
+                setParsedHeaders([]);
+                setFileName(null);
+              }}
+            />
+          ) : (
+            /* Live Preview Table with Per-Row Selective Checkboxes for other entities */
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-700">
+                <div className="flex items-center gap-2">
+                  <span>Seleção de Registros para Importar</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono text-[11px] font-bold">
+                    {selectedRowIndices.size} / {parsedRows.length} marcados
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllRows}
+                    className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-100 cursor-pointer"
+                  >
+                    Marcar Todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deselectAllRows}
+                    className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-100 cursor-pointer"
+                  >
+                    Desmarcar Todos
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={selectAllRows}
-                  className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-100 cursor-pointer"
-                >
-                  Marcar Todos
-                </button>
-                <button
-                  type="button"
-                  onClick={deselectAllRows}
-                  className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-100 cursor-pointer"
-                >
-                  Desmarcar Todos
-                </button>
-              </div>
-            </div>
-            <div className="overflow-x-auto max-h-96">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 text-slate-700 font-semibold sticky top-0 border-b border-slate-200 z-10">
-                  <tr>
-                    <th className="py-2 px-3 text-center w-12">
-                      <input
-                        type="checkbox"
-                        checked={parsedRows.length > 0 && selectedRowIndices.size === parsedRows.length}
-                        onChange={(e) => (e.target.checked ? selectAllRows() : deselectAllRows())}
-                        className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                        title="Marcar ou desmarcar todas as linhas"
-                      />
-                    </th>
-                    <th className="py-2 px-3 text-center">#</th>
-                    {currentEntityConfig.fields.map(f => (
-                      <th key={f.key} className="py-2 px-3 whitespace-nowrap">
-                        {f.label}
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100 text-slate-700 font-semibold sticky top-0 border-b border-slate-200 z-10">
+                    <tr>
+                      <th className="py-2 px-3 text-center w-12">
+                        <input
+                          type="checkbox"
+                          checked={parsedRows.length > 0 && selectedRowIndices.size === parsedRows.length}
+                          onChange={(e) => (e.target.checked ? selectAllRows() : deselectAllRows())}
+                          className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                          title="Marcar ou desmarcar todas as linhas"
+                        />
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {parsedRows.slice(0, 200).map((row, idx) => {
-                    const isChecked = selectedRowIndices.has(idx);
-                    return (
-                      <tr
-                        key={idx}
-                        className={`transition-colors ${isChecked ? 'hover:bg-slate-50' : 'bg-slate-50/70 opacity-45'}`}
-                      >
-                        <td className="py-2 px-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleRowSelection(idx)}
-                            className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                          />
-                        </td>
-                        <td className="py-2 px-3 text-center font-mono text-slate-400 text-[10px]">
-                          {idx + 1}
-                        </td>
-                        {currentEntityConfig.fields.map(f => {
-                          const colKey = columnMapping[f.key];
-                          const val = colKey ? row[colKey] : '';
-                          return (
-                            <td key={f.key} className="py-2 px-3 truncate max-w-xs text-slate-800">
-                              {val ? String(val) : <span className="text-slate-300 italic">—</span>}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {parsedRows.length > 200 && (
-              <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 text-[11px] text-slate-500">
-                Exibindo os primeiros 200 registros na pré-visualização. Os botões "Marcar Todos / Desmarcar Todos" controlam todas as {parsedRows.length} linhas do arquivo.
+                      <th className="py-2 px-3 text-center">#</th>
+                      {currentEntityConfig.fields.map(f => (
+                        <th key={f.key} className="py-2 px-3 whitespace-nowrap">
+                          {f.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {parsedRows.slice(0, 200).map((row, idx) => {
+                      const isChecked = selectedRowIndices.has(idx);
+                      return (
+                        <tr
+                          key={idx}
+                          className={`transition-colors ${isChecked ? 'hover:bg-slate-50' : 'bg-slate-50/70 opacity-45'}`}
+                        >
+                          <td className="py-2 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleRowSelection(idx)}
+                              className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-center font-mono text-slate-400 text-[10px]">
+                            {idx + 1}
+                          </td>
+                          {currentEntityConfig.fields.map(f => {
+                            const colKey = columnMapping[f.key];
+                            const val = colKey ? row[colKey] : '';
+                            return (
+                              <td key={f.key} className="py-2 px-3 truncate max-w-xs text-slate-800">
+                                {val ? String(val) : <span className="text-slate-300 italic">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
+              {parsedRows.length > 200 && (
+                <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 text-[11px] text-slate-500">
+                  Exibindo os primeiros 200 registros na pré-visualização. Os botões "Marcar Todos / Desmarcar Todos" controlam todas as {parsedRows.length} linhas do arquivo.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

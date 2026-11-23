@@ -16,6 +16,41 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.22',
+    date: '22/11/2026',
+    title: 'Importação de Estoque Etapa 1: Conciliação De-Para, Conversão de Unidades, Rateio e Duplicatas NF-e',
+    summary:
+      'Evolução completa do motor de importação de estoque (NF-e XML e Importação Universal CSV/XLSX/TXT/XML/SQL/PDF) com conciliação automática De-Para, memória por fornecedor, fator de conversão de unidades, rateio de frete/seguro/outras despesas/descontos, política de custo na unidade do estoque e integração financeira seletiva com leitura de duplicatas do XML.',
+    highlights: [
+      'Detecção Automática ("De-Para") & Sugestão Inteligente: conciliação por EAN/GTIN exato, vínculo memorizado por fornecedor + código/descrição (pré-preenchendo o último fator de conversão) e busca aproximada por similaridade',
+      'Pré-Visualização com Comparação Lado a Lado & Fator de Conversão: ação por linha (Vincular Existente preservando nome padrão, Cadastrar Novo ou Ignorar), fator decimal editável, conversão de unidade (ex.: CX → UN), quantidade convertida e custo unitário efetivo em tempo real',
+      'Rateio da NF-e & Política de Custo: extração e ajuste manual de vProd, vFrete, vSeg, vOutro, vDesc e vNF com rateio proporcional ao valor, à quantidade ou apenas no financeiro, além de escolha entre último custo efetivo, Custo Médio Ponderado ou manter custo atual',
+      'Integração Financeira Seletiva & Duplicatas XML: padrão sem lançamento financeiro, criação automática a partir de <cobr>/<dup> e <pag>/<detPag> com parcelas editáveis e atalhos rápidos (À vista, 7d, 14d, 28d, 30d, X parcelas), ou vínculo bidirecional com despesa já existente sem duplicar valores'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Motor de conciliação De-Para (EAN/GTIN exato, vínculo memorizado por fornecedor, código/SKU e similaridade de descrição) com comparação visual lado a lado e memorização automática do vínculo e fator de conversão para compras futuras.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Fator de conversão decimal por item (Unidade do Fornecedor → Unidade do Estoque) com cálculo em tempo real de quantidade convertida e custo unitário efetivo convertido na NF-e XML e na Importação Universal.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Leitura de <total>/<ICMSTot> (vProd, vFrete, vSeg, vOutro, vDesc, vNF), critérios de rateio configuráveis (valor, quantidade ou apenas financeiro) e políticas de atualização de custo (custo efetivo convertido, Custo Médio Ponderado ou manter custo atual).'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Integração financeira seletiva com 3 modos (Não gerar, Gerar nova Despesa lendo duplicatas <cobr>/<dup> e <pag>/<detPag> com parcelas editáveis e atalhos rápidos, ou Vincular a Despesa existente com rastreabilidade bidirecional sem duplicar valores).'
+      }
+    ]
+  },
+  {
     version: 'v2.7.21',
     date: '21/11/2026',
     title: 'Ordens de Serviço: Campo Opcional de Referência do Contrato',

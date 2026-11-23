@@ -1,1158 +1,1531 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  Building, 
-  Package, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Percent, 
-  DollarSign, 
-  ArrowRight, 
-  Edit3, 
-  Save, 
-  X, 
-  Layers, 
-  ShieldCheck, 
-  FileText, 
-  CheckSquare, 
-  Square, 
-  RotateCcw, 
-  Sparkles, 
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  X,
+  CheckCircle2,
+  Building2,
+  Package,
+  AlertCircle,
   TrendingUp,
-  UserCheck,
-  Tag,
-  Boxes
+  Layers,
+  Sparkles,
+  FileCode,
+  Search,
+  RefreshCw,
+  ArrowRight,
+  SlidersHorizontal,
+  Ban,
+  Calculator,
+  Link2,
+  PlusSquare,
+  Scale,
+  Barcode,
+  Info,
 } from 'lucide-react';
+import {
+  ExpenseCategory,
+  ImportAllocationMode,
+  ImportCostUpdateMode,
+  ImportFinancialInstallment,
+  ImportFinancialMode,
+  ImportItemAction,
+  ParsedXmlItem,
+  ParsedXmlNFe,
+  PaymentMethod,
+  Product,
+} from '../../types';
 import { useApp, formatBRL } from '../../context/AppContext';
-import { ParsedXmlNFe, ParsedXmlItem, ParsedXmlSupplier } from '../../types';
-import { 
-  checkDuplicateUpload, 
-  registerUploadedFile 
-} from '../../services/fileUploadTracker';
+import {
+  buildQuickInstallments,
+  computeUpdatedProductCost,
+  formatQuantityClean,
+  getMatchSourceLabel,
+  recalculateImportItems,
+  round2,
+} from '../../utils/stockImportHelpers';
+import { StockImportProductPicker } from './StockImportProductPicker';
+import { StockImportFinancialPanel } from './StockImportFinancialPanel';
 
 interface NFeImportStagingModalProps {
-  initialParsedNFe: ParsedXmlNFe;
+  isOpen?: boolean;
   onClose: () => void;
-  onSuccess: (resultMessage: string) => void;
+  initialParsedNFe?: ParsedXmlNFe | null;
+  parsedNFe?: ParsedXmlNFe | null;
+  onSuccess?: (message: string) => void;
 }
 
+const MATCH_TONE_CLASSES: Record<
+  'emerald' | 'blue' | 'violet' | 'amber' | 'slate',
+  string
+> = {
+  emerald: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  blue: 'bg-blue-50 text-blue-800 border-blue-200',
+  violet: 'bg-violet-50 text-violet-800 border-violet-200',
+  amber: 'bg-amber-50 text-amber-800 border-amber-200',
+  slate: 'bg-slate-100 text-slate-700 border-slate-200',
+};
+
 export const NFeImportStagingModal: React.FC<NFeImportStagingModalProps> = ({
-  initialParsedNFe,
+  isOpen = true,
   onClose,
-  onSuccess
+  initialParsedNFe,
+  parsedNFe,
+  onSuccess,
 }) => {
-  const { commitImportNFe } = useApp();
+  const sourceNFe = initialParsedNFe ?? parsedNFe ?? null;
+  const {
+    products,
+    generalExpenses,
+    commitImportNFe,
+    lookupCnpj,
+    lookupCep,
+    productCategories,
+  } = useApp();
 
-  // Working copy of parsed NFe state (garantindo flags seletivas inicializadas)
-  const [nfeData, setNfeData] = useState<ParsedXmlNFe>(() => ({
-    ...initialParsedNFe,
-    importProducts: initialParsedNFe.importProducts ?? true,
-    items: initialParsedNFe.items.map(it => ({
-      ...it,
-      selectedToImport: it.selectedToImport !== false
-    }))
-  }));
-
-  // Bulk margin controls
-  const [bulkRetailMargin, setBulkRetailMargin] = useState<number>(55);
-  const [bulkWholesaleMargin, setBulkWholesaleMargin] = useState<number>(35);
-
-  // Supplier edit drawer / expanded toggle & inline error message
-  const [isEditingSupplier, setIsEditingSupplier] = useState(false);
+  const [nfeData, setNfeData] = useState<ParsedXmlNFe | null>(null);
+  const [globalRetailMargin, setGlobalRetailMargin] = useState<number>(55);
+  const [globalWholesaleMargin, setGlobalWholesaleMargin] = useState<number>(35);
+  const [isLookingUpCnpj, setIsLookingUpCnpj] = useState(false);
+  const [isLookingUpCep, setIsLookingUpCep] = useState(false);
+  const [lookupFeedback, setLookupFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showPricingColumns, setShowPricingColumns] = useState<boolean>(true);
+  const [showSupplierDetails, setShowSupplierDetails] = useState<boolean>(false);
 
-  // Presets rápidos de importação seletiva
-  const applyOnlyProductsPreset = () => {
-    setErrorMessage(null);
-    setNfeData(prev => ({
-      ...prev,
-      importProducts: true,
-      createAccountPayable: false,
-      supplier: {
-        ...prev.supplier,
-        registerIfNew: false
+  // Recalcula rateio e custo unitário efetivo sempre que charges/allocation/items mudarem
+  const applyRecalculation = (
+    draft: ParsedXmlNFe,
+    repriceItemsWithMargins = false
+  ): ParsedXmlNFe => {
+    const calc = recalculateImportItems(
+      draft.items,
+      {
+        freightTotal: draft.freightTotal,
+        insuranceTotal: draft.insuranceTotal,
+        otherExpensesTotal: draft.otherExpensesTotal,
+        discountTotal: draft.discountTotal,
       },
-      items: prev.items.map(it => ({
-        ...it,
-        selectedToImport: true,
-        updateStock: false
-      }))
-    }));
-  };
+      draft.allocationMode
+    );
 
-  const applyProductsWithStockNoFinancialPreset = () => {
-    setErrorMessage(null);
-    setNfeData(prev => ({
-      ...prev,
-      importProducts: true,
-      createAccountPayable: false,
-      supplier: {
-        ...prev.supplier,
-        registerIfNew: !prev.supplier.isAlreadyRegistered
-      },
-      items: prev.items.map(it => ({
-        ...it,
-        selectedToImport: true,
-        updateStock: true
-      }))
-    }));
-  };
-
-  const applyCompleteImportPreset = () => {
-    setErrorMessage(null);
-    setNfeData(prev => ({
-      ...prev,
-      importProducts: true,
-      createAccountPayable: true,
-      supplier: {
-        ...prev.supplier,
-        registerIfNew: !prev.supplier.isAlreadyRegistered
-      },
-      items: prev.items.map(it => ({
-        ...it,
-        selectedToImport: true,
-        updateStock: true
-      }))
-    }));
-  };
-
-  // Supplier helper updates
-  const handleUpdateSupplier = (field: keyof ParsedXmlSupplier, value: any) => {
-    setNfeData(prev => ({
-      ...prev,
-      supplier: {
-        ...prev.supplier,
-        [field]: value
-      }
-    }));
-  };
-
-  // Item field updates
-  const handleUpdateItem = (index: number, updates: Partial<ParsedXmlItem>) => {
-    setNfeData(prev => {
-      const newItems = [...prev.items];
-      newItems[index] = { ...newItems[index], ...updates };
-      return { ...prev, items: newItems };
-    });
-  };
-
-  // When retail margin changes -> recalculate retail price
-  const handleRetailMarginChange = (index: number, margin: number) => {
-    const item = nfeData.items[index];
-    const newPrice = Number((item.costPrice * (1 + margin / 100)).toFixed(2));
-    handleUpdateItem(index, {
-      retailMarginPercent: margin,
-      retailPrice: newPrice
-    });
-  };
-
-  // When retail price changes -> recalculate retail margin
-  const handleRetailPriceChange = (index: number, price: number) => {
-    const item = nfeData.items[index];
-    if (item.costPrice <= 0) return;
-    const newMargin = Number((((price / item.costPrice) - 1) * 100).toFixed(1));
-    handleUpdateItem(index, {
-      retailPrice: price,
-      retailMarginPercent: newMargin
-    });
-  };
-
-  // When wholesale margin changes -> recalculate wholesale price
-  const handleWholesaleMarginChange = (index: number, margin: number) => {
-    const item = nfeData.items[index];
-    const newPrice = Number((item.costPrice * (1 + margin / 100)).toFixed(2));
-    handleUpdateItem(index, {
-      wholesaleMarginPercent: margin,
-      wholesalePrice: newPrice
-    });
-  };
-
-  // When wholesale price changes -> recalculate wholesale margin
-  const handleWholesalePriceChange = (index: number, price: number) => {
-    const item = nfeData.items[index];
-    if (item.costPrice <= 0) return;
-    const newMargin = Number((((price / item.costPrice) - 1) * 100).toFixed(1));
-    handleUpdateItem(index, {
-      wholesalePrice: price,
-      wholesaleMarginPercent: newMargin
-    });
-  };
-
-  // Bulk Apply Retail Margin to all items
-  const handleApplyBulkRetailMargin = () => {
-    setNfeData(prev => ({
-      ...prev,
-      items: prev.items.map(item => {
-        const newPrice = Number((item.costPrice * (1 + bulkRetailMargin / 100)).toFixed(2));
-        return {
-          ...item,
-          retailMarginPercent: bulkRetailMargin,
-          retailPrice: newPrice,
-          updateRetailPrice: true
-        };
-      })
-    }));
-  };
-
-  // Bulk Apply Wholesale Margin to all items
-  const handleApplyBulkWholesaleMargin = () => {
-    setNfeData(prev => ({
-      ...prev,
-      items: prev.items.map(item => {
-        const newPrice = Number((item.costPrice * (1 + bulkWholesaleMargin / 100)).toFixed(2));
-        return {
-          ...item,
-          wholesaleMarginPercent: bulkWholesaleMargin,
-          wholesalePrice: newPrice,
-          updateWholesalePrice: true
-        };
-      })
-    }));
-  };
-
-  // Bulk toggle checkboxes
-  const handleToggleAll = (field: 'updateRetailPrice' | 'updateWholesalePrice' | 'updateStock' | 'selectedToImport', value: boolean) => {
-    setNfeData(prev => ({
-      ...prev,
-      items: prev.items.map(item => ({
+    const nextItems = calc.items.map((item) => {
+      if (!repriceItemsWithMargins) return item;
+      const baseCost = item.effectiveUnitCost ?? item.costPrice;
+      return {
         ...item,
-        [field]: value
-      }))
-    }));
-  };
-
-  // Round prices to .90
-  const handleRoundPrices = () => {
-    setNfeData(prev => ({
-      ...prev,
-      items: prev.items.map(item => {
-        const roundedRetail = Math.floor(item.retailPrice) + 0.90;
-        const roundedWholesale = Math.floor(item.wholesalePrice) + 0.90;
-        return {
-          ...item,
-          retailPrice: roundedRetail,
-          retailMarginPercent: item.costPrice > 0 ? Number((((roundedRetail / item.costPrice) - 1) * 100).toFixed(1)) : item.retailMarginPercent,
-          wholesalePrice: roundedWholesale,
-          wholesaleMarginPercent: item.costPrice > 0 ? Number((((roundedWholesale / item.costPrice) - 1) * 100).toFixed(1)) : item.wholesaleMarginPercent
-        };
-      })
-    }));
-  };
-
-  // Selected items & derived flags
-  const importProductsEnabled = nfeData.importProducts !== false;
-  const selectedItems = useMemo(() => {
-    return nfeData.items.filter(it => it.selectedToImport !== false);
-  }, [nfeData.items]);
-
-  const allItemsSelected = nfeData.items.length > 0 && selectedItems.length === nfeData.items.length;
-  const anyStockUpdateEnabled = selectedItems.some(it => it.updateStock);
-  const willRegisterSupplier = !nfeData.supplier.isAlreadyRegistered && nfeData.supplier.registerIfNew;
-  const hasAnythingToImport =
-    (importProductsEnabled && selectedItems.length > 0) ||
-    willRegisterSupplier ||
-    nfeData.createAccountPayable;
-
-  // Summary calculations (considerando apenas os itens selecionados)
-  const totalCost = useMemo(() => {
-    return selectedItems.reduce((acc, it) => acc + (it.costPrice * it.quantity), 0);
-  }, [selectedItems]);
-
-  const potentialRetailRevenue = useMemo(() => {
-    return selectedItems.reduce((acc, it) => acc + (it.retailPrice * it.quantity), 0);
-  }, [selectedItems]);
-
-  const potentialWholesaleRevenue = useMemo(() => {
-    return selectedItems.reduce((acc, it) => acc + (it.wholesalePrice * it.quantity), 0);
-  }, [selectedItems]);
-
-  const potentialRetailProfit = potentialRetailRevenue - totalCost;
-
-  // Duplicate Check
-  const duplicateCheck = useMemo(() => {
-    return checkDuplicateUpload({
-      chNFe: nfeData.chNFe,
-      nNF: nfeData.nNF,
-      supplierCnpj: nfeData.supplier.cnpj,
-      category: 'nfe_xml'
+        retailPrice: round2(baseCost * (1 + item.retailMarginPercent / 100)),
+        wholesalePrice: round2(baseCost * (1 + item.wholesaleMarginPercent / 100)),
+      };
     });
-  }, [nfeData.chNFe, nfeData.nNF, nfeData.supplier.cnpj]);
 
-  // Final commit
-  const handleConfirmAndCommit = () => {
+    return {
+      ...draft,
+      productsTotal: calc.activeProductsTotal,
+      totalValue: calc.grandTotal,
+      items: nextItems,
+    };
+  };
+
+  useEffect(() => {
+    if (sourceNFe) {
+      const cloned: ParsedXmlNFe = {
+        ...sourceNFe,
+        supplier: { ...sourceNFe.supplier },
+        items: sourceNFe.items.map((it) => ({
+          ...it,
+          suggestedMatches: it.suggestedMatches ? [...it.suggestedMatches] : [],
+        })),
+        installments: sourceNFe.installments
+          ? sourceNFe.installments.map((inst) => ({ ...inst }))
+          : [],
+      };
+      setNfeData(applyRecalculation(cloned, false));
+      setLookupFeedback(null);
+      setErrorMessage(null);
+      setShowSupplierDetails(!cloned.supplier.isAlreadyRegistered);
+    }
+  }, [sourceNFe]);
+
+  const summaryStats = useMemo(() => {
+    if (!nfeData) {
+      return {
+        totalItems: 0,
+        linkedCount: 0,
+        newCount: 0,
+        ignoredCount: 0,
+        unresolvedLinkCount: 0,
+        stockAddItemsCount: 0,
+        totalConvertedUnits: 0,
+        activeProductsTotal: 0,
+        grandTotal: 0,
+      };
+    }
+    const linked = nfeData.items.filter((i) => i.action === 'link_existing');
+    const created = nfeData.items.filter((i) => i.action === 'create_new');
+    const ignored = nfeData.items.filter((i) => i.action === 'ignore');
+    const unresolved = linked.filter((i) => !i.existingProductId);
+    const active = nfeData.items.filter((i) => i.action !== 'ignore');
+    const stockAdd = active.filter((i) => i.updateStock);
+    const totalConverted = stockAdd.reduce(
+      (acc, it) => acc + (it.convertedQuantity ?? it.quantity * (it.conversionFactor || 1)),
+      0
+    );
+
+    return {
+      totalItems: nfeData.items.length,
+      linkedCount: linked.length,
+      newCount: created.length,
+      ignoredCount: ignored.length,
+      unresolvedLinkCount: unresolved.length,
+      stockAddItemsCount: stockAdd.length,
+      totalConvertedUnits: totalConverted,
+      activeProductsTotal: nfeData.productsTotal,
+      grandTotal: nfeData.totalValue,
+    };
+  }, [nfeData]);
+
+  if (!isOpen || !nfeData) return null;
+
+  const updateNFe = (
+    updater: (prev: ParsedXmlNFe) => ParsedXmlNFe,
+    recalculate = true,
+    reprice = false
+  ) => {
     setErrorMessage(null);
-    if (!hasAnythingToImport) {
-      setErrorMessage('Selecione ao menos um produto ou opção de importação (fornecedor ou financeiro) para continuar.');
+    setNfeData((prev) => {
+      if (!prev) return null;
+      const updated = updater(prev);
+      return recalculate ? applyRecalculation(updated, reprice) : updated;
+    });
+  };
+
+  const handleUpdateSupplier = (field: keyof ParsedXmlNFe['supplier'], value: any) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        supplier: { ...prev.supplier, [field]: value },
+      }),
+      false
+    );
+  };
+
+  const handleCnpjLookup = async () => {
+    if (!nfeData.supplier.cnpj) return;
+    setIsLookingUpCnpj(true);
+    setLookupFeedback(null);
+    const data = await lookupCnpj(nfeData.supplier.cnpj);
+    setIsLookingUpCnpj(false);
+    if (data) {
+      updateNFe(
+        (prev) => ({
+          ...prev,
+          supplier: {
+            ...prev.supplier,
+            name: data.name || prev.supplier.name,
+            tradeName: data.tradeName || prev.supplier.tradeName,
+            phone: data.phone || prev.supplier.phone,
+            email: data.email || prev.supplier.email,
+            cep: data.cep || prev.supplier.cep,
+            street: data.street || prev.supplier.street,
+            number: data.number || prev.supplier.number,
+            neighborhood: data.neighborhood || prev.supplier.neighborhood,
+            city: data.city || prev.supplier.city,
+            state: data.state || prev.supplier.state,
+          },
+        }),
+        false
+      );
+      setLookupFeedback('Dados do fornecedor atualizados pela Receita Federal!');
+    } else {
+      setLookupFeedback('CNPJ não localizado na consulta online.');
+    }
+  };
+
+  const handleCepLookup = async () => {
+    if (!nfeData.supplier.cep) return;
+    setIsLookingUpCep(true);
+    setLookupFeedback(null);
+    const data = await lookupCep(nfeData.supplier.cep);
+    setIsLookingUpCep(false);
+    if (data) {
+      updateNFe(
+        (prev) => ({
+          ...prev,
+          supplier: {
+            ...prev.supplier,
+            street: data.street || prev.supplier.street,
+            neighborhood: data.neighborhood || prev.supplier.neighborhood,
+            city: data.city || prev.supplier.city,
+            state: data.state || prev.supplier.state,
+          },
+        }),
+        false
+      );
+      setLookupFeedback('Endereço do fornecedor atualizado via CEP!');
+    } else {
+      setLookupFeedback('CEP não encontrado.');
+    }
+  };
+
+  // Presets rápidos seletivos
+  const applySelectivePreset = (
+    preset: 'catalog_only' | 'stock_only_no_finance' | 'full_with_finance'
+  ) => {
+    updateNFe((prev) => {
+      if (preset === 'catalog_only') {
+        return {
+          ...prev,
+          importProducts: true,
+          financialMode: 'none',
+          createAccountPayable: false,
+          supplier: { ...prev.supplier, registerIfNew: false },
+          items: prev.items.map((it) => ({
+            ...it,
+            action: it.action === 'ignore' ? (it.existingProductId ? 'link_existing' : 'create_new') : it.action,
+            selectedToImport: true,
+            updateStock: false,
+          })),
+        };
+      }
+      if (preset === 'stock_only_no_finance') {
+        return {
+          ...prev,
+          importProducts: true,
+          financialMode: 'none',
+          createAccountPayable: false,
+          supplier: { ...prev.supplier, registerIfNew: !prev.supplier.isAlreadyRegistered },
+          items: prev.items.map((it) => ({
+            ...it,
+            action: it.action === 'ignore' ? (it.existingProductId ? 'link_existing' : 'create_new') : it.action,
+            selectedToImport: true,
+            updateStock: true,
+          })),
+        };
+      }
+      // full_with_finance
+      const nextInstallments =
+        prev.installments.length > 0
+          ? prev.installments
+          : buildQuickInstallments(prev.totalValue, prev.emissionDate, '30d');
+      return {
+        ...prev,
+        importProducts: true,
+        financialMode: 'create_new',
+        createAccountPayable: true,
+        installments: nextInstallments,
+        supplier: { ...prev.supplier, registerIfNew: !prev.supplier.isAlreadyRegistered },
+        items: prev.items.map((it) => ({
+          ...it,
+          action: it.action === 'ignore' ? (it.existingProductId ? 'link_existing' : 'create_new') : it.action,
+          selectedToImport: true,
+          updateStock: true,
+        })),
+      };
+    });
+  };
+
+  const handleUpdateCharge = (
+    field: 'freightTotal' | 'insuranceTotal' | 'otherExpensesTotal' | 'discountTotal',
+    value: number
+  ) => {
+    const safeVal = Math.max(0, Number(value) || 0);
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        [field]: safeVal,
+      }),
+      true,
+      true
+    );
+  };
+
+  const handleChangeAllocationMode = (mode: ImportAllocationMode) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        allocationMode: mode,
+      }),
+      true,
+      true
+    );
+  };
+
+  const handleChangeCostUpdateMode = (mode: ImportCostUpdateMode) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        costUpdateMode: mode,
+      }),
+      false
+    );
+  };
+
+  const handleItemActionChange = (itemId: string, newAction: ImportItemAction) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        items: prev.items.map((item) => {
+          if (item.id !== itemId) return item;
+          if (newAction === 'ignore') {
+            return { ...item, action: 'ignore', selectedToImport: false };
+          }
+          if (newAction === 'create_new') {
+            return {
+              ...item,
+              action: 'create_new',
+              selectedToImport: true,
+              isNewProduct: true,
+              existingProductId: undefined,
+              stockUnit: item.unit || 'UN',
+              updateRetailPrice: true,
+              updateWholesalePrice: true,
+            };
+          }
+          // link_existing: se já tem sugestão forte e nenhum produto selecionado, pré-seleciona o 1º sugerido
+          let chosenId = item.existingProductId;
+          let chosenProd = chosenId ? products.find((p) => p.id === chosenId) : undefined;
+          if (!chosenProd && item.suggestedMatches && item.suggestedMatches.length > 0) {
+            chosenProd = products.find((p) => p.id === item.suggestedMatches![0].productId);
+            chosenId = chosenProd?.id;
+          }
+          return {
+            ...item,
+            action: 'link_existing',
+            selectedToImport: true,
+            isNewProduct: false,
+            existingProductId: chosenId,
+            existingCurrentStock: chosenProd?.currentStock,
+            existingCostPrice: chosenProd?.costPrice,
+            existingRetailPrice: chosenProd?.retailPrice,
+            existingWholesalePrice: chosenProd?.wholesalePrice,
+            stockUnit: chosenProd?.unit || item.stockUnit || item.unit || 'UN',
+          };
+        }),
+      }),
+      true,
+      true
+    );
+  };
+
+  const handleLinkExistingProduct = (itemId: string, product: Product) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        items: prev.items.map((item) => {
+          if (item.id !== itemId) return item;
+          return {
+            ...item,
+            action: 'link_existing',
+            selectedToImport: true,
+            isNewProduct: false,
+            existingProductId: product.id,
+            existingCurrentStock: product.currentStock,
+            existingCostPrice: product.costPrice,
+            existingRetailPrice: product.retailPrice,
+            existingWholesalePrice: product.wholesalePrice,
+            stockUnit: product.unit || item.unit || 'UN',
+            category: product.category || item.category,
+            matchSource: item.matchSource === 'barcode' || item.matchSource === 'supplier_mapping'
+              ? item.matchSource
+              : 'manual',
+          };
+        }),
+      }),
+      true,
+      true
+    );
+  };
+
+  const handleClearLinkedProduct = (itemId: string) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                existingProductId: undefined,
+                existingCurrentStock: undefined,
+                existingCostPrice: undefined,
+                existingRetailPrice: undefined,
+                existingWholesalePrice: undefined,
+              }
+            : item
+        ),
+      }),
+      true,
+      false
+    );
+  };
+
+  const handleConversionFactorChange = (itemId: string, rawValue: string) => {
+    const parsed = parseFloat(rawValue.replace(',', '.'));
+    const safeFactor = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === itemId ? { ...item, conversionFactor: safeFactor } : item
+        ),
+      }),
+      true,
+      true
+    );
+  };
+
+  const handleItemFieldChange = (
+    itemId: string,
+    field: keyof ParsedXmlItem,
+    value: any
+  ) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        items: prev.items.map((item) => {
+          if (item.id !== itemId) return item;
+          const updated = { ...item, [field]: value };
+          const baseCost = updated.effectiveUnitCost ?? updated.costPrice;
+
+          if (field === 'retailMarginPercent') {
+            const m = Number(value) || 0;
+            updated.retailPrice = round2(baseCost * (1 + m / 100));
+          } else if (field === 'retailPrice') {
+            const p = Number(value) || 0;
+            updated.retailMarginPercent =
+              baseCost > 0 ? round2(((p - baseCost) / baseCost) * 100) : 0;
+          } else if (field === 'wholesaleMarginPercent') {
+            const m = Number(value) || 0;
+            updated.wholesalePrice = round2(baseCost * (1 + m / 100));
+          } else if (field === 'wholesalePrice') {
+            const p = Number(value) || 0;
+            updated.wholesaleMarginPercent =
+              baseCost > 0 ? round2(((p - baseCost) / baseCost) * 100) : 0;
+          }
+          return updated;
+        }),
+      }),
+      false
+    );
+  };
+
+  const applyGlobalMargins = () => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        items: prev.items.map((item) => {
+          const baseCost = item.effectiveUnitCost ?? item.costPrice;
+          return {
+            ...item,
+            retailMarginPercent: globalRetailMargin,
+            retailPrice: round2(baseCost * (1 + globalRetailMargin / 100)),
+            wholesaleMarginPercent: globalWholesaleMargin,
+            wholesalePrice: round2(baseCost * (1 + globalWholesaleMargin / 100)),
+          };
+        }),
+      }),
+      false
+    );
+  };
+
+  const toggleAllStockUpdate = (checked: boolean) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        items: prev.items.map((item) => ({ ...item, updateStock: checked })),
+      }),
+      false
+    );
+  };
+
+  const handleFinancialModeChange = (mode: ImportFinancialMode) => {
+    updateNFe(
+      (prev) => ({
+        ...prev,
+        financialMode: mode,
+        createAccountPayable: mode === 'create_new',
+        installments:
+          mode === 'create_new' && prev.installments.length === 0
+            ? buildQuickInstallments(prev.totalValue, prev.emissionDate, '30d')
+            : prev.installments,
+      }),
+      false
+    );
+  };
+
+  const handleConfirmImport = () => {
+    if (!nfeData) return;
+
+    if (summaryStats.unresolvedLinkCount > 0) {
+      setErrorMessage(
+        `Existem ${summaryStats.unresolvedLinkCount} item(ns) marcados como "Vincular Existente (De-Para)" sem produto selecionado. Selecione o produto do catálogo ou altere a ação para "Cadastrar Novo" ou "Ignorar".`
+      );
       return;
     }
 
-    const result = commitImportNFe(nfeData);
+    if (nfeData.financialMode === 'link_existing' && !nfeData.linkedExpenseId) {
+      setErrorMessage(
+        'Você escolheu "Vincular a Despesa já existente". Selecione qual despesa do Financeiro deseja associar antes de confirmar.'
+      );
+      return;
+    }
+
+    const result = commitImportNFe(nfeData, { source: 'nfe_xml' });
     if (result.success) {
-      // Register in upload tracker history
-      registerUploadedFile({
-        fileName: `NF-e ${nfeData.nNF || 'Importada'}.xml`,
-        fileSize: 0,
-        checksum: nfeData.chNFe || `nfe-${nfeData.nNF}-${nfeData.supplier.cnpj}`,
-        category: 'nfe_xml',
-        recordCount: importProductsEnabled ? selectedItems.length : 0,
-        metadata: {
-          chNFe: nfeData.chNFe,
-          nNF: nfeData.nNF,
-          serie: nfeData.serie,
-          supplierName: nfeData.supplier.name,
-          supplierCnpj: nfeData.supplier.cnpj,
-          totalValue: nfeData.totalValue,
-          emissionDate: nfeData.emissionDate
-        }
-      });
-      onSuccess(result.message);
+      if (onSuccess) onSuccess(result.message);
+      onClose();
     } else {
       setErrorMessage(result.message);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[96vh] flex flex-col border border-slate-200 overflow-hidden">
-        {/* Top Header */}
-        <div className="bg-[#2b2c2e] text-white px-6 py-4 flex items-center justify-between border-b border-[#3d3f42] shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#53383e] text-white rounded-xl border border-[#c2bfb0]/30">
-              <Boxes className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-2 sm:p-4 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-slate-50 rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col border border-slate-300 overflow-hidden my-auto">
+        {/* Header */}
+        <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <FileCode className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-tight">
-                  Conferência & Precificação de Importação de Produtos
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-bold truncate">
+                  Conferência NF-e #{nfeData.nNF} — Conciliação De-Para &amp; Conversão
                 </h2>
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#53383e] text-[#d8d8d8] border border-[#c2bfb0]/40 font-bold">
-                  NF-e {nfeData.nNF}
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white/15 text-amber-200 border border-white/15">
+                  Série {nfeData.serie || '1'} • Emissão {nfeData.emissionDate}
                 </span>
               </div>
-              <p className="text-xs text-[#c2bfb0] mt-0.5">
-                Revise os custos, aplique suas margens de lucro para Varejo e Atacado, confirme quais tabelas atualizar e homologue o fornecedor.
+              <p className="text-xs text-slate-300 truncate mt-0.5">
+                Fornecedor: <strong className="text-white">{nfeData.supplier.name}</strong>
+                {nfeData.supplier.cnpj ? ` • CNPJ: ${nfeData.supplier.cnpj}` : ''}
+                {nfeData.chNFe ? ` • Chave: ${nfeData.chNFe.slice(0, 12)}...` : ''}
               </p>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
-            title="Fechar"
+            className="text-slate-300 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Duplicate Upload Warning Banner */}
-        {duplicateCheck.isDuplicate && duplicateCheck.record && (
-          <div className="bg-amber-100 border-b border-amber-300 px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-amber-900 text-xs">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
-              <span>
-                <strong>Atenção (NF-e já registrada no sistema):</strong> Esta nota fiscal (Nº {nfeData.nNF}) foi importada anteriormente em {new Date(duplicateCheck.record.uploadedAt).toLocaleString('pt-BR')}. Se prosseguir, os preços serão atualizados e as quantidades serão adicionadas ao estoque.
-              </span>
-            </div>
-            <span className="text-[10px] uppercase font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded border border-amber-300 shrink-0 self-start sm:self-center">
-              Reimportação
-            </span>
-          </div>
-        )}
-
-        {/* Inline Error Banner */}
-        {errorMessage && (
-          <div className="bg-rose-50 border-b border-rose-200 px-6 py-2.5 flex items-center justify-between gap-2 text-rose-800 text-xs">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span className="font-semibold">{errorMessage}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setErrorMessage(null)}
-              className="text-rose-500 hover:text-rose-700 font-bold px-1.5"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs bg-slate-50">
-          {/* =========================================================================
-              0. CONTROLE DE IMPORTAÇÃO SELETIVA (ESCOLHA EXATAMENTE O QUE IMPORTAR)
-              ========================================================================= */}
-          <div className="bg-white p-4 rounded-xl border-2 border-amber-300 shadow-2xs space-y-3.5">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div className="flex items-start gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0">
-                  <Layers className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-                    O que você deseja importar desta NF-e? (Importação Seletiva)
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Escolha exatamente quais dados entrarão no sistema. Por padrão, <strong>nada é enviado ao Financeiro</strong> até que você marque a opção abaixo.
-                  </p>
-                </div>
-              </div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs font-semibold flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
-              {/* Atalhos de 1 clique */}
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Barra de Atalhos Seletivos + Resumo Rápido */}
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                <SlidersHorizontal className="w-4 h-4 text-orange-600" />
+                Modo Rápido de Importação:
+              </div>
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={applyOnlyProductsPreset}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
-                    importProductsEnabled && !anyStockUpdateEnabled && !nfeData.createAccountPayable && !willRegisterSupplier
-                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
-                      : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                  }`}
+                  onClick={() => applySelectivePreset('catalog_only')}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg border border-slate-200 cursor-pointer"
                 >
-                  Somente Cadastrar Produtos (Sem Financeiro)
+                  Só Cadastrar Catálogo (Sem Saldo / Sem Financeiro)
                 </button>
                 <button
                   type="button"
-                  onClick={applyProductsWithStockNoFinancialPreset}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
-                    importProductsEnabled && anyStockUpdateEnabled && !nfeData.createAccountPayable
-                      ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
-                      : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
-                  }`}
+                  onClick={() => applySelectivePreset('stock_only_no_finance')}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-200 cursor-pointer"
                 >
-                  Produtos + Estoque (Sem Financeiro)
+                  Estoque + De-Para (Sem Financeiro)
                 </button>
                 <button
                   type="button"
-                  onClick={applyCompleteImportPreset}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
-                    importProductsEnabled && anyStockUpdateEnabled && nfeData.createAccountPayable
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
-                      : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                  }`}
+                  onClick={() => applySelectivePreset('full_with_finance')}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg border border-blue-200 cursor-pointer"
                 >
-                  Importação Completa (+ Financeiro)
+                  Completo (Estoque + Gerar Financeiro)
                 </button>
               </div>
             </div>
 
-            {/* 4 Checkboxes independentes */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              {/* 1. Cadastrar/Atualizar Produtos */}
-              <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
-                importProductsEnabled ? 'bg-blue-50/70 border-blue-300' : 'bg-slate-50 border-slate-200 opacity-75'
-              }`}>
-                <input
-                  type="checkbox"
-                  checked={importProductsEnabled}
-                  onChange={(e) => setNfeData(prev => ({ ...prev, importProducts: e.target.checked }))}
-                  className="w-4 h-4 mt-0.5 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <div>
-                  <span className="font-bold text-slate-900 block text-xs">Cadastrar / Atualizar Produtos</span>
-                  <span className="text-[10px] text-slate-600 block mt-0.5">
-                    {importProductsEnabled
-                      ? `${selectedItems.length} de ${nfeData.items.length} item(ns) marcado(s) na tabela`
-                      : 'Produtos desta nota não serão gravados'}
-                  </span>
+            {/* Cards de Resumo de Conciliação */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+              <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                <div className="text-[10px] font-semibold uppercase text-slate-500">Itens na NF-e</div>
+                <div className="text-base font-black text-slate-900">{summaryStats.totalItems}</div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200">
+                <div className="text-[10px] font-semibold uppercase text-blue-700">De-Para (Vinculados)</div>
+                <div className="text-base font-black text-blue-900">{summaryStats.linkedCount}</div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200">
+                <div className="text-[10px] font-semibold uppercase text-emerald-700">Novos Produtos</div>
+                <div className="text-base font-black text-emerald-900">{summaryStats.newCount}</div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200">
+                <div className="text-[10px] font-semibold uppercase text-amber-700">Qtd Convertida (+)</div>
+                <div className="text-base font-black text-amber-900">
+                  +{formatQuantityClean(summaryStats.totalConvertedUnits)}
                 </div>
-              </label>
-
-              {/* 2. Dar Entrada nas Quantidades no Estoque */}
-              <label className={`flex items-start gap-2.5 p-3 rounded-xl border transition-colors ${
-                !importProductsEnabled
-                  ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
-                  : anyStockUpdateEnabled
-                    ? 'bg-emerald-50/70 border-emerald-300 cursor-pointer'
-                    : 'bg-slate-50 border-slate-200 cursor-pointer'
-              }`}>
-                <input
-                  type="checkbox"
-                  disabled={!importProductsEnabled}
-                  checked={importProductsEnabled && anyStockUpdateEnabled}
-                  onChange={(e) => handleToggleAll('updateStock', e.target.checked)}
-                  className="w-4 h-4 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500"
-                />
-                <div>
-                  <span className="font-bold text-slate-900 block text-xs">Somar Quantidades no Estoque</span>
-                  <span className="text-[10px] text-slate-600 block mt-0.5">
-                    {anyStockUpdateEnabled && importProductsEnabled
-                      ? 'Dará entrada no Kardex / saldo'
-                      : 'Apenas cadastra no catálogo (saldo 0)'}
-                  </span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-900 text-white">
+                <div className="text-[10px] font-semibold uppercase text-slate-300">Total da Compra</div>
+                <div className="text-base font-black text-amber-300">
+                  {formatBRL(summaryStats.grandTotal)}
                 </div>
-              </label>
-
-              {/* 3. Cadastrar Fornecedor */}
-              <label className={`flex items-start gap-2.5 p-3 rounded-xl border transition-colors ${
-                nfeData.supplier.isAlreadyRegistered
-                  ? 'bg-emerald-50/50 border-emerald-200 cursor-default'
-                  : nfeData.supplier.registerIfNew
-                    ? 'bg-amber-50/70 border-amber-300 cursor-pointer'
-                    : 'bg-slate-50 border-slate-200 cursor-pointer'
-              }`}>
-                <input
-                  type="checkbox"
-                  disabled={nfeData.supplier.isAlreadyRegistered}
-                  checked={nfeData.supplier.isAlreadyRegistered || nfeData.supplier.registerIfNew}
-                  onChange={(e) => handleUpdateSupplier('registerIfNew', e.target.checked)}
-                  className="w-4 h-4 mt-0.5 text-amber-600 rounded focus:ring-amber-500"
-                />
-                <div>
-                  <span className="font-bold text-slate-900 block text-xs">Cadastrar Fornecedor</span>
-                  <span className="text-[10px] text-slate-600 block mt-0.5">
-                    {nfeData.supplier.isAlreadyRegistered
-                      ? 'Já cadastrado no sistema'
-                      : nfeData.supplier.registerIfNew
-                        ? 'Será incluído em Fornecedores'
-                        : 'Não cadastrar este fornecedor'}
-                  </span>
-                </div>
-              </label>
-
-              {/* 4. Lançar no Financeiro (Contas a Pagar & DRE) */}
-              <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
-                nfeData.createAccountPayable
-                  ? 'bg-rose-50/70 border-rose-300'
-                  : 'bg-emerald-50/60 border-emerald-300'
-              }`}>
-                <input
-                  type="checkbox"
-                  checked={nfeData.createAccountPayable}
-                  onChange={(e) => setNfeData(prev => ({ ...prev, createAccountPayable: e.target.checked }))}
-                  className="w-4 h-4 mt-0.5 text-rose-600 rounded focus:ring-rose-500"
-                />
-                <div>
-                  <span className="font-bold text-slate-900 block text-xs">Lançar no Financeiro</span>
-                  <span className={`text-[10px] font-semibold block mt-0.5 ${
-                    nfeData.createAccountPayable ? 'text-rose-700' : 'text-emerald-700'
-                  }`}>
-                    {nfeData.createAccountPayable
-                      ? 'Criará Contas a Pagar (+28d) e DRE'
-                      : '✓ Sem lançamento no Financeiro/DRE'}
-                  </span>
-                </div>
-              </label>
+              </div>
             </div>
           </div>
 
-          {/* =========================================================================
-              1. FORNECEDOR DA NOTA FISCAL (IDENTIFICAÇÃO & CADASTRO AUTOMÁTICO)
-              ========================================================================= */}
-          <div className={`p-4 rounded-xl border transition-all ${
-            nfeData.supplier.isAlreadyRegistered 
-              ? 'bg-emerald-50/70 border-emerald-200' 
-              : 'bg-amber-50/80 border-amber-300 shadow-2xs'
-          }`}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                  nfeData.supplier.isAlreadyRegistered 
-                    ? 'bg-emerald-100 text-emerald-700' 
-                    : 'bg-amber-100 text-amber-800'
-                }`}>
-                  <Building className="w-5 h-5" />
-                </div>
+          {/* Fornecedor (compacto / expansível) */}
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <Building2 className="w-4 h-4 text-slate-600" />
                 <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-slate-900 text-sm">
-                      {nfeData.supplier.name}
-                    </span>
-                    {nfeData.supplier.isAlreadyRegistered ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        Fornecedor Já Cadastrado no Sistema
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
-                        <AlertTriangle className="w-3 h-3 text-amber-700" />
-                        Fornecedor Novo Não Cadastrado
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-600 text-xs mt-1">
-                    <span className="font-mono">
-                      <strong className="text-slate-700">CNPJ:</strong> {nfeData.supplier.cnpj}
-                    </span>
-                    {nfeData.supplier.phone && (
-                      <span>
-                        <strong className="text-slate-700">Tel:</strong> {nfeData.supplier.phone}
-                      </span>
-                    )}
-                    <span>
-                      <strong className="text-slate-700">Localização:</strong> {nfeData.supplier.city} - {nfeData.supplier.state}
-                    </span>
-                    <span>
-                      <strong className="text-slate-700">Valor da Nota:</strong> {formatBRL(nfeData.totalValue)}
-                    </span>
-                  </div>
+                  <span className="text-xs font-bold text-slate-900">
+                    Fornecedor: {nfeData.supplier.name}
+                  </span>
+                  <span
+                    className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      nfeData.supplier.isAlreadyRegistered
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    {nfeData.supplier.isAlreadyRegistered ? 'Já Cadastrado' : 'Novo Fornecedor'}
+                  </span>
                 </div>
               </div>
 
-              {/* Botão de cadastro e edição do fornecedor novo */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-3">
                 {!nfeData.supplier.isAlreadyRegistered && (
-                  <label className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-amber-300 cursor-pointer shadow-2xs hover:bg-amber-50/50">
+                  <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={nfeData.supplier.registerIfNew}
                       onChange={(e) => handleUpdateSupplier('registerIfNew', e.target.checked)}
-                      className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                      className="rounded border-slate-300 text-blue-600"
                     />
-                    <span className="font-bold text-amber-900 text-xs">
-                      Cadastrar este fornecedor automaticamente
-                    </span>
+                    Cadastrar fornecedor automaticamente
                   </label>
                 )}
-
                 <button
                   type="button"
-                  onClick={() => setIsEditingSupplier(!isEditingSupplier)}
-                  className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1"
+                  onClick={() => setShowSupplierDetails((v) => !v)}
+                  className="text-[11px] font-bold text-blue-700 hover:underline cursor-pointer"
                 >
-                  <Edit3 className="w-3.5 h-3.5 text-slate-500" />
-                  {isEditingSupplier ? 'Ocultar Dados' : 'Editar Dados Fornecedor'}
+                  {showSupplierDetails ? 'Ocultar dados' : 'Editar / Consultar CNPJ'}
                 </button>
               </div>
             </div>
 
-            {/* Painel expansível de edição do fornecedor */}
-            {isEditingSupplier && (
-              <div className="mt-4 pt-3 border-t border-slate-200/80 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-xl border">
-                <div>
-                  <label className="block text-slate-600 mb-1 font-semibold text-[11px]">Razão Social</label>
-                  <input
-                    type="text"
-                    value={nfeData.supplier.name}
-                    onChange={(e) => handleUpdateSupplier('name', e.target.value)}
-                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 mb-1 font-semibold text-[11px]">Nome Fantasia</label>
-                  <input
-                    type="text"
-                    value={nfeData.supplier.tradeName || ''}
-                    onChange={(e) => handleUpdateSupplier('tradeName', e.target.value)}
-                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 mb-1 font-semibold text-[11px]">CNPJ</label>
-                  <input
-                    type="text"
-                    value={nfeData.supplier.cnpj}
-                    onChange={(e) => handleUpdateSupplier('cnpj', e.target.value)}
-                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 mb-1 font-semibold text-[11px]">Telefone</label>
-                  <input
-                    type="text"
-                    value={nfeData.supplier.phone || ''}
-                    onChange={(e) => handleUpdateSupplier('phone', e.target.value)}
-                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 mb-1 font-semibold text-[11px]">E-mail Comercial</label>
-                  <input
-                    type="email"
-                    value={nfeData.supplier.email || ''}
-                    onChange={(e) => handleUpdateSupplier('email', e.target.value)}
-                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-600 mb-1 font-semibold text-[11px]">Endereço / Cidade - UF</label>
-                  <div className="flex gap-2">
+            {showSupplierDetails && (
+              <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      CNPJ / CPF
+                    </label>
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        value={nfeData.supplier.cnpj}
+                        onChange={(e) => handleUpdateSupplier('cnpj', e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCnpjLookup}
+                        disabled={isLookingUpCnpj}
+                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300 text-[11px] font-bold cursor-pointer"
+                      >
+                        {isLookingUpCnpj ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      Razão Social
+                    </label>
                     <input
                       type="text"
-                      placeholder="Cidade"
-                      value={nfeData.supplier.city || ''}
-                      onChange={(e) => handleUpdateSupplier('city', e.target.value)}
-                      className="flex-1 p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs"
-                    />
-                    <input
-                      type="text"
-                      placeholder="UF"
-                      maxLength={2}
-                      value={nfeData.supplier.state || ''}
-                      onChange={(e) => handleUpdateSupplier('state', e.target.value.toUpperCase())}
-                      className="w-14 p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs uppercase"
+                      value={nfeData.supplier.name}
+                      onChange={(e) => handleUpdateSupplier('name', e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
                     />
                   </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      CEP / Cidade-UF
+                    </label>
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        value={nfeData.supplier.cep || ''}
+                        onChange={(e) => handleUpdateSupplier('cep', e.target.value)}
+                        placeholder="CEP"
+                        className="w-24 px-2 py-1.5 border border-slate-300 rounded-lg text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCepLookup}
+                        disabled={isLookingUpCep}
+                        className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300 cursor-pointer"
+                      >
+                        {isLookingUpCep ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                      </button>
+                      <input
+                        type="text"
+                        value={`${nfeData.supplier.city || ''}${nfeData.supplier.state ? '/' + nfeData.supplier.state : ''}`}
+                        readOnly
+                        className="flex-1 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600"
+                      />
+                    </div>
+                  </div>
                 </div>
+                {lookupFeedback && (
+                  <p className="text-[11px] font-semibold text-blue-700">{lookupFeedback}</p>
+                )}
               </div>
             )}
           </div>
 
-          {/* =========================================================================
-              2. FERRAMENTAS DE MARGEM DE LUCRO EM MASSA (MARKUP GLOBAL)
-              ========================================================================= */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          {/* 3. Frete, Seguro, Outras Despesas, Descontos, Critério de Rateio e Política de Custo */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-600" />
-                <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                  Precificação Rápida & Aplicação de Margens de Lucro
+                <Calculator className="w-4 h-4 text-orange-600" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Valores da NF-e, Rateio de Encargos &amp; Política de Custo
                 </h3>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleRoundPrices}
-                  className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                  title="Arredonda centavos para .90"
-                >
-                  Arredondar p/ .90
-                </button>
+              {nfeData.xmlOriginalTotalValue !== undefined && (
+                <span className="text-[11px] text-slate-500">
+                  Total original no XML (vNF):{' '}
+                  <strong className="text-slate-800">
+                    {formatBRL(nfeData.xmlOriginalTotalValue)}
+                  </strong>
+                </span>
+              )}
+            </div>
+
+            {/* Inputs de vProd, vFrete, vSeg, vOutro, vDesc, vNF */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                  Produtos (vProd)
+                </label>
+                <div className="text-sm font-black text-slate-900 pt-0.5">
+                  {formatBRL(nfeData.productsTotal)}
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                  + Frete (vFrete)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={nfeData.freightTotal}
+                  onChange={(e) => handleUpdateCharge('freightTotal', Number(e.target.value))}
+                  className="w-full px-2 py-1 text-xs font-bold text-slate-900 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                  + Seguro (vSeg)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={nfeData.insuranceTotal}
+                  onChange={(e) => handleUpdateCharge('insuranceTotal', Number(e.target.value))}
+                  className="w-full px-2 py-1 text-xs font-bold text-slate-900 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                  + Outras Desp. (vOutro)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={nfeData.otherExpensesTotal}
+                  onChange={(e) =>
+                    handleUpdateCharge('otherExpensesTotal', Number(e.target.value))
+                  }
+                  className="w-full px-2 py-1 text-xs font-bold text-slate-900 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-emerald-50/40 border border-emerald-200">
+                <label className="block text-[10px] font-bold uppercase text-emerald-700 mb-1">
+                  − Desconto (vDesc)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={nfeData.discountTotal}
+                  onChange={(e) => handleUpdateCharge('discountTotal', Number(e.target.value))}
+                  className="w-full px-2 py-1 text-xs font-bold text-emerald-900 bg-white border border-emerald-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-orange-50 border border-orange-300">
+                <label className="block text-[10px] font-bold uppercase text-orange-800 mb-1">
+                  Total Compra (vNF)
+                </label>
+                <div className="text-sm font-black text-orange-950 pt-0.5">
+                  {formatBRL(nfeData.totalValue)}
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-              {/* Margem Varejo em Massa */}
-              <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 space-y-2">
-                <span className="font-bold text-blue-900 text-[11px] block">
-                  Margem Geral Varejo (%)
-                </span>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="number"
-                      step="1"
-                      value={bulkRetailMargin}
-                      onChange={(e) => setBulkRetailMargin(Number(e.target.value))}
-                      className="w-full p-2 bg-white border border-blue-300 rounded-lg font-bold text-blue-900 text-xs pr-6"
-                    />
-                    <span className="absolute right-2.5 top-2.5 font-bold text-blue-400 text-xs">%</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleApplyBulkRetailMargin}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs transition-colors shrink-0 shadow-2xs"
-                  >
-                    Aplicar a Todos
-                  </button>
-                </div>
+            {/* Critério de Rateio + Política de Atualização de Custo */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-1">
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Critério de Rateio (Frete / Seguro / Outras Desp. / Desconto)
+                </label>
+                <select
+                  value={nfeData.allocationMode}
+                  onChange={(e) =>
+                    handleChangeAllocationMode(e.target.value as ImportAllocationMode)
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="proportional_value">
+                    Rateio proporcional ao valor do item (Padrão)
+                  </option>
+                  <option value="proportional_qty">
+                    Rateio proporcional à quantidade do item
+                  </option>
+                  <option value="financial_only">
+                    Aplicar apenas no Total da Compra / Financeiro (não altera custo dos itens)
+                  </option>
+                </select>
               </div>
 
-              {/* Margem Atacado em Massa */}
-              <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100 space-y-2">
-                <span className="font-bold text-purple-900 text-[11px] block">
-                  Margem Geral Atacado (%)
-                </span>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="number"
-                      step="1"
-                      value={bulkWholesaleMargin}
-                      onChange={(e) => setBulkWholesaleMargin(Number(e.target.value))}
-                      className="w-full p-2 bg-white border border-purple-300 rounded-lg font-bold text-purple-900 text-xs pr-6"
-                    />
-                    <span className="absolute right-2.5 top-2.5 font-bold text-purple-400 text-xs">%</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleApplyBulkWholesaleMargin}
-                    className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold text-xs transition-colors shrink-0 shadow-2xs"
-                  >
-                    Aplicar a Todos
-                  </button>
-                </div>
-              </div>
-
-              {/* Ações Rápidas de Seleção */}
-              <div className="lg:col-span-2 flex flex-wrap items-center gap-2 pb-1">
-                <span className="text-[11px] text-slate-500 font-semibold mr-1">Tabelas Ativas:</span>
-                <button
-                  type="button"
-                  onClick={() => handleToggleAll('updateRetailPrice', true)}
-                  className="px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Atualização de Custo para Produtos Vinculados (na unidade do estoque)
+                </label>
+                <select
+                  value={nfeData.costUpdateMode}
+                  onChange={(e) =>
+                    handleChangeCostUpdateMode(e.target.value as ImportCostUpdateMode)
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
-                  ✓ Marcar Todas Varejo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggleAll('updateWholesalePrice', true)}
-                  className="px-2.5 py-1 text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition-colors"
-                >
-                  ✓ Marcar Todas Atacado
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggleAll('updateStock', true)}
-                  className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors"
-                >
-                  ✓ Marcar Todas Estoque
-                </button>
+                  <option value="effective_unit">
+                    Atualizar pelo Custo Unitário Efetivo Convertido (última compra)
+                  </option>
+                  <option value="weighted_average">
+                    Aplicar Custo Médio Ponderado (saldo atual × custo atual + entrada convertida)
+                  </option>
+                  <option value="keep_current">
+                    Manter o custo atual do produto no catálogo
+                  </option>
+                </select>
               </div>
             </div>
           </div>
 
-          {/* =========================================================================
-              3. TABELA DE PRODUTOS ITEM A ITEM (AJUSTE FINO DE PREÇOS E MARGENS)
-              ========================================================================= */}
-          <div className={`bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden transition-opacity ${
-            !importProductsEnabled ? 'opacity-50' : ''
-          }`}>
-            <div className="p-3 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <span className="font-bold text-slate-800 text-xs">
-                  Itens da Nota Fiscal ({selectedItems.length} de {nfeData.items.length} selecionado(s))
-                </span>
-                {!importProductsEnabled && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
-                    Importação de produtos desmarcada acima
-                  </span>
-                )}
+          {/* Barra de Controle de Margens e Estoque dos Itens */}
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <Package className="w-4 h-4 text-blue-600" />
+                Itens da NF-e ({nfeData.items.length})
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-2 text-xs border-l border-slate-200 pl-3">
                 <button
                   type="button"
-                  disabled={!importProductsEnabled}
-                  onClick={() => handleToggleAll('selectedToImport', true)}
-                  className="px-2 py-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                  onClick={() => toggleAllStockUpdate(true)}
+                  className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer"
                 >
-                  Marcar Todos
+                  Somar estoque em todos
                 </button>
+                <span className="text-slate-300">|</span>
                 <button
                   type="button"
-                  disabled={!importProductsEnabled}
-                  onClick={() => handleToggleAll('selectedToImport', false)}
-                  className="px-2 py-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                  onClick={() => toggleAllStockUpdate(false)}
+                  className="text-[11px] font-semibold text-slate-600 hover:underline cursor-pointer"
                 >
-                  Desmarcar Todos
+                  Não somar estoque
                 </button>
-                <span className="text-[11px] text-slate-500 hidden md:inline">
-                  Marque apenas os produtos que deseja importar
-                </span>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
-                  <tr>
-                    <th className="px-3 py-2.5 w-12 text-center">
-                      <label className="inline-flex items-center gap-1 cursor-pointer" title="Selecionar ou desmarcar todos os produtos">
-                        <input
-                          type="checkbox"
-                          disabled={!importProductsEnabled}
-                          checked={allItemsSelected}
-                          onChange={(e) => handleToggleAll('selectedToImport', e.target.checked)}
-                          className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer mr-2">
+                <input
+                  type="checkbox"
+                  checked={showPricingColumns}
+                  onChange={(e) => setShowPricingColumns(e.target.checked)}
+                  className="rounded border-slate-300"
+                />
+                Exibir precificação Varejo/Atacado
+              </label>
+
+              {showPricingColumns && (
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                  <span className="text-[11px] text-slate-600 font-semibold">Varejo %</span>
+                  <input
+                    type="number"
+                    value={globalRetailMargin}
+                    onChange={(e) => setGlobalRetailMargin(Number(e.target.value) || 0)}
+                    className="w-12 px-1 py-0.5 text-xs font-bold text-center border border-slate-300 rounded bg-white"
+                  />
+                  <span className="text-[11px] text-slate-600 font-semibold">Atacado %</span>
+                  <input
+                    type="number"
+                    value={globalWholesaleMargin}
+                    onChange={(e) => setGlobalWholesaleMargin(Number(e.target.value) || 0)}
+                    className="w-12 px-1 py-0.5 text-xs font-bold text-center border border-slate-300 rounded bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyGlobalMargins}
+                    className="px-2 py-0.5 text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-white rounded cursor-pointer"
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Lista / Tabela de Pré-Visualização: Ação, De-Para Visual, Fator de Conversão e Cálculos em Tempo Real */}
+          <div className="space-y-3">
+            {nfeData.items.map((item, idx) => {
+              const isIgnored = item.action === 'ignore';
+              const isLinked = item.action === 'link_existing';
+              const matchInfo = getMatchSourceLabel(item.matchSource);
+              const linkedProduct = item.existingProductId
+                ? products.find((p) => p.id === item.existingProductId)
+                : undefined;
+
+              const convertedQty =
+                item.convertedQuantity ?? item.quantity * (item.conversionFactor || 1);
+              const effectiveTotal = item.effectiveTotal ?? item.totalCost;
+              const effectiveUnitCost =
+                item.effectiveUnitCost ??
+                (convertedQty > 0 ? effectiveTotal / convertedQty : item.costPrice);
+
+              const projectedCatalogCost = linkedProduct
+                ? computeUpdatedProductCost(
+                    linkedProduct,
+                    convertedQty,
+                    effectiveUnitCost,
+                    nfeData.costUpdateMode
+                  )
+                : effectiveUnitCost;
+
+              const rateioNetDelta = round2(
+                (item.allocatedFreight || 0) +
+                  (item.allocatedInsurance || 0) +
+                  (item.allocatedOtherExpenses || 0) -
+                  (item.allocatedDiscount || 0)
+              );
+
+              const topSuggestions = (item.suggestedMatches || [])
+                .map((s) => {
+                  const p = products.find((prod) => prod.id === s.productId);
+                  return p ? { ...s, product: p } : null;
+                })
+                .filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+              return (
+                <div
+                  key={item.id}
+                  className={`rounded-xl border transition-all p-3.5 space-y-3 ${
+                    isIgnored
+                      ? 'bg-slate-100/70 border-slate-200 opacity-60'
+                      : isLinked
+                      ? 'bg-white border-blue-200 shadow-xs'
+                      : 'bg-white border-emerald-200 shadow-xs'
+                  }`}
+                >
+                  {/* Cabeçalho da linha: Índice, Descrição Fornecedor, Badge Detecção e Seletor de Ação */}
+                  <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 pb-2.5 border-b border-slate-100">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-black text-slate-400">#{idx + 1}</span>
+                        <span className="text-xs font-bold text-slate-900 break-words">
+                          {item.name}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            MATCH_TONE_CLASSES[matchInfo.tone]
+                          }`}
+                        >
+                          {matchInfo.label}
+                        </span>
+                        {item.memorizedMappingId && (
+                          <span className="text-[10px] font-semibold text-blue-700 inline-flex items-center gap-0.5">
+                            <Sparkles className="w-3 h-3" /> Fator pré-preenchido
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
+                        <span className="font-mono">Cód. Forn.: <strong>{item.code}</strong></span>
+                        {item.barcode && (
+                          <span className="inline-flex items-center gap-1 font-mono text-slate-700">
+                            <Barcode className="w-3 h-3 text-slate-500" />
+                            EAN: <strong>{item.barcode}</strong>
+                          </span>
+                        )}
+                        <span>NCM: {item.ncm}</span>
+                        <span>
+                          Entrada NF-e:{' '}
+                          <strong className="text-slate-800">
+                            {formatQuantityClean(item.quantity)} {item.unit} ×{' '}
+                            {formatBRL(item.costPrice)} = {formatBRL(item.totalCost)}
+                          </strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Ação no Estoque */}
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleItemActionChange(item.id, 'link_existing')}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${
+                            item.action === 'link_existing'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Link2 className="w-3 h-3" />
+                          Vincular (De-Para)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleItemActionChange(item.id, 'create_new')}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${
+                            item.action === 'create_new'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <PlusSquare className="w-3 h-3" />
+                          Cadastrar Novo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleItemActionChange(item.id, 'ignore')}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${
+                            item.action === 'ignore'
+                              ? 'bg-slate-700 text-white shadow-xs'
+                              : 'text-slate-500 hover:text-red-700'
+                          }`}
+                        >
+                          <Ban className="w-3 h-3" />
+                          Ignorar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!isIgnored && (
+                    <>
+                      {/* Área De-Para (quando Vincular Existente) OU Sugestões + Campos de Novo Produto */}
+                      {isLinked ? (
+                        <StockImportProductPicker
+                          products={products}
+                          selectedProductId={item.existingProductId}
+                          suggestedMatches={item.suggestedMatches}
+                          supplierItem={{
+                            code: item.code,
+                            barcode: item.barcode,
+                            name: item.name,
+                            unit: item.unit,
+                            quantity: item.quantity,
+                            totalCost: item.totalCost,
+                            effectiveTotal,
+                            conversionFactor: item.conversionFactor,
+                            convertedQuantity: convertedQty,
+                            effectiveUnitCost,
+                          }}
+                          onSelectProduct={(prod) => handleLinkExistingProduct(item.id, prod)}
+                          onClearProduct={() => handleClearLinkedProduct(item.id)}
+                          compact
                         />
-                      </label>
-                    </th>
-                    <th className="px-3 py-2.5 w-14 text-center">Status</th>
-                    <th className="px-3 py-2.5">Código / Produto / NCM</th>
-                    <th className="px-3 py-2.5 text-center">Qtd / Un</th>
-                    <th className="px-3 py-2.5 text-right">Custo Unit. (NF-e)</th>
-                    <th className="px-3 py-2.5 min-w-[210px] bg-blue-50/50">
-                      <div className="flex items-center justify-between">
-                        <span>Tabela Varejo</span>
-                        <span className="text-[9px] font-normal lowercase">margem % | preço R$</span>
-                      </div>
-                    </th>
-                    <th className="px-3 py-2.5 min-w-[210px] bg-purple-50/50">
-                      <div className="flex items-center justify-between">
-                        <span>Tabela Atacado</span>
-                        <span className="text-[9px] font-normal lowercase">margem % | preço R$</span>
-                      </div>
-                    </th>
-                    <th className="px-3 py-2.5 text-center w-28">Entrada Estoque</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {nfeData.items.map((item, index) => {
-                    const isRowSelected = item.selectedToImport !== false;
-                    const rowDisabled = !importProductsEnabled || !isRowSelected;
-                    const retailProfit = item.retailPrice - item.costPrice;
-                    const wholesaleProfit = item.wholesalePrice - item.costPrice;
-
-                    return (
-                      <tr
-                        key={item.id}
-                        className={`transition-colors ${
-                          rowDisabled ? 'bg-slate-50/80 opacity-50' : 'hover:bg-slate-50/80'
-                        }`}
-                      >
-                        {/* Checkbox de seleção do produto */}
-                        <td className="px-3 py-3 text-center align-middle">
-                          <input
-                            type="checkbox"
-                            disabled={!importProductsEnabled}
-                            checked={isRowSelected}
-                            onChange={(e) => handleUpdateItem(index, { selectedToImport: e.target.checked })}
-                            className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
-                            title={isRowSelected ? 'Produto selecionado para importação' : 'Produto ignorado na importação'}
-                          />
-                        </td>
-
-                        {/* Status: Novo vs Existente */}
-                        <td className="px-3 py-3 text-center align-middle">
-                          {item.isNewProduct ? (
-                            <span className="inline-block p-1 bg-amber-100 text-amber-800 rounded-md font-bold text-[10px]" title="Novo produto no catálogo">
-                              NOVO
-                            </span>
-                          ) : (
-                            <span className="inline-block p-1 bg-emerald-100 text-emerald-800 rounded-md font-bold text-[10px]" title="Já existe no estoque">
-                              EXISTE
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Produto / SKU / NCM */}
-                        <td className="px-3 py-3 align-top">
-                          <div className="flex items-center gap-1.5 font-mono text-slate-500 text-[11px]">
-                            <span className="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">
-                              {item.code}
-                            </span>
-                            <span>NCM: {item.ncm}</span>
-                          </div>
-
-                          <div className="font-semibold text-slate-900 text-xs mt-1">
-                            {item.name}
-                          </div>
-
-                          {/* Se já existe, mostrar comparação com estoque e preços atuais */}
-                          {!item.isNewProduct && item.existingCurrentStock !== undefined && (
-                            <div className="text-[10px] text-slate-500 mt-1 bg-slate-100 p-1 rounded space-x-2">
-                              <span>Estoque atual: <strong>{item.existingCurrentStock}</strong></span>
-                              <span>•</span>
-                              <span>Varejo atual: <strong>{formatBRL(item.existingRetailPrice || 0)}</strong></span>
-                              <span>•</span>
-                              <span>Atacado atual: <strong>{formatBRL(item.existingWholesalePrice || 0)}</strong></span>
+                      ) : (
+                        <div className="space-y-2">
+                          {/* Sugestão inteligente de produtos similares para evitar duplicação */}
+                          {topSuggestions.length > 0 && (
+                            <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 text-[11px] text-amber-900">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>
+                                  <strong>Possível produto já cadastrado:</strong> deseja vincular via De-Para em vez de criar novo?
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {topSuggestions.slice(0, 3).map((s) => (
+                                  <button
+                                    key={s.product.id}
+                                    type="button"
+                                    onClick={() => handleLinkExistingProduct(item.id, s.product)}
+                                    className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold bg-white hover:bg-blue-600 hover:text-white text-slate-800 border border-amber-300 rounded-md transition-colors cursor-pointer"
+                                  >
+                                    <Link2 className="w-3 h-3" />
+                                    <span className="truncate max-w-[180px]">{s.product.name}</span>
+                                    <span className="text-[10px] font-bold opacity-80">
+                                      ({s.score}%)
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           )}
-                        </td>
 
-                        {/* Quantidade e Unidade */}
-                        <td className="px-3 py-3 text-center font-bold text-slate-800 align-top">
-                          <div className="text-sm">{item.quantity}</div>
-                          <span className="text-[10px] text-slate-500 uppercase">{item.unit}</span>
-                        </td>
-
-                        {/* Custo Unitário */}
-                        <td className="px-3 py-3 text-right font-mono align-top">
-                          <div className="font-bold text-slate-900 text-xs">
-                            {formatBRL(item.costPrice)}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            Total: {formatBRL(item.totalCost)}
-                          </div>
-                        </td>
-
-                        {/* Coluna Varejo: Checkbox, Margem % e Preço R$ */}
-                        <td className="px-3 py-3 bg-blue-50/30 align-top">
-                          <div className="space-y-1.5">
-                            <label className="flex items-center gap-1.5 cursor-pointer">
+                          {/* Campos editáveis do novo produto */}
+                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                            <div className="sm:col-span-2">
+                              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">
+                                Nome no Catálogo (Novo Produto)
+                              </label>
                               <input
-                                type="checkbox"
-                                disabled={rowDisabled}
-                                checked={item.updateRetailPrice}
-                                onChange={(e) => handleUpdateItem(index, { updateRetailPrice: e.target.checked })}
-                                className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500"
+                                type="text"
+                                value={item.name}
+                                onChange={(e) =>
+                                  handleItemFieldChange(item.id, 'name', e.target.value)
+                                }
+                                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                               />
-                              <span className="font-semibold text-[11px] text-blue-900">
-                                Atualizar Varejo
-                              </span>
-                            </label>
-
-                            <div className="grid grid-cols-2 gap-1.5 items-center">
-                              {/* Margem % */}
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  disabled={rowDisabled || !item.updateRetailPrice}
-                                  value={item.retailMarginPercent}
-                                  onChange={(e) => handleRetailMarginChange(index, Number(e.target.value))}
-                                  className="w-full p-1.5 text-xs font-bold bg-white border border-slate-300 rounded font-mono text-blue-900 disabled:opacity-50 pr-5"
-                                  placeholder="Margem %"
-                                />
-                                <span className="absolute right-1.5 top-1.5 text-[10px] text-slate-400">%</span>
-                              </div>
-
-                              {/* Preço R$ */}
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  disabled={rowDisabled || !item.updateRetailPrice}
-                                  value={item.retailPrice}
-                                  onChange={(e) => handleRetailPriceChange(index, Number(e.target.value))}
-                                  className="w-full p-1.5 text-xs font-bold bg-white border border-slate-300 rounded font-mono text-emerald-700 disabled:opacity-50"
-                                  placeholder="R$ Preço"
-                                />
-                              </div>
                             </div>
-
-                            <div className="text-[10px] text-emerald-700 font-medium">
-                              Lucro Unit.: {formatBRL(retailProfit)}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Coluna Atacado: Checkbox, Margem % e Preço R$ */}
-                        <td className="px-3 py-3 bg-purple-50/30 align-top">
-                          <div className="space-y-1.5">
-                            <label className="flex items-center gap-1.5 cursor-pointer">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">
+                                Categoria
+                              </label>
                               <input
-                                type="checkbox"
-                                disabled={rowDisabled}
-                                checked={item.updateWholesalePrice}
-                                onChange={(e) => handleUpdateItem(index, { updateWholesalePrice: e.target.checked })}
-                                className="w-3.5 h-3.5 text-purple-600 rounded focus:ring-purple-500"
+                                type="text"
+                                list={`nfe-cat-list-${item.id}`}
+                                value={item.category}
+                                onChange={(e) =>
+                                  handleItemFieldChange(item.id, 'category', e.target.value)
+                                }
+                                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                               />
-                              <span className="font-semibold text-[11px] text-purple-900">
-                                Atualizar Atacado
-                              </span>
-                            </label>
-
-                            <div className="grid grid-cols-2 gap-1.5 items-center">
-                              {/* Margem % */}
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  disabled={rowDisabled || !item.updateWholesalePrice}
-                                  value={item.wholesaleMarginPercent}
-                                  onChange={(e) => handleWholesaleMarginChange(index, Number(e.target.value))}
-                                  className="w-full p-1.5 text-xs font-bold bg-white border border-slate-300 rounded font-mono text-purple-900 disabled:opacity-50 pr-5"
-                                  placeholder="Margem %"
-                                />
-                                <span className="absolute right-1.5 top-1.5 text-[10px] text-slate-400">%</span>
-                              </div>
-
-                              {/* Preço R$ */}
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  disabled={rowDisabled || !item.updateWholesalePrice}
-                                  value={item.wholesalePrice}
-                                  onChange={(e) => handleWholesalePriceChange(index, Number(e.target.value))}
-                                  className="w-full p-1.5 text-xs font-bold bg-white border border-slate-300 rounded font-mono text-purple-800 disabled:opacity-50"
-                                  placeholder="R$ Preço"
-                                />
-                              </div>
+                              <datalist id={`nfe-cat-list-${item.id}`}>
+                                {productCategories.map((cat) => (
+                                  <option key={cat} value={cat} />
+                                ))}
+                              </datalist>
                             </div>
-
-                            <div className="text-[10px] text-purple-700 font-medium">
-                              Lucro Unit.: {formatBRL(wholesaleProfit)}
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">
+                                Unidade no Estoque
+                              </label>
+                              <input
+                                type="text"
+                                value={item.stockUnit}
+                                onChange={(e) =>
+                                  handleItemFieldChange(
+                                    item.id,
+                                    'stockUnit',
+                                    e.target.value.toUpperCase()
+                                  )
+                                }
+                                placeholder="UN"
+                                className="w-full px-2.5 py-1.5 text-xs font-bold uppercase border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
                             </div>
                           </div>
-                        </td>
+                        </div>
+                      )}
 
-                        {/* Entrada em Estoque */}
-                        <td className="px-3 py-3 text-center align-middle">
-                          <label className="inline-flex flex-col items-center gap-1 cursor-pointer">
+                      {/* Bloco de Conversão de Unidades + Custo Efetivo Convertido em Tempo Real */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center bg-slate-50 rounded-xl border border-slate-200 p-2.5">
+                        {/* Fator de Conversão */}
+                        <div className="md:col-span-3 space-y-1">
+                          <label className="flex items-center gap-1 text-[10px] font-bold uppercase text-slate-600">
+                            <Scale className="w-3 h-3 text-orange-600" />
+                            Fator de Conversão (1 {item.unit} = X {item.stockUnit})
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0.0001"
+                              value={item.conversionFactor}
+                              onChange={(e) =>
+                                handleConversionFactorChange(item.id, e.target.value)
+                              }
+                              className="w-24 px-2.5 py-1.5 text-xs font-black text-slate-900 bg-white border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                            <span className="text-[11px] font-bold text-slate-700 inline-flex items-center gap-1">
+                              {item.unit}
+                              <ArrowRight className="w-3 h-3 text-orange-600" />
+                              <span className="text-blue-700">{item.stockUnit}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Quantidade Convertida no Estoque */}
+                        <div className="md:col-span-3 space-y-0.5">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">
+                            Qtd Convertida no Estoque
+                          </div>
+                          <div className="text-xs font-black text-emerald-700">
+                            {formatQuantityClean(item.quantity)} {item.unit} × {item.conversionFactor} ={' '}
+                            <span className="text-sm">
+                              +{formatQuantityClean(convertedQty)} {item.stockUnit}
+                            </span>
+                          </div>
+                          <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer pt-0.5">
                             <input
                               type="checkbox"
-                              disabled={rowDisabled}
                               checked={item.updateStock}
-                              onChange={(e) => handleUpdateItem(index, { updateStock: e.target.checked })}
-                              className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                              onChange={(e) =>
+                                handleItemFieldChange(item.id, 'updateStock', e.target.checked)
+                              }
+                              className="rounded border-slate-300 text-emerald-600"
                             />
-                            <span className="text-[10px] font-semibold text-slate-600">
-                              {item.updateStock ? `+${item.quantity} ${item.unit}` : 'Saldo 0'}
-                            </span>
+                            Somar ao saldo do estoque
                           </label>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+
+                        {/* Valor Efetivo com Rateio */}
+                        <div className="md:col-span-3 space-y-0.5">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">
+                            Valor Líquido / Efetivo do Item
+                          </div>
+                          <div className="text-xs font-black text-slate-900">
+                            {formatBRL(effectiveTotal)}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            Base: {formatBRL(item.totalCost)}
+                            {rateioNetDelta !== 0 && (
+                              <span
+                                className={
+                                  rateioNetDelta > 0
+                                    ? 'text-orange-700 font-semibold ml-1'
+                                    : 'text-emerald-700 font-semibold ml-1'
+                                }
+                              >
+                                ({rateioNetDelta > 0 ? '+' : ''}
+                                {formatBRL(rateioNetDelta)} rateio)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Custo Unitário Efetivo Convertido */}
+                        <div className="md:col-span-3 space-y-0.5 md:text-right">
+                          <div className="text-[10px] font-bold uppercase text-orange-700">
+                            Custo Unitário Efetivo ({item.stockUnit})
+                          </div>
+                          <div className="text-sm font-black text-orange-900">
+                            {formatBRL(effectiveUnitCost)} / {item.stockUnit}
+                          </div>
+                          {linkedProduct && (
+                            <div className="text-[10px] text-slate-600">
+                              Novo custo no catálogo:{' '}
+                              <strong className="text-blue-800">
+                                {formatBRL(projectedCatalogCost)}
+                              </strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Precificação Opcional Varejo / Atacado baseada no Custo Efetivo Convertido */}
+                      {showPricingColumns && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs pt-0.5">
+                          {/* Varejo */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-50/40 border border-emerald-200/80">
+                            <label className="inline-flex items-center gap-1.5 font-bold text-emerald-900 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={item.updateRetailPrice}
+                                onChange={(e) =>
+                                  handleItemFieldChange(
+                                    item.id,
+                                    'updateRetailPrice',
+                                    e.target.checked
+                                  )
+                                }
+                                className="rounded border-emerald-400 text-emerald-600"
+                              />
+                              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                              Varejo ({item.stockUnit})
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={item.retailMarginPercent}
+                                onChange={(e) =>
+                                  handleItemFieldChange(
+                                    item.id,
+                                    'retailMarginPercent',
+                                    Number(e.target.value)
+                                  )
+                                }
+                                disabled={!item.updateRetailPrice}
+                                className="w-16 px-1.5 py-1 text-xs font-bold text-center bg-white border border-slate-300 rounded disabled:opacity-50"
+                              />
+                              <span className="text-[11px] text-slate-500">%</span>
+                              <span className="text-[11px] text-slate-500">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={item.retailPrice}
+                                onChange={(e) =>
+                                  handleItemFieldChange(
+                                    item.id,
+                                    'retailPrice',
+                                    Number(e.target.value)
+                                  )
+                                }
+                                disabled={!item.updateRetailPrice}
+                                className="w-24 px-2 py-1 text-xs font-bold text-emerald-800 bg-white border border-emerald-300 rounded disabled:opacity-50"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Atacado */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-blue-50/40 border border-blue-200/80">
+                            <label className="inline-flex items-center gap-1.5 font-bold text-blue-900 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={item.updateWholesalePrice}
+                                onChange={(e) =>
+                                  handleItemFieldChange(
+                                    item.id,
+                                    'updateWholesalePrice',
+                                    e.target.checked
+                                  )
+                                }
+                                className="rounded border-blue-400 text-blue-600"
+                              />
+                              <Layers className="w-3.5 h-3.5 text-blue-600" />
+                              Atacado ({item.stockUnit})
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={item.wholesaleMarginPercent}
+                                onChange={(e) =>
+                                  handleItemFieldChange(
+                                    item.id,
+                                    'wholesaleMarginPercent',
+                                    Number(e.target.value)
+                                  )
+                                }
+                                disabled={!item.updateWholesalePrice}
+                                className="w-16 px-1.5 py-1 text-xs font-bold text-center bg-white border border-slate-300 rounded disabled:opacity-50"
+                              />
+                              <span className="text-[11px] text-slate-500">%</span>
+                              <span className="text-[11px] text-slate-500">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={item.wholesalePrice}
+                                onChange={(e) =>
+                                  handleItemFieldChange(
+                                    item.id,
+                                    'wholesalePrice',
+                                    Number(e.target.value)
+                                  )
+                                }
+                                disabled={!item.updateWholesalePrice}
+                                className="w-24 px-2 py-1 text-xs font-bold text-blue-800 bg-white border border-blue-300 rounded disabled:opacity-50"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* =========================================================================
-              4. RESUMO GERAL DE FECHAMENTO & FINANCEIRO
-              ========================================================================= */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Custo Itens Selecionados</span>
-                <span className="text-lg font-bold text-slate-900 font-mono">{formatBRL(totalCost)}</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">
-                  {selectedItems.length} de {nfeData.items.length} produto(s) selecionado(s)
-                </span>
-              </div>
-
-              <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200">
-                <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">Faturamento Varejo</span>
-                <span className="text-lg font-bold text-blue-900 font-mono">{formatBRL(potentialRetailRevenue)}</span>
-                <span className="text-[10px] text-emerald-700 font-semibold block mt-0.5">Lucro: +{formatBRL(potentialRetailProfit)}</span>
-              </div>
-
-              <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-200">
-                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">Faturamento Atacado</span>
-                <span className="text-lg font-bold text-purple-900 font-mono">{formatBRL(potentialWholesaleRevenue)}</span>
-                <span className="text-[10px] text-purple-700 font-semibold block mt-0.5">Preço especial revenda</span>
-              </div>
-
-              <div className={`p-3 rounded-xl border flex flex-col justify-between ${
-                nfeData.createAccountPayable
-                  ? 'bg-rose-50/60 border-rose-200'
-                  : 'bg-emerald-50/60 border-emerald-200'
-              }`}>
-                <span className={`text-[10px] font-bold uppercase tracking-wider block ${
-                  nfeData.createAccountPayable ? 'text-rose-800' : 'text-emerald-800'
-                }`}>
-                  Financeiro / Contas a Pagar
-                </span>
-                <label className="flex items-center gap-2 cursor-pointer mt-1">
-                  <input
-                    type="checkbox"
-                    checked={nfeData.createAccountPayable}
-                    onChange={(e) => setNfeData(prev => ({ ...prev, createAccountPayable: e.target.checked }))}
-                    className="w-4 h-4 text-rose-600 rounded focus:ring-rose-500"
-                  />
-                  <span className="text-xs font-bold text-slate-800">
-                    {nfeData.createAccountPayable
-                      ? 'Lançar no Contas a Pagar (+28 dias)'
-                      : 'Não enviar ao Financeiro (Isolado)'}
-                  </span>
-                </label>
-              </div>
-            </div>
-          </div>
+          {/* 5. Integração Financeira Seletiva + Duplicatas XML */}
+          <StockImportFinancialPanel
+            financialMode={nfeData.financialMode}
+            onChangeFinancialMode={handleFinancialModeChange}
+            totalPurchaseValue={nfeData.totalValue}
+            emissionDate={nfeData.emissionDate}
+            onChangeEmissionDate={(date) =>
+              updateNFe((prev) => ({ ...prev, emissionDate: date }), false)
+            }
+            supplierName={nfeData.supplier.name}
+            onChangeSupplierName={(name) => handleUpdateSupplier('name', name)}
+            expenseCategory={nfeData.expenseCategory || 'compra_produtos_xml'}
+            onChangeExpenseCategory={(cat: ExpenseCategory) =>
+              updateNFe((prev) => ({ ...prev, expenseCategory: cat }), false)
+            }
+            paymentMethod={nfeData.paymentMethod || 'boleto'}
+            onChangePaymentMethod={(method: PaymentMethod) =>
+              updateNFe((prev) => ({ ...prev, paymentMethod: method }), false)
+            }
+            initialPaymentStatus={nfeData.initialPaymentStatus || 'pendente'}
+            onChangeInitialPaymentStatus={(status) =>
+              updateNFe((prev) => ({ ...prev, initialPaymentStatus: status }), false)
+            }
+            installments={nfeData.installments}
+            onChangeInstallments={(insts: ImportFinancialInstallment[]) =>
+              updateNFe((prev) => ({ ...prev, installments: insts }), false)
+            }
+            xmlHasDuplicates={nfeData.xmlHasDuplicates}
+            existingExpenses={generalExpenses}
+            linkedExpenseId={nfeData.linkedExpenseId}
+            onSelectLinkedExpenseId={(id) =>
+              updateNFe((prev) => ({ ...prev, linkedExpenseId: id }), false)
+            }
+          />
         </div>
 
-        {/* Modal Footer */}
-        <div className="bg-white px-6 py-3.5 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 text-xs text-slate-600">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+        {/* Footer Fixo */}
+        <div className="px-5 py-3.5 bg-white border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+          <div className="text-xs text-slate-600 flex items-center gap-2">
+            <Info className="w-4 h-4 text-blue-600 shrink-0" />
             <span>
-              {nfeData.createAccountPayable
-                ? 'Importação seletiva ativa: incluirá os itens marcados e lançará o título no Financeiro (Contas a Pagar).'
-                : 'Importação sem impacto financeiro: nenhum título ou despesa será enviado ao Financeiro/DRE.'}
+              Vínculos De-Para e fatores de conversão serão <strong>memorizados automaticamente</strong> para as próximas compras de{' '}
+              <strong>{nfeData.supplier.name}</strong>.
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-end gap-2.5 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-[#363739] bg-[#f4f5f6] hover:bg-[#d8d8d8] rounded-lg transition-colors border border-[#d8d8d8]"
+              className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
             >
               Cancelar
             </button>
-
             <button
               type="button"
-              disabled={!hasAnythingToImport}
-              onClick={handleConfirmAndCommit}
-              className="px-6 py-2 text-xs font-bold text-white bg-[#53383e] hover:bg-[#432c32] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              onClick={handleConfirmImport}
+              className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 rounded-xl shadow-md transition-all cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              {importProductsEnabled && selectedItems.length > 0 && !nfeData.createAccountPayable
-                ? `Importar ${selectedItems.length} Produto(s) (Sem Financeiro)`
-                : 'Confirmar Importação Selecionada'}
+              Confirmar Importação ({summaryStats.linkedCount + summaryStats.newCount} ativo(s))
             </button>
           </div>
         </div>

@@ -1,6 +1,17 @@
 # Histórico de Versões e Alterações — FIRE GESTÃO
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.21`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.22`).
+
+---
+
+## [v2.7.22] — 22/11/2026
+**Importação de Estoque Etapa 1: Conciliação De-Para, Conversão de Unidades, Rateio e Duplicatas NF-e**
+
+### Adicionado
+- **Conciliação Automática ("De-Para") e Sugestão Inteligente (`stockImportHelpers`, `StockImportProductPicker`)**: detecção automática por EAN/GTIN exato, vínculo memorizado por fornecedor (`[Fornecedor + Código/Descrição]`) pré-preenchendo o último fator de conversão e unidade utilizados, código/SKU exato e busca por similaridade ignorando acentos, maiúsculas e termos irrelevantes.
+- **Pré-Visualização Completa na NF-e XML e Importação Universal (`NFeImportStagingModal`, `UniversalProductReconciliationPanel`, `UniversalDataImportView`)**: ação por item (*Vincular a Produto Existente* com comparação visual lado a lado preservando o nome padrão do estoque, *Cadastrar como Novo* ou *Ignorar*), fator de conversão decimal editável, conversão de unidade (`CX → UN`), quantidade convertida e custo unitário efetivo convertido em tempo real.
+- **Frete, Seguro, Outras Despesas, Descontos e Políticas de Custo (`AppContext`, `stockImportHelpers`)**: leitura de `<total>/<ICMSTot>` (`vProd`, `vFrete`, `vSeg`, `vOutro`, `vDesc`, `vNF`), ajuste manual, rateio proporcional ao valor, à quantidade ou apenas no total/financeiro, e escolha entre atualizar pelo custo efetivo convertido, Custo Médio Ponderado ou manter custo atual.
+- **Integração Financeira Seletiva e Duplicatas da NF-e (`StockImportFinancialPanel`, `AppContext`)**: mantém *Não gerar/vincular financeiro* como padrão, adiciona geração automática a partir de `<cobr>/<fat>/<dup>` e `<pag>/<detPag>` com parcelas editáveis e atalhos rápidos (*À vista/Hoje, 7d, 14d, 28d, 30d, X parcelas*), e permite vincular a uma despesa existente com rastreabilidade bidirecional sem duplicar valores.
 
 ---
 

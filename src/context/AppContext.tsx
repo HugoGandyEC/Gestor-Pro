@@ -38,8 +38,24 @@ import {
   PaymentReceipt,
   PaymentReceiptItem,
   PaymentReceiptKind,
-  SelectiveBackupImportOptions
+  SelectiveBackupImportOptions,
+  SupplierProductMapping,
+  StockImportRecord,
+  ImportFinancialInstallment
 } from '../types';
+import {
+  buildQuickInstallments,
+  buildSupplierItemKey,
+  buildSupplierKey,
+  computeUpdatedProductCost,
+  detectProductReconciliation,
+  formatQuantityClean,
+  mapNFePaymentCodeToMethod,
+  recalculateImportItems,
+  round2,
+  round4,
+  sanitizeBarcode
+} from '../utils/stockImportHelpers';
 import {
   computeEmployeeNominalPay,
   getEmployeeRemunerationType,
@@ -195,8 +211,21 @@ interface AppContextType {
   lookupCnpj: (cnpj: string) => Promise<{ name: string; tradeName?: string; phone?: string; email?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string } | null>;
 
   // XML & Batch Import
+  supplierProductMappings: SupplierProductMapping[];
+  stockImportRecords: StockImportRecord[];
   parseNFeXml: (xmlContent: string) => { success: boolean; message: string; parsedNFe?: ParsedXmlNFe };
-  commitImportNFe: (confirmedNFe: ParsedXmlNFe) => { success: boolean; message: string; updatedProductsCount: number; newProductsCount: number; supplierName: string };
+  commitImportNFe: (
+    confirmedNFe: ParsedXmlNFe,
+    options?: { source?: 'nfe_xml' | 'universal_import'; referenceLabel?: string; skipCostOnNew?: boolean }
+  ) => {
+    success: boolean;
+    message: string;
+    updatedProductsCount: number;
+    newProductsCount: number;
+    ignoredProductsCount?: number;
+    supplierName: string;
+    importRecordId?: string;
+  };
   importNFeXml: (xmlContent: string) => { success: boolean; message: string; importedCount?: number; totalValue?: number };
   importCsvClients: (csvContent: string) => { success: boolean; message: string; count?: number };
 
@@ -442,7 +471,9 @@ const KEYS = {
   CASH_SESSIONS: 'gestaopro_cash_sessions_v4',
   CASH_MOVEMENTS: 'gestaopro_cash_movements_v4',
   PAYMENT_RECEIPTS: 'gestaopro_payment_receipts_v4',
-  AUTH_USERS: 'gestaopro_auth_users_v4'
+  AUTH_USERS: 'gestaopro_auth_users_v4',
+  SUPPLIER_PRODUCT_MAPPINGS: 'gestaopro_supplier_product_mappings_v1',
+  STOCK_IMPORT_RECORDS: 'gestaopro_stock_import_records_v1'
 };
 
 const ZERO_ABSOLUTO_MIGRATION_KEY = 'gestaopro_zero_absoluto_v2715';
@@ -894,6 +925,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeReceiptModal, setActiveReceiptModal] = useState<PaymentReceipt | null>(null);
 
+  const [supplierProductMappings, setSupplierProductMappings] = useState<SupplierProductMapping[]>(() => {
+    const saved = localStorage.getItem(KEYS.SUPPLIER_PRODUCT_MAPPINGS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    return [];
+  });
+
+  const [stockImportRecords, setStockImportRecords] = useState<StockImportRecord[]>(() => {
+    const saved = localStorage.getItem(KEYS.STOCK_IMPORT_RECORDS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    return [];
+  });
+
   const activeCashSession = useMemo(() => {
     return cashSessions.find(s => s.status === 'aberto') || null;
   }, [cashSessions]);
@@ -943,6 +996,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
   useEffect(() => { localStorage.setItem(KEYS.CASH_MOVEMENTS, JSON.stringify(cashMovements)); broadcastSync('KEY', KEYS.CASH_MOVEMENTS); }, [cashMovements]);
   useEffect(() => { localStorage.setItem(KEYS.PAYMENT_RECEIPTS, JSON.stringify(paymentReceipts)); broadcastSync('KEY', KEYS.PAYMENT_RECEIPTS); }, [paymentReceipts]);
   useEffect(() => { localStorage.setItem(KEYS.AUTH_USERS, JSON.stringify(authUsers)); broadcastSync('KEY', KEYS.AUTH_USERS); }, [authUsers]);
+  useEffect(() => { localStorage.setItem(KEYS.SUPPLIER_PRODUCT_MAPPINGS, JSON.stringify(supplierProductMappings)); broadcastSync('KEY', KEYS.SUPPLIER_PRODUCT_MAPPINGS); }, [supplierProductMappings]);
+  useEffect(() => { localStorage.setItem(KEYS.STOCK_IMPORT_RECORDS, JSON.stringify(stockImportRecords)); broadcastSync('KEY', KEYS.STOCK_IMPORT_RECORDS); }, [stockImportRecords]);
 
   // Real-time synchronization across browser tabs and devices (desktop & mobile)
   useEffect(() => {
@@ -972,6 +1027,12 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
             break;
           case KEYS.STOCK:
             if (Array.isArray(parsed)) setStockMovements(parsed);
+            break;
+          case KEYS.SUPPLIER_PRODUCT_MAPPINGS:
+            if (Array.isArray(parsed)) setSupplierProductMappings(parsed);
+            break;
+          case KEYS.STOCK_IMPORT_RECORDS:
+            if (Array.isArray(parsed)) setStockImportRecords(parsed);
             break;
           case KEYS.CARD_RATES:
             if (Array.isArray(parsed)) setCardRates(parsed);
@@ -1642,53 +1703,74 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     return null;
   };
 
-  // Parser for NF-e XML that prepares staging data for user review & price/margin adjustment
+  // Parser for NF-e XML that prepares staging data with De-Para, conversion, ICMSTot charges, and duplicatas
   const parseNFeXml = (xmlContent: string): { success: boolean; message: string; parsedNFe?: ParsedXmlNFe } => {
     try {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
-      
+
       const parseError = xmlDoc.getElementsByTagName('parsererror');
       if (parseError.length > 0) {
         return { success: false, message: 'Arquivo XML inválido ou formato incompatível.' };
       }
 
-      // Read NF-e data
-      const nNF = xmlDoc.getElementsByTagName('nNF')[0]?.textContent || `NFE-${Math.floor(10000 + Math.random() * 90000)}`;
-      const serie = xmlDoc.getElementsByTagName('serie')[0]?.textContent || '1';
-      let chNFe = xmlDoc.getElementsByTagName('chNFe')[0]?.textContent || '';
+      const getTagText = (parent: Document | Element | undefined, tag: string): string => {
+        if (!parent) return '';
+        return parent.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
+      };
+
+      const getTagNumber = (parent: Document | Element | undefined, tag: string, fallback = 0): number => {
+        const raw = getTagText(parent, tag).replace(',', '.');
+        const parsed = parseFloat(raw);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
+
+      // Identificação NF-e
+      const ideEl = xmlDoc.getElementsByTagName('ide')[0] || xmlDoc;
+      const nNF = getTagText(ideEl, 'nNF') || `NFE-${Math.floor(10000 + Math.random() * 90000)}`;
+      const serie = getTagText(ideEl, 'serie') || '1';
+      let chNFe = getTagText(xmlDoc, 'chNFe');
       if (!chNFe) {
         const infNFe = xmlDoc.getElementsByTagName('infNFe')[0];
         if (infNFe && infNFe.getAttribute('Id')) {
           chNFe = infNFe.getAttribute('Id')!.replace(/^NFe/i, '');
         }
       }
-      const dhEmi = xmlDoc.getElementsByTagName('dhEmi')[0]?.textContent || xmlDoc.getElementsByTagName('dEmi')[0]?.textContent || new Date().toISOString().split('T')[0];
-      const emitNome = xmlDoc.getElementsByTagName('xNome')[0]?.textContent || 'Fornecedor Identificado NF-e';
-      const emitFant = xmlDoc.getElementsByTagName('xFant')[0]?.textContent || '';
-      const emitCNPJ = xmlDoc.getElementsByTagName('CNPJ')[0]?.textContent || '61.423.789/0001-15';
-      const vNF = parseFloat(xmlDoc.getElementsByTagName('vNF')[0]?.textContent || '0');
+      const rawEmission =
+        getTagText(ideEl, 'dhEmi') ||
+        getTagText(ideEl, 'dEmi') ||
+        new Date().toISOString().split('T')[0];
+      const emissionDate = rawEmission.slice(0, 10);
 
-      // EnderEmit
-      const enderEmit = xmlDoc.getElementsByTagName('enderEmit')[0];
-      const xLgr = enderEmit?.getElementsByTagName('xLgr')[0]?.textContent || 'Rua do Fornecedor';
-      const nro = enderEmit?.getElementsByTagName('nro')[0]?.textContent || '100';
-      const xBairro = enderEmit?.getElementsByTagName('xBairro')[0]?.textContent || 'Distrito Industrial';
-      const xMun = enderEmit?.getElementsByTagName('xMun')[0]?.textContent || 'São Paulo';
-      const UF = enderEmit?.getElementsByTagName('UF')[0]?.textContent || 'SP';
-      const CEP = enderEmit?.getElementsByTagName('CEP')[0]?.textContent || '01001-000';
-      const fone = enderEmit?.getElementsByTagName('fone')[0]?.textContent || '(11) 3300-4000';
+      // Emitente / Fornecedor
+      const emitEl = xmlDoc.getElementsByTagName('emit')[0];
+      const emitNome = getTagText(emitEl || xmlDoc, 'xNome') || 'Fornecedor Identificado NF-e';
+      const emitFant = getTagText(emitEl || xmlDoc, 'xFant') || '';
+      const emitCNPJ =
+        getTagText(emitEl || xmlDoc, 'CNPJ') ||
+        getTagText(emitEl || xmlDoc, 'CPF') ||
+        '';
 
-      // Check if supplier already exists by CNPJ
+      const enderEmit = emitEl?.getElementsByTagName('enderEmit')[0] || xmlDoc.getElementsByTagName('enderEmit')[0];
+      const xLgr = getTagText(enderEmit, 'xLgr') || 'Rua do Fornecedor';
+      const nro = getTagText(enderEmit, 'nro') || 'S/N';
+      const xBairro = getTagText(enderEmit, 'xBairro') || '';
+      const xMun = getTagText(enderEmit, 'xMun') || '';
+      const UF = getTagText(enderEmit, 'UF') || '';
+      const CEP = getTagText(enderEmit, 'CEP') || '';
+      const fone = getTagText(enderEmit, 'fone') || '';
+
       const cleanCNPJ = emitCNPJ.replace(/\D/g, '');
-      const existingSup = suppliers.find(s => s.cnpj.replace(/\D/g, '') === cleanCNPJ);
+      const existingSup = cleanCNPJ
+        ? suppliers.find(s => s.cnpj.replace(/\D/g, '') === cleanCNPJ)
+        : suppliers.find(s => s.name.trim().toLowerCase() === emitNome.trim().toLowerCase());
 
       const parsedSupplier: ParsedXmlSupplier = {
         cnpj: emitCNPJ,
         name: existingSup ? existingSup.name : emitNome,
         tradeName: existingSup?.tradeName || emitFant || '',
         phone: existingSup?.phone || fone,
-        email: existingSup?.email || 'contato@fornecedorxml.com.br',
+        email: existingSup?.email || '',
         cep: existingSup?.cep || CEP,
         street: existingSup?.street || xLgr,
         number: existingSup?.number || nro,
@@ -1700,210 +1782,433 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         registerIfNew: !existingSup
       };
 
-      // Read items
+      // Totais de <total>/<ICMSTot>
+      const totalEl = xmlDoc.getElementsByTagName('total')[0];
+      const icmsTotEl = totalEl?.getElementsByTagName('ICMSTot')[0] || xmlDoc.getElementsByTagName('ICMSTot')[0];
+      const xmlVProd = getTagNumber(icmsTotEl, 'vProd', 0);
+      const xmlVFrete = getTagNumber(icmsTotEl, 'vFrete', 0);
+      const xmlVSeg = getTagNumber(icmsTotEl, 'vSeg', 0);
+      const xmlVOutro = getTagNumber(icmsTotEl, 'vOutro', 0);
+      const xmlVDesc = getTagNumber(icmsTotEl, 'vDesc', 0);
+      const xmlVNF = getTagNumber(icmsTotEl, 'vNF', 0);
+
+      // Leitura dos itens (<det>/<prod>)
       const detElements = xmlDoc.getElementsByTagName('det');
-      const parsedItems: ParsedXmlItem[] = [];
+      const rawItems: ParsedXmlItem[] = [];
+      let sumItemsVProd = 0;
+      let sumItemsVFrete = 0;
+      let sumItemsVSeg = 0;
+      let sumItemsVOutro = 0;
+      let sumItemsVDesc = 0;
 
-      let calculatedTotal = 0;
+      for (let i = 0; i < detElements.length; i++) {
+        const det = detElements[i];
+        const prodEl = det.getElementsByTagName('prod')[0] || det;
+        const cProd = getTagText(prodEl, 'cProd') || `PROD-XML-${i + 1}`;
+        const rawEan = getTagText(prodEl, 'cEAN') || getTagText(prodEl, 'cEANTrib');
+        const barcode = sanitizeBarcode(rawEan);
+        const xProd = getTagText(prodEl, 'xProd') || `Produto NF-e ${i + 1}`;
+        const ncm = getTagText(prodEl, 'NCM') || '8419.19.10';
+        const qCom = Math.max(0.0001, getTagNumber(prodEl, 'qCom', 1));
+        const vUnCom = getTagNumber(prodEl, 'vUnCom', 0);
+        const vProd = getTagNumber(prodEl, 'vProd', round2(qCom * vUnCom));
+        const uCom = (getTagText(prodEl, 'uCom') || 'UN').toUpperCase();
 
-      if (detElements.length > 0) {
-        for (let i = 0; i < detElements.length; i++) {
-          const det = detElements[i];
-          const cProd = det.getElementsByTagName('cProd')[0]?.textContent || `PROD-XML-${i + 1}`;
-          const xProd = det.getElementsByTagName('xProd')[0]?.textContent || `Produto NF-e ${i + 1}`;
-          const ncm = det.getElementsByTagName('NCM')[0]?.textContent || '8419.19.10';
-          const qCom = parseFloat(det.getElementsByTagName('qCom')[0]?.textContent || '1');
-          const vUnCom = parseFloat(det.getElementsByTagName('vUnCom')[0]?.textContent || '100.00');
-          const vProd = parseFloat(det.getElementsByTagName('vProd')[0]?.textContent || (qCom * vUnCom).toFixed(2));
-          const uCom = det.getElementsByTagName('uCom')[0]?.textContent || 'UN';
+        const itemFreight = getTagNumber(prodEl, 'vFrete', 0);
+        const itemInsurance = getTagNumber(prodEl, 'vSeg', 0);
+        const itemOtherExpenses = getTagNumber(prodEl, 'vOutro', 0);
+        const itemDiscount = getTagNumber(prodEl, 'vDesc', 0);
 
-          calculatedTotal += vProd;
+        sumItemsVProd = round2(sumItemsVProd + vProd);
+        sumItemsVFrete = round2(sumItemsVFrete + itemFreight);
+        sumItemsVSeg = round2(sumItemsVSeg + itemInsurance);
+        sumItemsVOutro = round2(sumItemsVOutro + itemOtherExpenses);
+        sumItemsVDesc = round2(sumItemsVDesc + itemDiscount);
 
-          // Check if product already exists
-          const cleanCode = cProd.trim().toLowerCase();
-          const cleanName = xProd.trim().toLowerCase();
-          const existingProd = products.find(p => 
-            p.code.toLowerCase() === cleanCode || 
-            p.name.toLowerCase() === cleanName
-          );
+        // Detecção automática ("De-Para") + Sugestões Inteligentes
+        const reconciliation = detectProductReconciliation(
+          { code: cProd, barcode, name: xProd },
+          products,
+          supplierProductMappings,
+          { cnpj: emitCNPJ, name: parsedSupplier.name }
+        );
 
-          // Category suggestion
-          let category = 'Peças Gerais';
-          if (cleanName.includes('boiler') || cleanName.includes('reservat') || cleanName.includes('solar')) {
-            category = 'Reservatórios Térmicos';
-          } else if (cleanName.includes('bomba') || cleanName.includes('motor') || cleanName.includes('pressuriz')) {
-            category = 'Bombas e Motores';
-          } else if (cleanName.includes('tubo') || cleanName.includes('válv') || cleanName.includes('valv') || cleanName.includes('conex')) {
-            category = 'Tubulações e Conexões';
-          } else if (cleanName.includes('relé') || cleanName.includes('resistên') || cleanName.includes('termost')) {
-            category = 'Insumos Elétricos';
-          }
+        const matchedProd = reconciliation.matchedProduct;
+        const memorized = reconciliation.memorizedMapping;
 
-          // Margins (Varejo 55% / Atacado 35%)
-          const defaultRetailMargin = 55; // 55% margem varejo (solicitada)
-          const defaultWholesaleMargin = 35; // 35% margem atacado (solicitada)
+        // Sugestão de categoria para produtos novos
+        const cleanName = xProd.toLowerCase();
+        let category = 'Peças Gerais';
+        if (cleanName.includes('boiler') || cleanName.includes('reservat') || cleanName.includes('solar')) {
+          category = 'Reservatórios Térmicos';
+        } else if (cleanName.includes('bomba') || cleanName.includes('motor') || cleanName.includes('pressuriz')) {
+          category = 'Bombas e Motores';
+        } else if (cleanName.includes('tubo') || cleanName.includes('válv') || cleanName.includes('valv') || cleanName.includes('conex')) {
+          category = 'Tubulações e Conexões';
+        } else if (cleanName.includes('relé') || cleanName.includes('resistên') || cleanName.includes('termost')) {
+          category = 'Insumos Elétricos';
+        }
 
-          const suggestedRetailPrice = Number((vUnCom * (1 + defaultRetailMargin / 100)).toFixed(2));
-          const suggestedWholesalePrice = Number((vUnCom * (1 + defaultWholesaleMargin / 100)).toFixed(2));
+        const defaultRetailMargin = 55;
+        const defaultWholesaleMargin = 35;
+        const initialFactor =
+          memorized && memorized.conversionFactor > 0 ? memorized.conversionFactor : 1;
+        const initialStockUnit =
+          matchedProd?.unit || memorized?.stockUnit || uCom || 'UN';
 
-          parsedItems.push({
-            id: `xml-item-${Date.now()}-${i}`,
-            selectedToImport: true,
-            code: cProd,
-            name: xProd,
-            ncm,
-            quantity: qCom,
-            unit: uCom,
-            costPrice: vUnCom,
-            totalCost: vProd,
-            category: existingProd?.category || category,
-            retailMarginPercent: defaultRetailMargin,
-            retailPrice: suggestedRetailPrice,
-            updateRetailPrice: true,
-            wholesaleMarginPercent: defaultWholesaleMargin,
-            wholesalePrice: suggestedWholesalePrice,
-            updateWholesalePrice: true,
-            updateStock: true,
-            isNewProduct: !existingProd,
-            existingProductId: existingProd?.id,
-            existingCurrentStock: existingProd?.currentStock,
-            existingRetailPrice: existingProd?.retailPrice,
-            existingWholesalePrice: existingProd?.wholesalePrice
+        rawItems.push({
+          id: `xml-item-${Date.now()}-${i}`,
+          selectedToImport: true,
+          action: matchedProd ? 'link_existing' : 'create_new',
+          code: cProd,
+          barcode: barcode || undefined,
+          name: xProd,
+          ncm,
+          quantity: qCom,
+          unit: uCom,
+          stockUnit: initialStockUnit,
+          conversionFactor: initialFactor,
+          costPrice: vUnCom,
+          totalCost: vProd,
+          itemFreight,
+          itemInsurance,
+          itemOtherExpenses,
+          itemDiscount,
+          category: matchedProd?.category || category,
+          retailMarginPercent: defaultRetailMargin,
+          retailPrice: 0,
+          updateRetailPrice: !matchedProd,
+          wholesaleMarginPercent: defaultWholesaleMargin,
+          wholesalePrice: 0,
+          updateWholesalePrice: !matchedProd,
+          updateStock: true,
+          isNewProduct: !matchedProd,
+          existingProductId: matchedProd?.id,
+          existingCurrentStock: matchedProd?.currentStock,
+          existingCostPrice: matchedProd?.costPrice,
+          existingRetailPrice: matchedProd?.retailPrice,
+          existingWholesalePrice: matchedProd?.wholesalePrice,
+          matchSource:
+            reconciliation.matchSource !== 'none'
+              ? reconciliation.matchSource
+              : reconciliation.suggestedMatches.length > 0
+              ? 'similarity'
+              : 'none',
+          suggestedMatches: reconciliation.suggestedMatches,
+          memorizedMappingId: memorized?.id,
+        });
+      }
+
+      const freightTotal = xmlVFrete > 0 ? xmlVFrete : sumItemsVFrete;
+      const insuranceTotal = xmlVSeg > 0 ? xmlVSeg : sumItemsVSeg;
+      const otherExpensesTotal = xmlVOutro > 0 ? xmlVOutro : sumItemsVOutro;
+      const discountTotal = xmlVDesc > 0 ? xmlVDesc : sumItemsVDesc;
+      const productsTotal = xmlVProd > 0 ? xmlVProd : sumItemsVProd;
+
+      // Calcula rateio inicial e preços sugeridos com base no custo efetivo convertido
+      const alloc = recalculateImportItems(
+        rawItems,
+        { freightTotal, insuranceTotal, otherExpensesTotal, discountTotal },
+        'proportional_value'
+      );
+
+      const finalizedItems = alloc.items.map((item) => {
+        const baseCost = item.effectiveUnitCost ?? item.costPrice;
+        return {
+          ...item,
+          retailPrice: round2(baseCost * (1 + item.retailMarginPercent / 100)),
+          wholesalePrice: round2(baseCost * (1 + item.wholesaleMarginPercent / 100)),
+        };
+      });
+
+      const finalTotal = xmlVNF > 0 ? xmlVNF : alloc.grandTotal;
+
+      // Leitura de pagamento (<pag>/<detPag>) e cobrança/duplicatas (<cobr>/<fat>/<dup>)
+      const detPagEl = xmlDoc.getElementsByTagName('detPag')[0];
+      const xmlPaymentCode = getTagText(detPagEl || xmlDoc, 'tPag');
+      const paymentMethod = mapNFePaymentCodeToMethod(xmlPaymentCode);
+
+      const dupElements = xmlDoc.getElementsByTagName('dup');
+      const xmlInstallments: ImportFinancialInstallment[] = [];
+      for (let i = 0; i < dupElements.length; i++) {
+        const dup = dupElements[i];
+        const nDup = getTagText(dup, 'nDup') || String(i + 1).padStart(3, '0');
+        const dVenc = getTagText(dup, 'dVenc') || emissionDate;
+        const vDup = getTagNumber(dup, 'vDup', 0);
+        if (vDup > 0) {
+          xmlInstallments.push({
+            id: `dup-${Date.now()}-${i}`,
+            number: nDup,
+            dueDate: dVenc.slice(0, 10),
+            amount: round2(vDup),
           });
         }
       }
 
-      const finalTotal = vNF > 0 ? vNF : calculatedTotal;
+      const xmlHasDuplicates = xmlInstallments.length > 0;
+      const isCashLike = ['01', '04', '17', '20'].includes(xmlPaymentCode);
+      const initialInstallments = xmlHasDuplicates
+        ? xmlInstallments
+        : buildQuickInstallments(finalTotal, emissionDate, isCashLike ? 'vista_hoje' : '30d');
 
       const parsedNFe: ParsedXmlNFe = {
         nNF,
         serie,
         chNFe: chNFe || undefined,
-        emissionDate: dhEmi.slice(0, 10),
+        emissionDate,
+        productsTotal,
+        freightTotal,
+        insuranceTotal,
+        otherExpensesTotal,
+        discountTotal,
         totalValue: finalTotal,
+        xmlOriginalTotalValue: xmlVNF > 0 ? xmlVNF : undefined,
+        allocationMode: 'proportional_value',
+        costUpdateMode: 'effective_unit',
         supplier: parsedSupplier,
-        items: parsedItems,
+        items: finalizedItems,
         importProducts: true,
-        createAccountPayable: false
+        createAccountPayable: false,
+        financialMode: 'none',
+        installments: initialInstallments,
+        xmlHasDuplicates,
+        paymentMethod,
+        xmlPaymentCode: xmlPaymentCode || undefined,
+        expenseCategory: 'compra_produtos_xml',
+        initialPaymentStatus: isCashLike ? 'pago' : 'pendente',
+        linkedExpenseId: undefined,
       };
+
+      const linkedAutoCount = finalizedItems.filter((it) => it.action === 'link_existing').length;
 
       return {
         success: true,
-        message: `NF-e ${nNF} lida com sucesso! ${parsedItems.length} produto(s) pronto(s) para conferência e precificação.`,
-        parsedNFe
+        message: `NF-e ${nNF} lida com sucesso! ${finalizedItems.length} item(ns) (${linkedAutoCount} conciliado(s) automaticamente via De-Para).`,
+        parsedNFe,
       };
     } catch (err: any) {
       return { success: false, message: 'Erro ao analisar arquivo XML: ' + (err.message || 'formato inválido') };
     }
   };
 
-  // Commit and write parsed/confirmed NF-e selectively into products, stock, supplier and accounts payable
-  const commitImportNFe = (confirmedNFe: ParsedXmlNFe) => {
+  // Commit unificado para NF-e XML e Importação Universal de Estoque
+  const commitImportNFe = (
+    confirmedNFe: ParsedXmlNFe,
+    options?: {
+      source?: 'nfe_xml' | 'universal_import';
+      referenceLabel?: string;
+      skipCostOnNew?: boolean;
+    }
+  ) => {
     try {
+      const importSource = options?.source || 'nfe_xml';
+      const importRecordId = `imp-${Date.now()}`;
+      const referenceCode =
+        options?.referenceLabel ||
+        (importSource === 'nfe_xml' ? `NF-e ${confirmedNFe.nNF}` : confirmedNFe.nNF || 'Importação Universal');
+
       let finalSupplierId = confirmedNFe.supplier.existingSupplierId;
-      let finalSupplierName = confirmedNFe.supplier.name;
+      let finalSupplierName = confirmedNFe.supplier.name?.trim() || 'Fornecedor não informado';
       let supplierRegisteredNow = false;
 
       // 1. Cadastra Fornecedor apenas se não estiver cadastrado e o usuário marcou esta opção
-      if (!confirmedNFe.supplier.isAlreadyRegistered && confirmedNFe.supplier.registerIfNew) {
+      if (
+        !confirmedNFe.supplier.isAlreadyRegistered &&
+        confirmedNFe.supplier.registerIfNew &&
+        confirmedNFe.supplier.name?.trim()
+      ) {
         const newSup: Supplier = {
           id: `sup-${Date.now()}`,
           name: confirmedNFe.supplier.name.trim(),
           tradeName: confirmedNFe.supplier.tradeName?.trim() || undefined,
-          cnpj: confirmedNFe.supplier.cnpj.trim(),
+          cnpj: confirmedNFe.supplier.cnpj?.trim() || '',
           email: confirmedNFe.supplier.email?.trim() || 'fornecedor@contato.com.br',
-          phone: confirmedNFe.supplier.phone?.trim() || '(11) 3300-4000',
-          contactPerson: 'Cadastro Automático NF-e',
-          cep: confirmedNFe.supplier.cep?.trim() || '01001-000',
-          street: confirmedNFe.supplier.street?.trim() || 'Avenida das Indústrias',
-          number: confirmedNFe.supplier.number?.trim() || '100',
-          city: confirmedNFe.supplier.city?.trim() || 'São Paulo',
-          state: confirmedNFe.supplier.state?.trim().toUpperCase() || 'SP',
-          notes: `Cadastrado automaticamente na conferência da NF-e ${confirmedNFe.nNF}`
+          phone: confirmedNFe.supplier.phone?.trim() || '',
+          contactPerson: 'Cadastro Automático Importação',
+          cep: confirmedNFe.supplier.cep?.trim() || '',
+          street: confirmedNFe.supplier.street?.trim() || '',
+          number: confirmedNFe.supplier.number?.trim() || '',
+          city: confirmedNFe.supplier.city?.trim() || '',
+          state: confirmedNFe.supplier.state?.trim().toUpperCase() || '',
+          notes: `Cadastrado automaticamente na importação ${referenceCode}`
         };
         setSuppliers(prev => [newSup, ...prev]);
+        syncSupplierToCloud(newSup);
         finalSupplierId = newSup.id;
         finalSupplierName = newSup.name;
         supplierRegisteredNow = true;
-        addAuditLog('Novo Fornecedor', `Fornecedor ${newSup.name} (CNPJ: ${newSup.cnpj}) cadastrado via importação de NF-e.`);
+        addAuditLog('Novo Fornecedor', `Fornecedor ${newSup.name} cadastrado via ${referenceCode}.`);
       }
 
-      // 2. Atualiza ou insere SOMENTE os produtos selecionados (se importProducts !== false)
+      // 2. Recalcula rateio/conversão final para garantir consistência absoluta
+      const allocationMode = confirmedNFe.allocationMode || 'proportional_value';
+      const costUpdateMode = confirmedNFe.costUpdateMode || 'effective_unit';
+      const recalculated = recalculateImportItems(
+        confirmedNFe.items,
+        {
+          freightTotal: confirmedNFe.freightTotal || 0,
+          insuranceTotal: confirmedNFe.insuranceTotal || 0,
+          otherExpensesTotal: confirmedNFe.otherExpensesTotal || 0,
+          discountTotal: confirmedNFe.discountTotal || 0,
+        },
+        allocationMode
+      );
+
       const shouldImportProducts = confirmedNFe.importProducts !== false;
-      const selectedItems = shouldImportProducts
-        ? confirmedNFe.items.filter(it => it.selectedToImport !== false)
+      const activeItems = shouldImportProducts
+        ? recalculated.items.filter(it => it.action !== 'ignore' && it.selectedToImport !== false)
         : [];
+      const ignoredCount = confirmedNFe.items.length - activeItems.length;
 
       let updatedCount = 0;
       let newCount = 0;
       let stockEntriesCount = 0;
-
       const newMovements: StockMovement[] = [];
+      const changedProductsForCloud: Product[] = [];
+      const mappingsToUpsert: SupplierProductMapping[] = [];
+      const supplierKey = buildSupplierKey(confirmedNFe.supplier.cnpj, finalSupplierName);
+      const nowIso = new Date().toISOString();
+      const todayIso = nowIso.split('T')[0];
 
-      if (selectedItems.length > 0) {
-        setProducts(prevProducts => {
-          let currentList = [...prevProducts];
+      if (activeItems.length > 0) {
+        let workingProducts = [...products];
 
-          selectedItems.forEach((item, idx) => {
-            const existing = currentList.find(p =>
-              p.id === item.existingProductId ||
-              p.code.toLowerCase() === item.code.toLowerCase() ||
-              p.name.toLowerCase() === item.name.toLowerCase()
+        activeItems.forEach((item, idx) => {
+          const factor = Number(item.conversionFactor) > 0 ? Number(item.conversionFactor) : 1;
+          const convertedQty = round4((Number(item.quantity) || 0) * factor);
+          const effectiveUnitCost =
+            item.effectiveUnitCost !== undefined && Number.isFinite(item.effectiveUnitCost)
+              ? item.effectiveUnitCost
+              : round4((item.costPrice || 0) / factor);
+
+          const effectiveAction = item.action || (item.existingProductId ? 'link_existing' : 'create_new');
+
+          let targetExisting: Product | undefined;
+          if (effectiveAction === 'link_existing') {
+            if (item.existingProductId) {
+              targetExisting = workingProducts.find(p => p.id === item.existingProductId);
+            }
+            if (!targetExisting && item.barcode) {
+              const cleanBc = sanitizeBarcode(item.barcode);
+              if (cleanBc) {
+                targetExisting = workingProducts.find(p => sanitizeBarcode(p.barcode) === cleanBc);
+              }
+            }
+          }
+
+          let finalProductId = '';
+          let finalProductName = item.name;
+          let finalStockUnit = item.stockUnit || item.unit || 'UN';
+
+          if (effectiveAction === 'link_existing' && targetExisting) {
+            const newCostPrice = computeUpdatedProductCost(
+              targetExisting,
+              convertedQty,
+              effectiveUnitCost,
+              costUpdateMode
             );
+            const newStock = item.updateStock
+              ? round4((targetExisting.currentStock || 0) + convertedQty)
+              : targetExisting.currentStock;
 
-            if (existing) {
-              currentList = currentList.map(p => {
-                if (p.id === existing.id) {
-                  return {
-                    ...p,
-                    costPrice: item.costPrice,
-                    retailPrice: item.updateRetailPrice ? item.retailPrice : p.retailPrice,
-                    wholesalePrice: item.updateWholesalePrice ? item.wholesalePrice : p.wholesalePrice,
-                    currentStock: item.updateStock ? (p.currentStock + item.quantity) : p.currentStock,
-                    ncm: item.ncm || p.ncm
-                  };
-                }
-                return p;
-              });
-              updatedCount++;
-            } else {
-              const newProd: Product = {
-                id: `prod-${Date.now()}-${idx}`,
-                code: item.code,
-                name: item.name,
-                category: item.category,
-                costPrice: item.costPrice,
-                retailPrice: item.updateRetailPrice ? item.retailPrice : 0,
-                wholesalePrice: item.updateWholesalePrice ? item.wholesalePrice : 0,
-                currentStock: item.updateStock ? item.quantity : 0,
-                minStock: 2,
-                unit: item.unit || 'UN',
-                ncm: item.ncm,
-                icmsRate: 12.0,
-                pisRate: 1.65,
-                cofinsRate: 7.6
-              };
-              currentList = [newProd, ...currentList];
-              newCount++;
-            }
+            // NUNCA sobrescreve targetExisting.name com a descrição do fornecedor!
+            const updatedProd: Product = {
+              ...targetExisting,
+              barcode: targetExisting.barcode || item.barcode || undefined,
+              costPrice: newCostPrice,
+              retailPrice: item.updateRetailPrice ? round2(item.retailPrice) : targetExisting.retailPrice,
+              wholesalePrice: item.updateWholesalePrice ? round2(item.wholesalePrice) : targetExisting.wholesalePrice,
+              currentStock: newStock,
+              ncm: targetExisting.ncm || item.ncm || '',
+            };
 
-            if (item.updateStock) {
-              stockEntriesCount++;
-              newMovements.push({
-                id: `sm-${Date.now()}-${idx}`,
-                productId: item.code,
-                productName: item.name,
-                type: 'entrada_xml',
-                quantity: item.quantity,
-                unitCost: item.costPrice,
-                date: new Date().toISOString().split('T')[0],
-                referenceDoc: `NF-e ${confirmedNFe.nNF} (${finalSupplierName})`,
-                notes: `Entrada conferida: Varejo R$ ${item.retailPrice.toFixed(2)} (${item.retailMarginPercent}%) | Atacado R$ ${item.wholesalePrice.toFixed(2)} (${item.wholesaleMarginPercent}%)`
-              });
-            }
-          });
+            workingProducts = workingProducts.map(p => (p.id === targetExisting!.id ? updatedProd : p));
+            changedProductsForCloud.push(updatedProd);
+            finalProductId = updatedProd.id;
+            finalProductName = updatedProd.name;
+            finalStockUnit = updatedProd.unit || finalStockUnit;
+            updatedCount++;
+          } else {
+            const newCost = options?.skipCostOnNew ? 0 : round2(effectiveUnitCost);
+            const newProd: Product = {
+              id: `prod-${Date.now()}-${idx}`,
+              code: item.code || `IMP-${Date.now().toString().slice(-4)}-${idx + 1}`,
+              barcode: item.barcode || undefined,
+              name: item.name,
+              brand: item.brand || undefined,
+              category: item.category || 'Peças Gerais',
+              subcategory: item.subcategory || undefined,
+              costPrice: newCost,
+              profitMarginPercent: item.retailMarginPercent,
+              retailPrice: item.updateRetailPrice ? round2(item.retailPrice) : 0,
+              wholesalePrice: item.updateWholesalePrice ? round2(item.wholesalePrice) : 0,
+              currentStock: item.updateStock ? convertedQty : 0,
+              minStock: 2,
+              unit: item.stockUnit || item.unit || 'UN',
+              ncm: item.ncm || '',
+              icmsRate: 12.0,
+              pisRate: 1.65,
+              cofinsRate: 7.6,
+            };
+            workingProducts = [newProd, ...workingProducts];
+            changedProductsForCloud.push(newProd);
+            finalProductId = newProd.id;
+            finalProductName = newProd.name;
+            finalStockUnit = newProd.unit;
+            newCount++;
+          }
 
-          return currentList;
+          // Memoriza vínculo [Fornecedor + Código/Descrição do Item] -> { productId, conversionFactor, supplierUnit }
+          if (finalProductId && (item.code || item.name)) {
+            const supplierItemKey = buildSupplierItemKey(supplierKey, item.code, item.name);
+            mappingsToUpsert.push({
+              id: `map-${Date.now()}-${idx}`,
+              supplierKey,
+              supplierId: finalSupplierId,
+              supplierCnpj: confirmedNFe.supplier.cnpj || undefined,
+              supplierName: finalSupplierName,
+              supplierItemCode: item.code || '',
+              supplierItemDescription: item.name,
+              supplierItemKey,
+              productId: finalProductId,
+              conversionFactor: factor,
+              supplierUnit: item.unit || 'UN',
+              stockUnit: finalStockUnit,
+              updatedAt: nowIso,
+            });
+          }
+
+          // Registra Kardex com quantidade convertida e custo efetivo na unidade do estoque
+          if (item.updateStock && convertedQty > 0) {
+            stockEntriesCount++;
+            const convNote =
+              factor !== 1 || (item.unit && item.unit !== finalStockUnit)
+                ? `Conv: ${formatQuantityClean(item.quantity)} ${item.unit || 'UN'} × ${factor} = +${formatQuantityClean(convertedQty)} ${finalStockUnit}`
+                : `Entrada: +${formatQuantityClean(convertedQty)} ${finalStockUnit}`;
+            newMovements.push({
+              id: `sm-${Date.now()}-${idx}`,
+              productId: finalProductId,
+              productName: finalProductName,
+              type: importSource === 'nfe_xml' ? 'entrada_xml' : 'entrada_manual',
+              quantity: convertedQty,
+              unitCost: round2(effectiveUnitCost),
+              date: todayIso,
+              referenceDoc: `${referenceCode} (${finalSupplierName})`,
+              notes: `${convNote} | Custo efetivo: ${formatBRL(effectiveUnitCost)}/${finalStockUnit}`,
+              importRecordId,
+              supplierUnit: item.unit || 'UN',
+              conversionFactor: factor,
+              supplierQuantity: item.quantity,
+            });
+          }
+        });
+
+        setProducts(workingProducts);
+        changedProductsForCloud.forEach(p => {
+          syncProductToCloud(p);
+          if (p.category) addProductCategory(p.category);
+          if (p.subcategory) addProductSubcategory(p.subcategory);
+          if (p.brand) addProductBrand(p.brand);
         });
       }
 
@@ -1911,79 +2216,175 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         setStockMovements(prev => [...newMovements, ...prev]);
       }
 
-      // 3. Gera Conta a Pagar no Financeiro SOMENTE se explicitamente marcado pelo usuário
-      const allItemsSelected = selectedItems.length === confirmedNFe.items.length;
-      const payableValue = allItemsSelected
-        ? confirmedNFe.totalValue
-        : selectedItems.reduce((acc, it) => acc + (it.costPrice * it.quantity), 0);
-
-      let financialCreated = false;
-      if (confirmedNFe.createAccountPayable && payableValue > 0) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 28);
-        const newExpense: GeneralExpense = {
-          id: `ge-${Date.now()}`,
-          category: 'compra_produtos_xml',
-          description: `Compra Mercadorias p/ Estoque - NF-e ${confirmedNFe.nNF} (${finalSupplierName})`,
-          cost: Number(payableValue.toFixed(2)),
-          dueDate: dueDate.toISOString().split('T')[0],
-          isPaid: false,
-          supplierId: finalSupplierId,
-          supplier: finalSupplierName,
-          invoiceNumber: `NF-e ${confirmedNFe.nNF}`,
-          isRecurring: false
-        };
-        setGeneralExpenses(prev => [newExpense, ...prev]);
-        financialCreated = true;
+      // Persiste vínculos De-Para memorizados (substituindo por supplierItemKey quando já existir)
+      if (mappingsToUpsert.length > 0) {
+        setSupplierProductMappings(prev => {
+          const mapByKey = new Map<string, SupplierProductMapping>();
+          prev.forEach(m => mapByKey.set(m.supplierItemKey, m));
+          mappingsToUpsert.forEach(m => {
+            const existingMap = mapByKey.get(m.supplierItemKey);
+            mapByKey.set(m.supplierItemKey, existingMap ? { ...m, id: existingMap.id } : m);
+          });
+          return Array.from(mapByKey.values());
+        });
       }
 
-      if (!supplierRegisteredNow && newCount === 0 && updatedCount === 0 && !financialCreated) {
+      // 3. Integração Financeira Seletiva ('none' | 'create_new' | 'link_existing')
+      const financialMode =
+        confirmedNFe.financialMode || (confirmedNFe.createAccountPayable ? 'create_new' : 'none');
+
+      const grandTotal = recalculated.grandTotal > 0 ? recalculated.grandTotal : confirmedNFe.totalValue;
+      const linkedExpenseIds: string[] = [];
+      let financialActionSummary = 'nenhum lançamento enviado ao Financeiro';
+
+      if (financialMode === 'create_new') {
+        const rawInstallments =
+          confirmedNFe.installments && confirmedNFe.installments.length > 0
+            ? confirmedNFe.installments.filter(inst => Number(inst.amount) > 0)
+            : grandTotal > 0
+            ? [
+                {
+                  id: `inst-${Date.now()}-1`,
+                  number: '001',
+                  dueDate: confirmedNFe.emissionDate || todayIso,
+                  amount: grandTotal,
+                },
+              ]
+            : [];
+
+        if (rawInstallments.length > 0) {
+          const isPaidInitially = confirmedNFe.initialPaymentStatus === 'pago';
+          const createdExpenses: GeneralExpense[] = rawInstallments.map((inst, idx) => {
+            const expId = `ge-${Date.now()}-${idx}`;
+            linkedExpenseIds.push(expId);
+            const parcelTag =
+              rawInstallments.length > 1
+                ? ` - Dup. ${inst.number || idx + 1} (${idx + 1}/${rawInstallments.length})`
+                : '';
+            return {
+              id: expId,
+              category: confirmedNFe.expenseCategory || 'compra_produtos_xml',
+              description: `Compra Estoque ${referenceCode}${parcelTag} (${finalSupplierName})`,
+              cost: round2(inst.amount),
+              dueDate: inst.dueDate || todayIso,
+              paymentDate: isPaidInitially ? (confirmedNFe.emissionDate || todayIso) : undefined,
+              isPaid: isPaidInitially,
+              supplierId: finalSupplierId,
+              supplier: finalSupplierName,
+              invoiceNumber: referenceCode,
+              isRecurring: false,
+              paymentMethod: confirmedNFe.paymentMethod || 'boleto',
+              emissionDate: confirmedNFe.emissionDate || todayIso,
+              installmentLabel: inst.number || `${idx + 1}/${rawInstallments.length}`,
+              linkedStockImportId: importRecordId,
+              linkedStockImportRef: referenceCode,
+            };
+          });
+
+          setGeneralExpenses(prev => [...createdExpenses, ...prev]);
+          const sumExp = round2(createdExpenses.reduce((acc, e) => acc + e.cost, 0));
+          financialActionSummary = `${createdExpenses.length} título(s) totalizando ${formatBRL(sumExp)} gerado(s) no Financeiro`;
+        }
+      } else if (financialMode === 'link_existing' && confirmedNFe.linkedExpenseId) {
+        const targetExp = generalExpenses.find(e => e.id === confirmedNFe.linkedExpenseId);
+        if (targetExp) {
+          setGeneralExpenses(prev =>
+            prev.map(e =>
+              e.id === targetExp.id
+                ? {
+                    ...e,
+                    linkedStockImportId: importRecordId,
+                    linkedStockImportRef: referenceCode,
+                  }
+                : e
+            )
+          );
+          linkedExpenseIds.push(targetExp.id);
+          financialActionSummary = `vinculado à despesa existente "${targetExp.description}" (sem duplicar valores)`;
+        }
+      }
+
+      if (
+        !supplierRegisteredNow &&
+        newCount === 0 &&
+        updatedCount === 0 &&
+        linkedExpenseIds.length === 0
+      ) {
         return {
           success: false,
-          message: 'Nenhuma opção ou produto foi selecionado para importação.',
+          message: 'Nenhuma opção ou produto ativo foi selecionado para importação.',
           updatedProductsCount: 0,
           newProductsCount: 0,
-          supplierName: finalSupplierName
+          ignoredProductsCount: ignoredCount,
+          supplierName: finalSupplierName,
         };
       }
+
+      // 4. Salva registro estruturado da importação (vínculo bidirecional com financeiro)
+      const importRecord: StockImportRecord = {
+        id: importRecordId,
+        source: importSource,
+        referenceCode,
+        supplierId: finalSupplierId,
+        supplierName: finalSupplierName,
+        supplierCnpj: confirmedNFe.supplier.cnpj || undefined,
+        emissionDate: confirmedNFe.emissionDate || todayIso,
+        importedAt: nowIso,
+        itemsCount: confirmedNFe.items.length,
+        linkedCount: updatedCount,
+        createdCount: newCount,
+        ignoredCount,
+        productsTotal: recalculated.activeProductsTotal,
+        freightTotal: confirmedNFe.freightTotal || 0,
+        insuranceTotal: confirmedNFe.insuranceTotal || 0,
+        otherExpensesTotal: confirmedNFe.otherExpensesTotal || 0,
+        discountTotal: confirmedNFe.discountTotal || 0,
+        grandTotal,
+        allocationMode,
+        costUpdateMode,
+        financialMode,
+        linkedExpenseIds,
+      };
+      setStockImportRecords(prev => [importRecord, ...prev]);
 
       const partsSummary: string[] = [];
       if (newCount > 0 || updatedCount > 0) {
-        partsSummary.push(`${newCount} novo(s) e ${updatedCount} atualizado(s) no catálogo`);
+        partsSummary.push(`${newCount} novo(s) e ${updatedCount} conciliado(s) via De-Para`);
+      }
+      if (ignoredCount > 0) {
+        partsSummary.push(`${ignoredCount} ignorado(s)`);
       }
       if (stockEntriesCount > 0) {
-        partsSummary.push(`entrada de estoque em ${stockEntriesCount} item(ns)`);
+        partsSummary.push(`estoque somado em ${stockEntriesCount} item(ns)`);
       } else if (newCount > 0 || updatedCount > 0) {
-        partsSummary.push('sem movimentação de saldo');
+        partsSummary.push('sem alteração de saldo');
       }
       if (supplierRegisteredNow) {
         partsSummary.push('fornecedor cadastrado');
       }
-      if (financialCreated) {
-        partsSummary.push(`título de ${formatBRL(payableValue)} lançado no Financeiro`);
-      } else {
-        partsSummary.push('nenhum lançamento enviado ao Financeiro');
-      }
+      partsSummary.push(financialActionSummary);
 
       addAuditLog(
-        'Importação Seletiva NF-e',
-        `NF-e ${confirmedNFe.nNF}: ${partsSummary.join(' · ')}.`
+        importSource === 'nfe_xml' ? 'Importação NF-e (De-Para)' : 'Importação Universal Estoque',
+        `${referenceCode}: ${partsSummary.join(' · ')}.`
       );
 
       return {
         success: true,
-        message: `Importação da NF-e ${confirmedNFe.nNF} concluída! (${partsSummary.join(' · ')}).`,
+        message: `Importação ${referenceCode} concluída! (${partsSummary.join(' · ')}).`,
         updatedProductsCount: updatedCount,
         newProductsCount: newCount,
-        supplierName: finalSupplierName
+        ignoredProductsCount: ignoredCount,
+        supplierName: finalSupplierName,
+        importRecordId,
       };
     } catch (err: any) {
       return {
         success: false,
-        message: 'Erro ao gravar produtos da NF-e: ' + (err.message || 'falha no processamento'),
+        message: 'Erro ao gravar importação de estoque: ' + (err.message || 'falha no processamento'),
         updatedProductsCount: 0,
         newProductsCount: 0,
-        supplierName: confirmedNFe.supplier.name
+        supplierName: confirmedNFe.supplier.name,
       };
     }
   };
@@ -4474,6 +4875,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         setSelectedMonthYear,
         lookupCep,
         lookupCnpj,
+        supplierProductMappings,
+        stockImportRecords,
         parseNFeXml,
         commitImportNFe,
         importNFeXml,

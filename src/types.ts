@@ -237,18 +237,113 @@ export interface Product {
   photos?: string[]; // Até 3 fotos do produto
 }
 
+export type ImportItemAction = 'link_existing' | 'create_new' | 'ignore';
+
+export type ImportMatchSource =
+  | 'barcode'
+  | 'supplier_mapping'
+  | 'code_exact'
+  | 'similarity'
+  | 'manual'
+  | 'none';
+
+export type ImportAllocationMode =
+  | 'proportional_value'
+  | 'proportional_qty'
+  | 'financial_only';
+
+export type ImportCostUpdateMode =
+  | 'effective_unit'
+  | 'weighted_average'
+  | 'keep_current';
+
+export type ImportFinancialMode = 'none' | 'create_new' | 'link_existing';
+
+export interface ProductMatchSuggestion {
+  productId: string;
+  score: number; // 0..100
+  reason: Exclude<ImportMatchSource, 'manual' | 'none'>;
+}
+
+export interface SupplierProductMapping {
+  id: string;
+  supplierKey: string; // Normalizado a partir de CNPJ ou Nome do Fornecedor
+  supplierId?: string;
+  supplierCnpj?: string;
+  supplierName: string;
+  supplierItemCode: string;
+  supplierItemDescription: string;
+  supplierItemKey: string; // Normalizado: supplierKey + code ou supplierKey + desc
+  productId: string;
+  conversionFactor: number; // Quantas unidades do estoque = 1 unidade do fornecedor
+  supplierUnit: string;
+  stockUnit: string;
+  updatedAt: string;
+}
+
+export interface ImportFinancialInstallment {
+  id: string;
+  number: string; // Ex: '001', '1/3', 'À Vista'
+  dueDate: string; // YYYY-MM-DD
+  amount: number;
+}
+
+export interface StockImportRecord {
+  id: string;
+  source: 'nfe_xml' | 'universal_import';
+  referenceCode: string; // Ex: 'NF-e 45231' ou nome do arquivo
+  supplierId?: string;
+  supplierName: string;
+  supplierCnpj?: string;
+  emissionDate: string;
+  importedAt: string;
+  itemsCount: number;
+  linkedCount: number;
+  createdCount: number;
+  ignoredCount: number;
+  productsTotal: number;
+  freightTotal: number;
+  insuranceTotal: number;
+  otherExpensesTotal: number;
+  discountTotal: number;
+  grandTotal: number;
+  allocationMode: ImportAllocationMode;
+  costUpdateMode: ImportCostUpdateMode;
+  financialMode: ImportFinancialMode;
+  linkedExpenseIds: string[];
+}
+
 export interface ParsedXmlItem {
   id: string; // ID temporário para o staging
-  selectedToImport?: boolean; // Permite escolher quais itens da nota importar
+  selectedToImport?: boolean; // Mantido por retrocompatibilidade (sincronizado com action !== 'ignore')
+  action: ImportItemAction; // 'link_existing' | 'create_new' | 'ignore'
   code: string;
-  name: string;
+  barcode?: string; // cEAN / cEANTrib extraído da NF-e ou planilha
+  brand?: string;
+  subcategory?: string;
+  name: string; // Descrição do fornecedor (nunca sobrescreve o nome padrão ao vincular)
   ncm: string;
-  quantity: number;
-  unit: string;
-  costPrice: number; // vUnCom na nota
-  totalCost: number; // vProd na nota
+  quantity: number; // Quantidade na unidade do fornecedor (qCom)
+  unit: string; // Unidade do fornecedor (uCom, ex: CX, FD, PCT, UN)
+  stockUnit: string; // Unidade do estoque (ex: UN, M, KG)
+  conversionFactor: number; // Qtd de unidades do estoque por 1 unidade do fornecedor (padrão 1, aceita decimais)
+  costPrice: number; // vUnCom na nota (na unidade do fornecedor)
+  totalCost: number; // vProd na nota (valor bruto do item)
+  // Valores acessórios originais do item na NF-e (quando informados)
+  itemFreight?: number;
+  itemInsurance?: number;
+  itemOtherExpenses?: number;
+  itemDiscount?: number;
+  // Valores calculados em tempo real (preenchidos pelo motor de rateio/conversão)
+  allocatedFreight?: number;
+  allocatedInsurance?: number;
+  allocatedOtherExpenses?: number;
+  allocatedDiscount?: number;
+  effectiveTotal?: number; // Valor líquido/efetivo do item após rateio
+  convertedQuantity?: number; // quantity * conversionFactor
+  effectiveUnitCost?: number; // effectiveTotal / convertedQuantity (na unidade do estoque)
   category: string;
-  // Margens e preços editáveis
+  // Margens e preços editáveis (baseados no custo efetivo convertido na unidade do estoque)
   retailMarginPercent: number; // Margem de lucro Varejo (%)
   retailPrice: number; // Preço Venda Varejo (R$)
   updateRetailPrice: boolean; // Confirmação se atualiza preço na tabela de varejo
@@ -256,12 +351,16 @@ export interface ParsedXmlItem {
   wholesalePrice: number; // Preço Venda Atacado (R$)
   updateWholesalePrice: boolean; // Confirmação se atualiza preço na tabela atacadista
   updateStock: boolean; // Confirmação se atualiza a quantidade em estoque
-  // Comparação com produto já existente
+  // Comparação e De-Para com produto já existente
   isNewProduct: boolean;
   existingProductId?: string;
   existingCurrentStock?: number;
+  existingCostPrice?: number;
   existingRetailPrice?: number;
   existingWholesalePrice?: number;
+  matchSource?: ImportMatchSource;
+  suggestedMatches?: ProductMatchSuggestion[];
+  memorizedMappingId?: string;
 }
 
 export interface ParsedXmlSupplier {
@@ -286,11 +385,30 @@ export interface ParsedXmlNFe {
   serie?: string;
   chNFe?: string;
   emissionDate: string;
-  totalValue: number;
+  // Totais extraídos de <total>/<ICMSTot> e ajustáveis manualmente
+  productsTotal: number; // vProd
+  freightTotal: number; // vFrete
+  insuranceTotal: number; // vSeg
+  otherExpensesTotal: number; // vOutro
+  discountTotal: number; // vDesc
+  totalValue: number; // vNF / Valor Total da Compra
+  xmlOriginalTotalValue?: number; // vNF original do XML para conferência
+  // Regras globais da importação
+  allocationMode: ImportAllocationMode;
+  costUpdateMode: ImportCostUpdateMode;
   supplier: ParsedXmlSupplier;
   items: ParsedXmlItem[];
   importProducts?: boolean; // Se true, cadastra/atualiza produtos selecionados
-  createAccountPayable: boolean; // Se false, NÃO lança nada no Financeiro / Contas a Pagar / DRE
+  // Integração financeira seletiva (padrão 'none')
+  createAccountPayable: boolean; // Retrocompatibilidade (true quando financialMode === 'create_new')
+  financialMode: ImportFinancialMode;
+  installments: ImportFinancialInstallment[];
+  xmlHasDuplicates?: boolean;
+  paymentMethod?: PaymentMethod;
+  xmlPaymentCode?: string;
+  expenseCategory?: ExpenseCategory;
+  initialPaymentStatus?: 'pendente' | 'pago';
+  linkedExpenseId?: string;
 }
 
 export interface SelectiveBackupImportOptions {
@@ -317,6 +435,10 @@ export interface StockMovement {
   date: string;
   referenceDoc?: string; // Ex: NFe 18923 ou OS-2026-104
   notes?: string;
+  importRecordId?: string;
+  supplierUnit?: string;
+  conversionFactor?: number;
+  supplierQuantity?: number;
 }
 
 export type EmployeeRemunerationType =
@@ -385,6 +507,11 @@ export interface GeneralExpense {
   supplier: string;
   invoiceNumber?: string;
   isRecurring: boolean;
+  paymentMethod?: PaymentMethod;
+  emissionDate?: string;
+  installmentLabel?: string;
+  linkedStockImportId?: string;
+  linkedStockImportRef?: string;
 }
 
 export interface ServiceItem {
