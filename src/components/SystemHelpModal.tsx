@@ -315,18 +315,68 @@ export const SystemHelpModal: React.FC<SystemHelpModalProps> = ({
         {
           id: 'xml_nfe_import',
           moduleCode: 'MOD-2.6',
-          title: 'Importação Seletiva: NF-e (XML) & Planilhas (Somente Produtos sem Financeiro)',
+          title: 'Importação Inteligente: De-Para, Fator de Conversão, Rateio NF-e & Duplicatas',
           icon: Download,
-          badge: 'Importação Seletiva',
-          objective: 'Importar somente os dados necessários (inclusive cadastrar apenas produtos sem lançar nada no Financeiro) via XML de NF-e ou planilhas CSV/XLSX/TXT/SQL/PDF.',
-          summary: 'NF-e XML com Financeiro DESMARCADO por padrão, atalho "Somente Cadastrar Produtos (Sem Financeiro)", seleção item a item e proteção anti-duplicidade SHA-256.',
+          badge: 'De-Para & Conversão',
+          objective: 'Conciliar produtos na entrada (NF-e XML e Planilhas CSV/XLSX/TXT/XML/SQL/PDF), converter embalagens (ex.: CX → UN), ratear frete/seguro/despesas/descontos e escolher seletivamente a integração financeira.',
+          summary: 'Detecção automática por EAN/GTIN, vínculo memorizado e similaridade, fator de conversão decimal, rateio configurável, Custo Médio Ponderado e leitura de duplicatas <cobr>/<dup> com Financeiro opcional (desligado por padrão).',
           howToUse: [
-            'Em "Estoque" ou "Central de Cadastros → Importação", selecione o arquivo .xml da NF-e ou sua planilha (CSV, XLSX, TXT, XML, SQL, PDF).',
-            'Na NF-e XML, use os atalhos de 1 clique ("Somente Cadastrar Produtos (Sem Financeiro)", "Produtos + Estoque (Sem Financeiro)" ou "Importação Completa") ou ligue/desligue individualmente: Produtos, Estoque/Kardex, Fornecedor e Financeiro (desmarcado por padrão).',
-            'Marque ou desmarque cada item individualmente na tabela da nota (ou linha a linha na Importação Universal).',
-            'Na Importação Universal de Produtos, conte com isolamento 100% do Financeiro e opções para zerar estoque inicial (qtd = 0) ou omitir custo.'
+            'Em "Estoque → Importador NF-e XML" ou "Central de Cadastros → Importação", carregue o XML da nota ou sua planilha.',
+            'Para cada linha da pré-visualização, escolha a ação: "Vincular a Produto Existente (De-Para)" com comparação visual lado a lado (sem sobrescrever o nome padrão do catálogo), "Cadastrar como Novo Produto" ou "Ignorar Item".',
+            'Ajuste o Fator de Conversão (ex.: 1 CX = 12 UN) para calcular em tempo real a Quantidade Convertida e o Custo Unitário Efetivo Convertido na unidade do estoque.',
+            'Confira e ajuste Frete, Seguro, Outras Despesas e Descontos da NF-e, escolhendo o critério de rateio (valor, quantidade ou apenas financeiro) e a política de custo (efetivo convertido, Custo Médio Ponderado ou manter custo atual).',
+            'Na seção Financeiro, mantenha "Não gerar/vincular financeiro agora" (padrão), ou escolha "Gerar nova Despesa" (com duplicatas lidas do XML e atalhos À vista/7d/14d/28d/30d/X parcelas) ou "Vincular a Despesa existente" sem duplicar valores.'
           ],
-          tips: 'Perfeito para alimentar seu catálogo de produtos usando notas antigas ou planilhas sem gerar nenhuma conta a pagar nem impactar o DRE.',
+          tips: 'Cada vínculo De-Para e Fator de Conversão confirmado é memorizado automaticamente por fornecedor para preencher sozinho nas próximas compras.',
+          targetTab: 'products'
+        },
+        {
+          id: 'supplier_depara_mappings',
+          moduleCode: 'MOD-2.6B',
+          title: 'Vínculos de Fornecedores (De-Para) & Visualização no Produto',
+          icon: Layers,
+          badge: 'Gestão De-Para',
+          objective: 'Consultar, editar, criar manualmente ou excluir vínculos memorizados entre códigos/descrições dos fornecedores e produtos do estoque.',
+          summary: 'Aba dedicada em Estoque + painel embutido na ficha de detalhes e edição de cada produto, refletindo alterações imediatamente no motor de importação.',
+          howToUse: [
+            'Acesse "Estoque → Vínculos De-Para" para listar todos os vínculos salvos e filtrar por fornecedor, produto, busca de texto ou apenas itens com conversão (fator ≠ 1).',
+            'Clique em "Editar" para ajustar diretamente o Fator de Conversão, a Unidade do Fornecedor ou o Produto Vinculado, ou em "Novo Vínculo Manual" para cadastrar antes mesmo da próxima nota.',
+            'Você também pode visualizar e editar os vínculos associados diretamente dentro do modal de Edição ou Detalhes (+) de qualquer produto no Estoque.'
+          ],
+          tips: 'Ideal para padronizar embalagens (CX, FD, PCT, RL) de fornecedores recorrentes e eliminar ajustes manuais na entrada de notas.',
+          targetTab: 'products'
+        },
+        {
+          id: 'import_history_undo',
+          moduleCode: 'MOD-2.6C',
+          title: 'Histórico de Importações, Auditoria & Desfazer Seguro',
+          icon: History,
+          badge: 'Auditoria & Estorno',
+          objective: 'Auditar cada NF-e/planilha importada com snapshot completo de itens, conversão, custos e financeiro, e desfazer importações concluídas com segurança.',
+          summary: 'Registra automaticamente todas as importações concluídas com filtros, modal "Auditar" completo e botão "Desfazer" com resumo de impacto, proteção de produtos movimentados e controle financeiro.',
+          howToUse: [
+            'Acesse "Estoque → Histórico de Importações" e filtre por fornecedor, período, status (Concluída / Desfeita) ou busca livre.',
+            'Clique em "Auditar" para revisar todos os valores (mercadorias, frete, seguro, outras despesas, desconto), lançamentos financeiros vinculados e a tabela snapshot com custo/saldo anterior e novo.',
+            'Para reverter uma importação Concluída, clique em "Desfazer", confira o resumo de impacto (estorno das quantidades convertidas, aviso automático para produtos novos já movimentados e alerta se houver parcela paga) e escolha cancelar despesas geradas ou apenas desvincular.'
+          ],
+          tips: 'Produtos criados na importação que já tenham movimentação externa, O.S. ou venda são protegidos automaticamente contra exclusão durante o estorno.',
+          targetTab: 'products'
+        },
+        {
+          id: 'supplier_purchases_report',
+          moduleCode: 'MOD-2.6D',
+          title: 'Relatório Compras e Entradas por Fornecedor & Histórico de Custos',
+          icon: TrendingUp,
+          badge: 'Análise de Compras',
+          objective: 'Consolidar gastos, participação percentual, ranking de itens mais importados e evolução do custo unitário convertido considerando apenas importações concluídas.',
+          summary: 'Cards KPI, tabela consolidada com visão detalhada por fornecedor, ranking por valor ou unidades convertidas, histórico de custos com % de variação e exportação CSV/PDF.',
+          howToUse: [
+            'Acesse "Estoque → Compras por Fornecedor" e filtre por período, fornecedor, produto ou busca.',
+            'Analise os 4 cards de resumo (Total Gasto, Qtd de Importações, Fornecedor de Maior Volume e Unidades Convertidas) e clique em qualquer fornecedor da tabela para abrir sua visão detalhada.',
+            'Consulte o Ranking de Itens Mais Importados e clique em um produto para acompanhar seu Histórico de Custos Unitários Convertidos ao longo das compras.',
+            'Clique em "Exportar CSV" ou "Exportar / Imprimir PDF" para salvar ou imprimir o relatório gerencial.'
+          ],
+          tips: 'Importações com status Desfeita são excluídas automaticamente de todos os totais e indicadores deste relatório.',
           targetTab: 'products'
         },
         {

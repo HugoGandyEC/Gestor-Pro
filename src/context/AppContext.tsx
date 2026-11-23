@@ -41,6 +41,8 @@ import {
   SelectiveBackupImportOptions,
   SupplierProductMapping,
   StockImportRecord,
+  StockImportItemSnapshot,
+  StockImportUndoAnalysis,
   ImportFinancialInstallment
 } from '../types';
 import {
@@ -210,9 +212,26 @@ interface AppContextType {
   lookupCep: (cep: string) => Promise<{ street: string; neighborhood: string; city: string; state: string } | null>;
   lookupCnpj: (cnpj: string) => Promise<{ name: string; tradeName?: string; phone?: string; email?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string } | null>;
 
-  // XML & Batch Import
+  // XML & Batch Import + Stage 2 Management (De-Para, Histórico & Desfazer)
   supplierProductMappings: SupplierProductMapping[];
   stockImportRecords: StockImportRecord[];
+  addSupplierProductMapping: (
+    mapping: Omit<SupplierProductMapping, 'id' | 'supplierKey' | 'supplierItemKey' | 'updatedAt'>
+  ) => SupplierProductMapping;
+  updateSupplierProductMapping: (
+    id: string,
+    updates: Partial<Omit<SupplierProductMapping, 'id'>>
+  ) => void;
+  deleteSupplierProductMapping: (id: string) => void;
+  analyzeUndoStockImport: (importId: string) => StockImportUndoAnalysis;
+  undoStockImport: (
+    importId: string,
+    options: {
+      financialAction: 'delete_generated' | 'unlink_only';
+      deleteUnusedCreatedProducts: boolean;
+      restorePreviousCosts: boolean;
+    }
+  ) => { success: boolean; message: string };
   parseNFeXml: (xmlContent: string) => { success: boolean; message: string; parsedNFe?: ParsedXmlNFe };
   commitImportNFe: (
     confirmedNFe: ParsedXmlNFe,
@@ -941,7 +960,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.map((rec: any) => ({
+            ...rec,
+            status: rec?.status === 'desfeita' ? 'desfeita' : 'concluida',
+            itemsSnapshot: Array.isArray(rec?.itemsSnapshot) ? rec.itemsSnapshot : [],
+            createdProductIds: Array.isArray(rec?.createdProductIds) ? rec.createdProductIds : [],
+            generatedExpenseIds: Array.isArray(rec?.generatedExpenseIds)
+              ? rec.generatedExpenseIds
+              : rec?.financialMode === 'create_new' && Array.isArray(rec?.linkedExpenseIds)
+              ? rec.linkedExpenseIds
+              : [],
+          }));
+        }
       } catch {}
     }
     return [];
@@ -2066,9 +2097,49 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       const newMovements: StockMovement[] = [];
       const changedProductsForCloud: Product[] = [];
       const mappingsToUpsert: SupplierProductMapping[] = [];
+      const createdProductIds: string[] = [];
+      const itemsSnapshot: StockImportItemSnapshot[] = [];
       const supplierKey = buildSupplierKey(confirmedNFe.supplier.cnpj, finalSupplierName);
       const nowIso = new Date().toISOString();
       const todayIso = nowIso.split('T')[0];
+
+      // Registra itens ignorados no snapshot para auditoria completa
+      recalculated.items.forEach((item) => {
+        const isIgnored = !shouldImportProducts || item.action === 'ignore' || item.selectedToImport === false;
+        if (isIgnored) {
+          const factor = Number(item.conversionFactor) > 0 ? Number(item.conversionFactor) : 1;
+          itemsSnapshot.push({
+            itemId: item.id,
+            action: 'ignore',
+            productId: item.existingProductId,
+            productCode: item.code || '',
+            productName: item.name,
+            supplierItemCode: item.code || '',
+            supplierItemDescription: item.name,
+            barcode: item.barcode,
+            supplierUnit: item.unit || 'UN',
+            stockUnit: item.stockUnit || item.unit || 'UN',
+            importedQuantity: Number(item.quantity) || 0,
+            conversionFactor: factor,
+            convertedQuantity: round4((Number(item.quantity) || 0) * factor),
+            unitCostSupplier: Number(item.costPrice) || 0,
+            grossTotal: Number(item.totalCost) || 0,
+            allocatedFreight: 0,
+            allocatedInsurance: 0,
+            allocatedOtherExpenses: 0,
+            allocatedDiscount: 0,
+            effectiveTotal: 0,
+            effectiveUnitCost: 0,
+            previousCost: item.existingCostPrice ?? 0,
+            newCost: item.existingCostPrice ?? 0,
+            previousStock: item.existingCurrentStock ?? 0,
+            newStock: item.existingCurrentStock ?? 0,
+            stockAdded: false,
+            wasCreatedInImport: false,
+            matchSource: item.matchSource,
+          });
+        }
+      });
 
       if (activeItems.length > 0) {
         let workingProducts = [...products];
@@ -2097,10 +2168,18 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
           }
 
           let finalProductId = '';
+          let finalProductCode = item.code || '';
           let finalProductName = item.name;
           let finalStockUnit = item.stockUnit || item.unit || 'UN';
+          let previousCost = 0;
+          let newCostFinal = 0;
+          let previousStock = 0;
+          let newStockFinal = 0;
+          let wasCreatedInImport = false;
 
           if (effectiveAction === 'link_existing' && targetExisting) {
+            previousCost = Number(targetExisting.costPrice) || 0;
+            previousStock = Number(targetExisting.currentStock) || 0;
             const newCostPrice = computeUpdatedProductCost(
               targetExisting,
               convertedQty,
@@ -2108,8 +2187,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
               costUpdateMode
             );
             const newStock = item.updateStock
-              ? round4((targetExisting.currentStock || 0) + convertedQty)
-              : targetExisting.currentStock;
+              ? round4(previousStock + convertedQty)
+              : previousStock;
 
             // NUNCA sobrescreve targetExisting.name com a descrição do fornecedor!
             const updatedProd: Product = {
@@ -2125,11 +2204,15 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
             workingProducts = workingProducts.map(p => (p.id === targetExisting!.id ? updatedProd : p));
             changedProductsForCloud.push(updatedProd);
             finalProductId = updatedProd.id;
+            finalProductCode = updatedProd.code;
             finalProductName = updatedProd.name;
             finalStockUnit = updatedProd.unit || finalStockUnit;
+            newCostFinal = newCostPrice;
+            newStockFinal = newStock;
             updatedCount++;
           } else {
             const newCost = options?.skipCostOnNew ? 0 : round2(effectiveUnitCost);
+            const newStock = item.updateStock ? convertedQty : 0;
             const newProd: Product = {
               id: `prod-${Date.now()}-${idx}`,
               code: item.code || `IMP-${Date.now().toString().slice(-4)}-${idx + 1}`,
@@ -2142,7 +2225,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
               profitMarginPercent: item.retailMarginPercent,
               retailPrice: item.updateRetailPrice ? round2(item.retailPrice) : 0,
               wholesalePrice: item.updateWholesalePrice ? round2(item.wholesalePrice) : 0,
-              currentStock: item.updateStock ? convertedQty : 0,
+              currentStock: newStock,
               minStock: 2,
               unit: item.stockUnit || item.unit || 'UN',
               ncm: item.ncm || '',
@@ -2152,11 +2235,49 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
             };
             workingProducts = [newProd, ...workingProducts];
             changedProductsForCloud.push(newProd);
+            createdProductIds.push(newProd.id);
             finalProductId = newProd.id;
+            finalProductCode = newProd.code;
             finalProductName = newProd.name;
             finalStockUnit = newProd.unit;
+            previousCost = 0;
+            newCostFinal = newCost;
+            previousStock = 0;
+            newStockFinal = newStock;
+            wasCreatedInImport = true;
             newCount++;
           }
+
+          itemsSnapshot.push({
+            itemId: item.id,
+            action: wasCreatedInImport ? 'create_new' : 'link_existing',
+            productId: finalProductId,
+            productCode: finalProductCode,
+            productName: finalProductName,
+            supplierItemCode: item.code || '',
+            supplierItemDescription: item.name,
+            barcode: item.barcode,
+            supplierUnit: item.unit || 'UN',
+            stockUnit: finalStockUnit,
+            importedQuantity: Number(item.quantity) || 0,
+            conversionFactor: factor,
+            convertedQuantity: convertedQty,
+            unitCostSupplier: Number(item.costPrice) || 0,
+            grossTotal: Number(item.totalCost) || 0,
+            allocatedFreight: item.allocatedFreight || 0,
+            allocatedInsurance: item.allocatedInsurance || 0,
+            allocatedOtherExpenses: item.allocatedOtherExpenses || 0,
+            allocatedDiscount: item.allocatedDiscount || 0,
+            effectiveTotal: item.effectiveTotal ?? item.totalCost,
+            effectiveUnitCost: round4(effectiveUnitCost),
+            previousCost: round2(previousCost),
+            newCost: round2(newCostFinal),
+            previousStock: round4(previousStock),
+            newStock: round4(newStockFinal),
+            stockAdded: Boolean(item.updateStock && convertedQty > 0),
+            wasCreatedInImport,
+            matchSource: item.matchSource,
+          });
 
           // Memoriza vínculo [Fornecedor + Código/Descrição do Item] -> { productId, conversionFactor, supplierUnit }
           if (finalProductId && (item.code || item.name)) {
@@ -2235,7 +2356,8 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
 
       const grandTotal = recalculated.grandTotal > 0 ? recalculated.grandTotal : confirmedNFe.totalValue;
       const linkedExpenseIds: string[] = [];
-      let financialActionSummary = 'nenhum lançamento enviado ao Financeiro';
+      const generatedExpenseIds: string[] = [];
+      let financialActionSummary = 'Sem financeiro';
 
       if (financialMode === 'create_new') {
         const rawInstallments =
@@ -2257,6 +2379,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
           const createdExpenses: GeneralExpense[] = rawInstallments.map((inst, idx) => {
             const expId = `ge-${Date.now()}-${idx}`;
             linkedExpenseIds.push(expId);
+            generatedExpenseIds.push(expId);
             const parcelTag =
               rawInstallments.length > 1
                 ? ` - Dup. ${inst.number || idx + 1} (${idx + 1}/${rawInstallments.length})`
@@ -2283,7 +2406,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
 
           setGeneralExpenses(prev => [...createdExpenses, ...prev]);
           const sumExp = round2(createdExpenses.reduce((acc, e) => acc + e.cost, 0));
-          financialActionSummary = `${createdExpenses.length} título(s) totalizando ${formatBRL(sumExp)} gerado(s) no Financeiro`;
+          financialActionSummary = `${createdExpenses.length} título(s) gerado(s) (${formatBRL(sumExp)})`;
         }
       } else if (financialMode === 'link_existing' && confirmedNFe.linkedExpenseId) {
         const targetExp = generalExpenses.find(e => e.id === confirmedNFe.linkedExpenseId);
@@ -2300,7 +2423,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
             )
           );
           linkedExpenseIds.push(targetExp.id);
-          financialActionSummary = `vinculado à despesa existente "${targetExp.description}" (sem duplicar valores)`;
+          financialActionSummary = `Vinculado à despesa existente (${formatBRL(targetExp.cost)})`;
         }
       }
 
@@ -2320,10 +2443,11 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         };
       }
 
-      // 4. Salva registro estruturado da importação (vínculo bidirecional com financeiro)
+      // 4. Salva registro estruturado completo da importação (com snapshot de auditoria e reversão)
       const importRecord: StockImportRecord = {
         id: importRecordId,
         source: importSource,
+        status: 'concluida',
         referenceCode,
         supplierId: finalSupplierId,
         supplierName: finalSupplierName,
@@ -2343,7 +2467,11 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         allocationMode,
         costUpdateMode,
         financialMode,
+        financialStatusSummary: financialActionSummary,
         linkedExpenseIds,
+        generatedExpenseIds,
+        createdProductIds,
+        itemsSnapshot,
       };
       setStockImportRecords(prev => [importRecord, ...prev]);
 
@@ -2387,6 +2515,420 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         supplierName: confirmedNFe.supplier.name,
       };
     }
+  };
+
+  // CRUD de Vínculos de Fornecedores (De-Para) — reflete imediatamente no motor de importação
+  const addSupplierProductMapping = (
+    mapping: Omit<SupplierProductMapping, 'id' | 'supplierKey' | 'supplierItemKey' | 'updatedAt'>
+  ): SupplierProductMapping => {
+    const supplierKey = buildSupplierKey(mapping.supplierCnpj, mapping.supplierName);
+    const supplierItemKey = buildSupplierItemKey(
+      supplierKey,
+      mapping.supplierItemCode,
+      mapping.supplierItemDescription
+    );
+    const nowIso = new Date().toISOString();
+    const targetProd = products.find(p => p.id === mapping.productId);
+    const created: SupplierProductMapping = {
+      ...mapping,
+      id: `map-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      supplierKey,
+      supplierItemKey,
+      conversionFactor: Number(mapping.conversionFactor) > 0 ? Number(mapping.conversionFactor) : 1,
+      supplierUnit: (mapping.supplierUnit || 'UN').trim().toUpperCase(),
+      stockUnit: (mapping.stockUnit || targetProd?.unit || 'UN').trim().toUpperCase(),
+      updatedAt: nowIso,
+    };
+
+    setSupplierProductMappings(prev => {
+      const existingByKey = prev.find(m => m.supplierItemKey === supplierItemKey);
+      if (existingByKey) {
+        return prev.map(m =>
+          m.id === existingByKey.id ? { ...created, id: existingByKey.id } : m
+        );
+      }
+      return [created, ...prev];
+    });
+
+    addAuditLog(
+      'Vínculo De-Para Criado',
+      `Vínculo ${mapping.supplierName} (${mapping.supplierItemCode || mapping.supplierItemDescription}) → ${targetProd?.name || mapping.productId} (fator ${created.conversionFactor}).`
+    );
+    return created;
+  };
+
+  const updateSupplierProductMapping = (
+    id: string,
+    updates: Partial<Omit<SupplierProductMapping, 'id'>>
+  ) => {
+    setSupplierProductMappings(prev =>
+      prev.map(m => {
+        if (m.id !== id) return m;
+        const nextSupplierName = updates.supplierName ?? m.supplierName;
+        const nextSupplierCnpj = updates.supplierCnpj ?? m.supplierCnpj;
+        const nextItemCode = updates.supplierItemCode ?? m.supplierItemCode;
+        const nextItemDesc = updates.supplierItemDescription ?? m.supplierItemDescription;
+        const nextProductId = updates.productId ?? m.productId;
+        const prod = products.find(p => p.id === nextProductId);
+        const supplierKey = buildSupplierKey(nextSupplierCnpj, nextSupplierName);
+        const supplierItemKey = buildSupplierItemKey(supplierKey, nextItemCode, nextItemDesc);
+        return {
+          ...m,
+          ...updates,
+          supplierKey,
+          supplierItemKey,
+          conversionFactor:
+            updates.conversionFactor !== undefined && Number(updates.conversionFactor) > 0
+              ? Number(updates.conversionFactor)
+              : m.conversionFactor,
+          supplierUnit: (updates.supplierUnit ?? m.supplierUnit ?? 'UN').trim().toUpperCase(),
+          stockUnit: (updates.stockUnit ?? prod?.unit ?? m.stockUnit ?? 'UN').trim().toUpperCase(),
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  const deleteSupplierProductMapping = (id: string) => {
+    const target = supplierProductMappings.find(m => m.id === id);
+    setSupplierProductMappings(prev => prev.filter(m => m.id !== id));
+    if (target) {
+      addAuditLog(
+        'Vínculo De-Para Removido',
+        `Removido vínculo de ${target.supplierName} (${target.supplierItemCode || target.supplierItemDescription}).`
+      );
+    }
+  };
+
+  // Análise de segurança e impacto antes de Desfazer uma Importação
+  const analyzeUndoStockImport = (importId: string): StockImportUndoAnalysis => {
+    const record = stockImportRecords.find(r => r.id === importId);
+    if (!record) {
+      return {
+        canUndo: false,
+        reason: 'Registro de importação não encontrado.',
+        stockReversals: [],
+        createdProductsStatus: [],
+        generatedExpenses: [],
+        linkedExistingExpenses: [],
+        paidGeneratedCount: 0,
+      };
+    }
+    if (record.status === 'desfeita') {
+      return {
+        canUndo: false,
+        reason: 'Esta importação já foi desfeita anteriormente.',
+        record,
+        stockReversals: [],
+        createdProductsStatus: [],
+        generatedExpenses: [],
+        linkedExistingExpenses: [],
+        paidGeneratedCount: 0,
+      };
+    }
+
+    const snapshots = record.itemsSnapshot || [];
+    const reversalByProduct = new Map<string, number>();
+
+    snapshots.forEach(snap => {
+      if (snap.action !== 'ignore' && snap.stockAdded && snap.productId && snap.convertedQuantity > 0) {
+        reversalByProduct.set(
+          snap.productId,
+          round4((reversalByProduct.get(snap.productId) || 0) + snap.convertedQuantity)
+        );
+      }
+    });
+
+    const stockReversals: StockImportUndoAnalysis['stockReversals'] = [];
+    reversalByProduct.forEach((qtyToReverse, productId) => {
+      const prod = products.find(p => p.id === productId);
+      const snap = snapshots.find(s => s.productId === productId);
+      const currentStock = prod ? Number(prod.currentStock) || 0 : 0;
+      const rawProjected = round4(currentStock - qtyToReverse);
+      stockReversals.push({
+        productId,
+        productCode: prod?.code || snap?.productCode || '—',
+        productName: prod?.name || snap?.productName || 'Produto removido',
+        stockUnit: prod?.unit || snap?.stockUnit || 'UN',
+        qtyToReverse,
+        currentStock,
+        projectedStock: Math.max(0, rawProjected),
+        willClampAtZero: rawProjected < 0,
+      });
+    });
+
+    const createdIds = Array.from(
+      new Set([
+        ...(record.createdProductIds || []),
+        ...snapshots.filter(s => s.wasCreatedInImport && s.productId).map(s => s.productId!),
+      ])
+    );
+
+    const createdProductsStatus: StockImportUndoAnalysis['createdProductsStatus'] = createdIds.map(
+      productId => {
+        const prod = products.find(p => p.id === productId);
+        const snap = snapshots.find(s => s.productId === productId);
+        const usageReasons: string[] = [];
+
+        const externalMovements = stockMovements.filter(
+          m => m.productId === productId && m.importRecordId !== record.id
+        );
+        if (externalMovements.length > 0) {
+          usageReasons.push(`${externalMovements.length} movimentação(ões) externa(s) no Kardex`);
+        }
+
+        const usedInOrders = serviceOrders.filter(os =>
+          (os.parts || []).some(pt => pt.productId === productId)
+        );
+        if (usedInOrders.length > 0) {
+          usageReasons.push(`utilizado em ${usedInOrders.length} Ordem(ns) de Serviço`);
+        }
+
+        const usedInSales = directSales.filter(sale =>
+          (sale.items || []).some(it => it.productId === productId)
+        );
+        if (usedInSales.length > 0) {
+          usageReasons.push(`utilizado em ${usedInSales.length} Venda(s) Direta(s)`);
+        }
+
+        const usedInOtherImports = stockImportRecords.filter(
+          other =>
+            other.id !== record.id &&
+            other.status === 'concluida' &&
+            (other.itemsSnapshot || []).some(s => s.productId === productId && s.action !== 'ignore')
+        );
+        if (usedInOtherImports.length > 0) {
+          usageReasons.push(`referenciado em ${usedInOtherImports.length} outra(s) importação(ões)`);
+        }
+
+        return {
+          productId,
+          productCode: prod?.code || snap?.productCode || '—',
+          productName: prod?.name || snap?.productName || 'Produto',
+          hasExternalUsage: usageReasons.length > 0,
+          usageReasons,
+        };
+      }
+    );
+
+    const generatedIdSet = new Set(
+      record.generatedExpenseIds && record.generatedExpenseIds.length > 0
+        ? record.generatedExpenseIds
+        : record.financialMode === 'create_new'
+        ? record.linkedExpenseIds || []
+        : []
+    );
+
+    const allLinkedIds = Array.from(
+      new Set([...(record.linkedExpenseIds || []), ...Array.from(generatedIdSet)])
+    );
+
+    const generatedExpenses: StockImportUndoAnalysis['generatedExpenses'] = [];
+    const linkedExistingExpenses: StockImportUndoAnalysis['linkedExistingExpenses'] = [];
+
+    allLinkedIds.forEach(expId => {
+      const exp = generalExpenses.find(e => e.id === expId);
+      if (!exp) return;
+      const entry = {
+        id: exp.id,
+        description: exp.description,
+        cost: exp.cost,
+        dueDate: exp.dueDate,
+        isPaid: exp.isPaid,
+      };
+      if (generatedIdSet.has(expId)) {
+        generatedExpenses.push(entry);
+      } else {
+        linkedExistingExpenses.push(entry);
+      }
+    });
+
+    const paidGeneratedCount = generatedExpenses.filter(e => e.isPaid).length;
+
+    return {
+      canUndo: true,
+      record,
+      stockReversals,
+      createdProductsStatus,
+      generatedExpenses,
+      linkedExistingExpenses,
+      paidGeneratedCount,
+    };
+  };
+
+  // Executa o Estorno / Desfazer Importação com segurança total
+  const undoStockImport = (
+    importId: string,
+    options: {
+      financialAction: 'delete_generated' | 'unlink_only';
+      deleteUnusedCreatedProducts: boolean;
+      restorePreviousCosts: boolean;
+    }
+  ): { success: boolean; message: string } => {
+    const analysis = analyzeUndoStockImport(importId);
+    if (!analysis.canUndo || !analysis.record) {
+      return { success: false, message: analysis.reason || 'Não foi possível desfazer esta importação.' };
+    }
+
+    const record = analysis.record;
+    const snapshots = record.itemsSnapshot || [];
+    const nowIso = new Date().toISOString();
+    const todayIso = nowIso.split('T')[0];
+
+    const removableCreatedIds = new Set(
+      options.deleteUnusedCreatedProducts
+        ? analysis.createdProductsStatus
+            .filter(cp => !cp.hasExternalUsage)
+            .map(cp => cp.productId)
+        : []
+    );
+
+    const blockedCreatedCount = options.deleteUnusedCreatedProducts
+      ? analysis.createdProductsStatus.filter(cp => cp.hasExternalUsage).length
+      : 0;
+
+    // 1. Estorna saldos convertidos, restaura custos (se marcado) e remove produtos inéditos sem uso externo
+    const reversalQtyMap = new Map<string, number>();
+    const prevCostMap = new Map<string, number>();
+    snapshots.forEach(snap => {
+      if (snap.action === 'ignore' || !snap.productId) return;
+      if (snap.stockAdded && snap.convertedQuantity > 0) {
+        reversalQtyMap.set(
+          snap.productId,
+          round4((reversalQtyMap.get(snap.productId) || 0) + snap.convertedQuantity)
+        );
+      }
+      if (!snap.wasCreatedInImport && !prevCostMap.has(snap.productId)) {
+        prevCostMap.set(snap.productId, snap.previousCost);
+      }
+    });
+
+    const undoMovements: StockMovement[] = [];
+    const updatedForCloud: Product[] = [];
+    const deletedForCloud: string[] = [];
+
+    const nextProducts: Product[] = [];
+    products.forEach((p, idx) => {
+      if (removableCreatedIds.has(p.id)) {
+        deletedForCloud.push(p.id);
+        return; // exclui produto inédito sem movimentação externa
+      }
+
+      const qtyToSub = reversalQtyMap.get(p.id) || 0;
+      const shouldRestoreCost = options.restorePreviousCosts && prevCostMap.has(p.id);
+
+      if (qtyToSub > 0 || shouldRestoreCost) {
+        const nextStock = Math.max(0, round4((p.currentStock || 0) - qtyToSub));
+        const nextCost = shouldRestoreCost ? prevCostMap.get(p.id)! : p.costPrice;
+        const updatedProd: Product = {
+          ...p,
+          currentStock: nextStock,
+          costPrice: nextCost,
+        };
+        nextProducts.push(updatedProd);
+        updatedForCloud.push(updatedProd);
+
+        if (qtyToSub > 0) {
+          undoMovements.push({
+            id: `sm-undo-${Date.now()}-${idx}`,
+            productId: p.id,
+            productName: p.name,
+            type: 'ajuste',
+            quantity: -qtyToSub,
+            unitCost: p.costPrice,
+            date: todayIso,
+            referenceDoc: `Estorno ${record.referenceCode}`,
+            notes: `Estorno automático ao desfazer importação ${record.referenceCode} (-${formatQuantityClean(qtyToSub)} ${p.unit || 'UN'})`,
+            importRecordId: record.id,
+          });
+        }
+      } else {
+        nextProducts.push(p);
+      }
+    });
+
+    setProducts(nextProducts);
+    updatedForCloud.forEach(p => syncProductToCloud(p));
+    deletedForCloud.forEach(id => deleteProductFromCloud(id));
+
+    if (undoMovements.length > 0) {
+      setStockMovements(prev => [...undoMovements, ...prev]);
+    }
+
+    // Remove vínculos De-Para que apontavam para produtos excluídos no estorno
+    if (deletedForCloud.length > 0) {
+      const deletedSet = new Set(deletedForCloud);
+      setSupplierProductMappings(prev => prev.filter(m => !deletedSet.has(m.productId)));
+    }
+
+    // 2. Trata lançamentos financeiros
+    const generatedIdSet = new Set(analysis.generatedExpenses.map(e => e.id));
+    const linkedExistingIdSet = new Set(analysis.linkedExistingExpenses.map(e => e.id));
+    let financialSummary = 'nenhum lançamento financeiro afetado';
+
+    if (generatedIdSet.size > 0 || linkedExistingIdSet.size > 0) {
+      if (options.financialAction === 'delete_generated') {
+        setGeneralExpenses(prev =>
+          prev
+            .filter(e => !generatedIdSet.has(e.id))
+            .map(e =>
+              linkedExistingIdSet.has(e.id)
+                ? { ...e, linkedStockImportId: undefined, linkedStockImportRef: undefined }
+                : e
+            )
+        );
+        financialSummary =
+          generatedIdSet.size > 0
+            ? `${generatedIdSet.size} lançamento(s) gerado(s) excluído(s)${
+                linkedExistingIdSet.size > 0 ? ` e ${linkedExistingIdSet.size} existente(s) desvinculado(s)` : ''
+              }`
+            : `${linkedExistingIdSet.size} lançamento(s) existente(s) desvinculado(s)`;
+      } else {
+        setGeneralExpenses(prev =>
+          prev.map(e =>
+            generatedIdSet.has(e.id) || linkedExistingIdSet.has(e.id)
+              ? { ...e, linkedStockImportId: undefined, linkedStockImportRef: undefined }
+              : e
+          )
+        );
+        financialSummary = `${generatedIdSet.size + linkedExistingIdSet.size} lançamento(s) mantido(s) e desvinculado(s)`;
+      }
+    }
+
+    // 3. Atualiza status da importação para 'desfeita'
+    const undoNotesParts = [
+      `Estoque estornado em ${undoMovements.length} produto(s)`,
+      deletedForCloud.length > 0 ? `${deletedForCloud.length} produto(s) inédito(s) removido(s)` : '',
+      blockedCreatedCount > 0 ? `${blockedCreatedCount} produto(s) novo(s) preservado(s) por já possuírem movimentação` : '',
+      financialSummary,
+    ].filter(Boolean);
+
+    const undoNotes = undoNotesParts.join(' · ');
+
+    setStockImportRecords(prev =>
+      prev.map(r =>
+        r.id === record.id
+          ? {
+              ...r,
+              status: 'desfeita',
+              undoneAt: nowIso,
+              undoneBy: currentUser?.name || currentRole,
+              undoFinancialAction:
+                generatedIdSet.size === 0 && linkedExistingIdSet.size === 0
+                  ? 'none'
+                  : options.financialAction,
+              undoNotes,
+            }
+          : r
+      )
+    );
+
+    addAuditLog('Importação Desfeita', `${record.referenceCode} (${record.supplierName}): ${undoNotes}.`);
+
+    return {
+      success: true,
+      message: `Importação ${record.referenceCode} marcada como Desfeita! (${undoNotes}).`,
+    };
   };
 
   // Legacy direct helper
@@ -4877,6 +5419,11 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         lookupCnpj,
         supplierProductMappings,
         stockImportRecords,
+        addSupplierProductMapping,
+        updateSupplierProductMapping,
+        deleteSupplierProductMapping,
+        analyzeUndoStockImport,
+        undoStockImport,
         parseNFeXml,
         commitImportNFe,
         importNFeXml,

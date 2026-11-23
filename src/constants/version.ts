@@ -1,4 +1,4 @@
-export const SYSTEM_VERSION = 'v2.7.22';
+export const SYSTEM_VERSION = 'v2.7.23';
 export const SYSTEM_BUILD = '2026.11.22';
 export const SYSTEM_RELEASE_DATE = '22/11/2026';
 export const SYSTEM_AUTHOR = 'HUGO GANDY';

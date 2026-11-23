@@ -253,24 +253,25 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
     },
     {
       id: 'produtos_margens',
-      title: '9. Módulo Estoque: Produtos, Peças, Fotos, EAN-13 & Kardex',
+      title: '9. Módulo Estoque: Produtos, Peças, De-Para, Histórico & Compras',
       badge: 'Estoque',
       icon: Package,
       targetTab: 'products',
-      summary: 'Módulo renomeado para "Estoque" com todos os filtros em comboboxes, precificação automática 55% Varejo / 35% Atacado, fotos no hover/listagem/grade, código de barras EAN-13, duplicador e Kardex.',
+      summary: 'Módulo unificado com 6 abas: Estoque (filtros em combobox, precificação 55%/35%, fotos, EAN-13 e duplicador), Movimentações (Kardex), Importador NF-e XML, Vínculos De-Para, Histórico de Importações (Auditoria/Desfazer) e Compras por Fornecedor.',
       steps: [
         'Filtros em Combobox: Filtre rapidamente o estoque pelas comboboxes de Categoria, Marca, Subcategoria, Situação do Estoque (Normal, Baixo/Crítico, Zerado) e Tipo de Movimentação Kardex.',
         'Precificação Automática: Informe o Custo do produto para calcular automaticamente Varejo (+55%) e Atacado (+35%), ou aplique em massa para todo o catálogo.',
         'Fotos, EAN-13 & Duplicar: Adicione até 3 fotos (exibidas na listagem, nos cards e ao passar o mouse), gere código de barras EAN-13 válido em 1 clique ou clique em "Duplicar" para variações rápidas de potência/voltagem.',
-        'Histórico 360° & Kardex: Consulte entradas manuais, compras XML, saídas em O.S./Vendas e estornos por cancelamento com rastreabilidade completa.'
+        'Vínculos de Fornecedores (De-Para) no Produto: Ao abrir os detalhes (+) ou editar qualquer produto, consulte, crie, edite ou remova vínculos de fornecedores (código, unidade e fator de conversão) diretamente na ficha do item — com efeito imediato no motor de importação.',
+        'Histórico 360° & Kardex: Consulte entradas manuais, compras XML/Universal (com quantidade original e fator de conversão), saídas em O.S./Vendas e estornos por cancelamento ou importação desfeita.'
       ],
       tips: [
         'Mantenha o Estoque Mínimo preenchido para destacar itens críticos antes que faltem para atendimento.',
-        'Todas as colunas e cards exibem a miniatura da foto com fallback automático caso o item ainda não possua imagem.'
+        'Use as abas "Vínculos De-Para", "Histórico de Importações" e "Compras por Fornecedor" no topo do Estoque para auditar compras e acompanhar a variação de custo unitário.'
       ],
       rules: [
         'Preço de Varejo padrão = Custo × 1,55 (55%) · Preço de Atacado padrão = Custo × 1,35 (35%).',
-        'Saídas e estornos por venda ou O.S. ficam registrados com documento de referência no Kardex.'
+        'Saídas e estornos por venda, O.S. ou reversão de importação ficam registrados com documento de referência no Kardex.'
       ]
     },
     {
@@ -296,24 +297,31 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
     },
     {
       id: 'importacao_nfe',
-      title: '11. Importação Seletiva: NF-e (XML), Planilhas & Backup JSON (Sem Enviar ao Financeiro)',
-      badge: 'Importação Seletiva',
+      title: '11. Importação de Estoque: De-Para, Conversão, Rateio NF-e, Duplicatas, Histórico & Fornecedores',
+      badge: 'Importação & Compras',
       icon: UploadCloud,
-      targetTab: 'cadastros',
-      summary: 'Controle total para importar somente os dados que você precisa — inclusive cadastrar apenas produtos no catálogo sem gerar nenhum lançamento no Financeiro/DRE — disponível na NF-e XML, Importação Universal e Restauração de Backup JSON.',
+      targetTab: 'products',
+      summary: 'Motor completo para NF-e XML e Importação Universal (CSV/XLSX/TXT/XML/SQL/PDF) com conciliação De-Para, fator de conversão de unidades, rateio de encargos/descontos, duplicatas no Financeiro (seletivo), gestão de vínculos, histórico com Desfazer seguro e relatório de Compras por Fornecedor.',
       steps: [
-        'Importação Seletiva de NF-e (XML): Em "Estoque" ou "Central de Cadastros → Importação", envie o arquivo .xml da nota fiscal. No painel superior "O que você deseja importar desta NF-e?", use os atalhos de 1 clique ("Somente Cadastrar Produtos (Sem Financeiro)", "Produtos + Estoque (Sem Financeiro)" ou "Importação Completa (+ Financeiro)") ou marque individualmente as 4 chaves: Cadastrar/Atualizar Produtos, Somar Entrada no Estoque (Kardex), Cadastrar/Atualizar Fornecedor e Lançar no Financeiro (Contas a Pagar).',
-        'Proteção do Financeiro & Seleção por Item na NF-e: Por segurança, a opção "Lançar no Financeiro" inicia DESMARCADA por padrão. Além disso, você pode marcar ou desmarcar cada produto individualmente na tabela da nota (com opção de selecionar todos/nenhum) antes de confirmar.',
-        'Importação Universal Seletiva (CSV, XLSX, TXT, XML, SQL, PDF): Após carregar o arquivo, marque ou desmarque linha a linha quais registros deseja importar ("Marcar Todos" / "Desmarcar Todos"). Ao importar Produtos, um painel exclusivo garante isolamento 100% do Financeiro e permite cadastrar com estoque inicial zerado (qtd = 0), omitir custo (R$ 0,00) ou definir como aplicar os preços de venda.',
-        'Restauração Seletiva de Backup JSON: Em "Configurações → Backup & Restauração", carregue um arquivo .json (ou cole o conteúdo) para visualizar a contagem automática de registros por categoria. Escolha exatamente quais das 11 categorias importar ou use os atalhos rápidos "Somente Produtos (Sem Financeiro)" e "Somente Cadastros (Sem Financeiro)".'
+        'Conciliação Automática ("De-Para") & Comparação Visual: Ao carregar uma NF-e XML ou planilha de produtos, o sistema identifica correspondências por Código de Barras (EAN/GTIN exato), Vínculo Memorizado do Fornecedor ([Fornecedor + Código/Descrição], já preenchendo o último fator e unidade) e Similaridade de Descrição. Em cada linha, escolha entre "Vincular a Produto Existente" (comparação lado a lado sem sobrescrever o nome padrão do estoque), "Cadastrar como Novo Produto" ou "Ignorar Item".',
+        'Fator de Conversão de Unidades & Cálculos em Tempo Real: Informe o Fator de Conversão (padrão 1, aceitando decimais como 0,5 ou 12) indicando quantas unidades do seu estoque equivalem a 1 embalagem do fornecedor (ex.: 3 CX × 10 = +30 UN). O sistema calcula em tempo real a quantidade convertida e o Custo Unitário Efetivo Convertido na unidade do estoque.',
+        'Rateio de Frete, Seguro, Outras Despesas & Descontos + Política de Custo: Na NF-e XML os totais (<ICMSTot>: vProd, vFrete, vSeg, vOutro, vDesc e vNF) são extraídos automaticamente e podem ser ajustados manualmente (também disponíveis na Importação Universal). Escolha o critério de rateio (proporcional ao valor do item, proporcional à quantidade ou aplicar apenas no total/financeiro) e a política de custo na unidade do estoque (custo unitário efetivo convertido, Custo Médio Ponderado ou manter custo atual).',
+        'Integração Financeira Seletiva & Duplicatas da NF-e: Por padrão, a opção "Não gerar/vincular financeiro agora" permanece selecionada para permitir cadastrar/dar entrada sem afetar o Contas a Pagar. Quando quiser integrar, escolha "Gerar nova Despesa / Conta a Pagar" (lendo automaticamente <cobr>/<fat>/<dup> e <pag>/<detPag> da NF-e com datas/valores editáveis e atalhos À vista/Hoje, 7d, 14d, 28d, 30d ou X parcelas) ou "Vincular a Despesa Existente" (sem duplicar valores).',
+        'Gestão de Vínculos de Fornecedores (De-Para): Na aba "Estoque → Vínculos De-Para" (ou dentro da edição/detalhes de cada produto), filtre por fornecedor, produto ou busca livre, edite diretamente o Fator de Conversão, a Unidade do Fornecedor ou o Produto Vinculado, exclua vínculos com confirmação ou cadastre novos vínculos manuais.',
+        'Histórico de Importações, Auditoria & Desfazer Seguro: Na aba "Estoque → Histórico de Importações", cada importação concluída grava snapshot completo (itens, fator, quantidade convertida, rateio, custo anterior/novo e saldo anterior/novo). Clique em "Auditar" para inspecionar todos os detalhes ou em "Desfazer" para estornar as quantidades convertidas no estoque, proteger automaticamente produtos criados que já possuam movimentação/OS/venda e escolher entre cancelar lançamentos financeiros gerados (com alerta se houver parcela paga) ou apenas desvincular.',
+        'Relatório Compras e Entradas por Fornecedor: Na aba "Estoque → Compras por Fornecedor", analise apenas importações Concluídas (desfeitas são ignoradas) com filtros de período, fornecedor, produto e busca. Visualize os cards KPI, tabela consolidada por fornecedor (com visão detalhada ao clicar), Ranking de Itens Mais Importados, Histórico de Custos Unitários Convertidos com % de variação e exportação em CSV ou PDF.',
+        'Restauração Seletiva de Backup JSON: Em "Configurações → Backup & Restauração", carregue um arquivo .json para visualizar a contagem por módulo e escolher exatamente quais das 11 categorias importar, incluindo os atalhos "Somente Produtos (Sem Financeiro)" e "Somente Cadastros (Sem Financeiro)".'
       ],
       tips: [
-        'Detector Anti-Duplicidade: Na importação de XML NF-e, o sistema verifica a chave da nota e hash SHA-256 para avisar caso o mesmo XML já tenha sido processado antes.',
-        'Use "Somente Cadastrar Produtos (Sem Financeiro)" sempre que quiser montar seu catálogo rapidamente usando notas de compra antigas ou planilhas sem alterar o Contas a Pagar nem o DRE.'
+        'Detector Anti-Duplicidade: Na importação de XML NF-e, o sistema verifica chave da nota e hash SHA-256 para evitar reprocessamento acidental.',
+        'Ao vincular um produto via De-Para, o vínculo e o Fator de Conversão são memorizados automaticamente para que na próxima compra do mesmo fornecedor a conversão venha pronta.',
+        'No Relatório por Fornecedor, clique em qualquer item do Ranking para filtrar instantaneamente o Histórico de Custos Unitários Convertidos daquele produto.'
       ],
       rules: [
-        'Nenhum lançamento financeiro ou conta a pagar é criado automaticamente em NF-e XML, Importação Universal de Produtos ou Restauração Seletiva de Produtos, a menos que o usuário marque explicitamente a opção financeira.',
-        'Fornecedores são conciliados pelo CNPJ e produtos por código/nome para evitar cadastros repetidos.'
+        'Produtos vinculados via De-Para nunca são duplicados e preservam integralmente o nome padrão cadastrado no catálogo do estoque.',
+        'O lançamento financeiro é 100% seletivo e inicia desativado por padrão ("Não gerar/vincular financeiro agora").',
+        'Ao desfazer uma importação, produtos criados exclusivamente nela que já tenham movimentação externa, O.S. ou venda são bloqueados para exclusão por segurança, e parcelas geradas já pagas exibem alerta explícito antes da confirmação.',
+        'O relatório "Compras e Entradas por Fornecedor" consolida exclusivamente importações com status Concluída.'
       ]
     },
     {

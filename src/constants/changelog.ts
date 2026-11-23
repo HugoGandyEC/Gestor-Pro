@@ -16,6 +16,41 @@ export interface ChangelogEntry {
 
 export const SYSTEM_CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.23',
+    date: '22/11/2026',
+    title: 'Importação de Estoque Etapa 2: Gestão de Vínculos De-Para, Histórico/Desfazer, Compras por Fornecedor e Manuais',
+    summary:
+      'Conclusão da Etapa 2 do módulo de importação de estoque no FIRE GESTÃO conectando todos os registros persistidos às novas abas de Vínculos de Fornecedores (De-Para), Histórico de Importações com Auditoria e Desfazer Seguro, Relatório de Compras e Entradas por Fornecedor (com Ranking, Histórico de Custos e CSV/PDF) e atualização completa dos manuais internos.',
+    highlights: [
+      'Aba "Vínculos De-Para" + Painel na Ficha do Produto: listagem com filtros por fornecedor, produto, busca e conversão ≠ 1, edição direta de fator/unidade/produto, criação manual, exclusão com confirmação e gestão embutida nos detalhes e edição de cada produto',
+      'Aba "Histórico de Importações" (Auditoria & Desfazer): registro automático com snapshot completo por item, modal Auditar detalhado e reversão segura com estorno de quantidades convertidas, proteção de produtos movimentados e controle de despesas geradas (com alerta de parcelas pagas)',
+      'Aba "Compras por Fornecedor": consolidado exclusivo de importações Concluídas, 4 cards KPI, tabela com % de participação e visão detalhada ao clicar, Ranking de Itens Mais Importados, Histórico de Custos Unitários Convertidos com % de variação e exportação CSV/PDF',
+      'Documentação Interna Atualizada: Manual do Sistema, Ajuda Rápida, Documentação Técnica e Changelog atualizados explicando todo o fluxo das Etapas 1 e 2'
+    ],
+    changes: [
+      {
+        category: 'Adicionado',
+        description:
+          'Aba "Vínculos De-Para" no Estoque e painel embutido na edição e detalhes de cada produto para gerenciar vínculos de fornecedores, unidade e fator de conversão com reflexo imediato no motor de importação.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Aba "Histórico de Importações" com snapshot completo de cada entrada (NF-e XML e Universal), filtros (fornecedor, período, status Concluída/Desfeita e busca), modal "Auditar / Detalhes" e fluxo "Desfazer Importação" com resumo de impacto, proteção contra exclusão de produtos já movimentados e escolha financeira com alerta de parcelas pagas.'
+      },
+      {
+        category: 'Adicionado',
+        description:
+          'Aba "Compras por Fornecedor" consolidando apenas importações Concluídas com cards de resumo, tabela por fornecedor com visão detalhada, Ranking de Itens Mais Importados, Histórico de Custos Unitários Convertidos e exportação em CSV e PDF.'
+      },
+      {
+        category: 'Alterado',
+        description:
+          'Manual Operacional do Sistema, Ajuda Rápida por Módulo, Documentação Técnica e Changelog atualizados com instruções completas de De-Para, Fator de Conversão, Rateio da NF-e, Duplicatas no Financeiro, Vínculos, Histórico/Reversão e Relatório por Fornecedor.'
+      }
+    ]
+  },
+  {
     version: 'v2.7.22',
     date: '22/11/2026',
     title: 'Importação de Estoque Etapa 1: Conciliação De-Para, Conversão de Unidades, Rateio e Duplicatas NF-e',

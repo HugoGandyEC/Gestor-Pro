@@ -288,9 +288,43 @@ export interface ImportFinancialInstallment {
   amount: number;
 }
 
+export type StockImportStatus = 'concluida' | 'desfeita';
+
+export interface StockImportItemSnapshot {
+  itemId: string;
+  action: ImportItemAction;
+  productId?: string;
+  productCode: string;
+  productName: string; // Nome padrão do catálogo (ou nome cadastrado se novo)
+  supplierItemCode: string;
+  supplierItemDescription: string;
+  barcode?: string;
+  supplierUnit: string;
+  stockUnit: string;
+  importedQuantity: number;
+  conversionFactor: number;
+  convertedQuantity: number;
+  unitCostSupplier: number;
+  grossTotal: number;
+  allocatedFreight: number;
+  allocatedInsurance: number;
+  allocatedOtherExpenses: number;
+  allocatedDiscount: number;
+  effectiveTotal: number;
+  effectiveUnitCost: number;
+  previousCost: number;
+  newCost: number;
+  previousStock: number;
+  newStock: number;
+  stockAdded: boolean;
+  wasCreatedInImport: boolean;
+  matchSource?: ImportMatchSource;
+}
+
 export interface StockImportRecord {
   id: string;
   source: 'nfe_xml' | 'universal_import';
+  status: StockImportStatus;
   referenceCode: string; // Ex: 'NF-e 45231' ou nome do arquivo
   supplierId?: string;
   supplierName: string;
@@ -310,7 +344,53 @@ export interface StockImportRecord {
   allocationMode: ImportAllocationMode;
   costUpdateMode: ImportCostUpdateMode;
   financialMode: ImportFinancialMode;
+  financialStatusSummary?: string;
   linkedExpenseIds: string[];
+  generatedExpenseIds?: string[]; // IDs das despesas criadas automaticamente nesta importação
+  createdProductIds?: string[]; // IDs dos produtos criados exclusivamente nesta importação
+  itemsSnapshot?: StockImportItemSnapshot[];
+  undoneAt?: string;
+  undoneBy?: string;
+  undoFinancialAction?: 'delete_generated' | 'unlink_only' | 'none';
+  undoNotes?: string;
+}
+
+export interface StockImportUndoAnalysis {
+  canUndo: boolean;
+  reason?: string;
+  record?: StockImportRecord;
+  stockReversals: {
+    productId: string;
+    productCode: string;
+    productName: string;
+    stockUnit: string;
+    qtyToReverse: number;
+    currentStock: number;
+    projectedStock: number;
+    willClampAtZero: boolean;
+  }[];
+  createdProductsStatus: {
+    productId: string;
+    productCode: string;
+    productName: string;
+    hasExternalUsage: boolean;
+    usageReasons: string[];
+  }[];
+  generatedExpenses: {
+    id: string;
+    description: string;
+    cost: number;
+    dueDate: string;
+    isPaid: boolean;
+  }[];
+  linkedExistingExpenses: {
+    id: string;
+    description: string;
+    cost: number;
+    dueDate: string;
+    isPaid: boolean;
+  }[];
+  paidGeneratedCount: number;
 }
 
 export interface ParsedXmlItem {

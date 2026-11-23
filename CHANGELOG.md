@@ -1,6 +1,19 @@
 # Histórico de Versões e Alterações — FIRE GESTÃO
 
-Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.22`).
+Este documento registra oficialmente **todas as versões, atualizações, correções pontuais e mini-alterações** realizadas no **FIRE GESTÃO** desde o início do projeto (`v1.0.0`) até a versão atual (`v2.7.23`).
+
+---
+
+## [v2.7.23] — 22/11/2026
+**Importação de Estoque Etapa 2: Gestão de Vínculos De-Para, Histórico/Desfazer, Compras por Fornecedor e Manuais**
+
+### Adicionado
+- **Vínculos de Fornecedores (De-Para) (`SupplierMappingsTab`, `ProductSupplierMappingsBox`, `ProductsAndStockView`)**: nova aba dedicada no módulo Estoque com filtros por fornecedor, produto, busca livre e fator ≠ 1, edição direta de fator de conversão, unidade do fornecedor ou produto vinculado, criação manual, exclusão com confirmação e exibição/edição direta dentro dos modais de Edição e Detalhes de cada produto (com efeito imediato no motor de importação).
+- **Histórico de Importações, Auditoria & Desfazer (`StockImportHistoryTab`, `AppContext`)**: registro persistido com status `Concluída` / `Desfeita` e snapshot completo de todos os itens (qtd/unidade importada, fator, qtd convertida, rateio, custo anterior/novo e saldo anterior/novo), filtros avançados, modal **Auditar / Detalhes** e ação **Desfazer Importação** com análise prévia de impacto, estorno das quantidades convertidas no Kardex, proteção contra exclusão de produtos novos já movimentados/utilizados e escolha entre excluir despesas geradas (com alerta de parcelas pagas) ou apenas desvincular.
+- **Compras e Entradas por Fornecedor (`SupplierPurchasesReportTab`)**: relatório consolidando exclusivamente importações `Concluídas`, com filtros por período, fornecedor, produto e busca, 4 cards KPI, tabela consolidada por fornecedor com visão detalhada ao clicar, **Ranking de Itens Mais Importados**, **Histórico de Custos Unitários Convertidos** com % de variação e exportação em **CSV** e **PDF**.
+
+### Alterado
+- **Documentação Interna (`SystemManualView`, `SystemHelpModal`, `SystemDocumentationModal`, `changelog`)**: atualização completa do Manual do Sistema, Ajuda Rápida, Documentação Técnica e Changelog explicando De-Para, Fator de Conversão, rateio de encargos/descontos da NF-e, duplicatas no financeiro, gestão de vínculos, histórico/reversão de importações e relatório por fornecedor.
 
 ---
 

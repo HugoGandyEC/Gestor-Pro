@@ -108,10 +108,10 @@ export const SystemDocumentationModal: React.FC<SystemDocumentationModalProps> =
               <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
                 <div className="font-bold text-slate-900 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
-                  Módulo Estoque, Kardex & Importação Seletiva (Sem Financeiro)
+                  Módulo Estoque, De-Para, Conversão, Auditoria & Compras por Fornecedor
                 </div>
                 <p className="text-slate-600 text-[11px]">
-                  Leitor de XML NF-e com trava anti-duplicidade SHA-256, painel de <strong>Importação Seletiva</strong> (<em>Somente Cadastrar Produtos sem Financeiro</em>, Financeiro desmarcado por padrão e seleção item a item), Importação Universal linha a linha isolada do Financeiro, fotos (até 3), EAN-13, duplicador e filtros em combobox.
+                  Importação NF-e XML (SHA-256) e Universal com <strong>De-Para automático</strong> (EAN/GTIN, vínculo memorizado e similaridade), <strong>Fator de Conversão</strong> (CX → UN), rateio de frete/seguro/despesas/descontos, Custo Médio Ponderado, duplicatas XML no Financeiro (seletivo/opcional), aba <strong>Vínculos De-Para</strong> (também na ficha do produto), <strong>Histórico de Importações</strong> com Auditoria e <strong>Desfazer seguro</strong>, e relatório <strong>Compras por Fornecedor</strong> com ranking, histórico de custos e PDF/CSV.
                 </p>
               </div>
 

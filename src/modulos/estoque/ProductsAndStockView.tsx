@@ -55,6 +55,10 @@ import { RecordDetailModal } from '../../components/RecordDetailModal';
 import { ViewModeToggle, ViewMode } from '../../components/ViewModeToggle';
 import { useRowHoverTooltip } from '../../components/RowHoverTooltip';
 import { ProductPhotoThumb } from '../../components/ProductPhotoThumb';
+import { ProductSupplierMappingsBox } from './ProductSupplierMappingsBox';
+import { SupplierMappingsTab } from './SupplierMappingsTab';
+import { StockImportHistoryTab } from './StockImportHistoryTab';
+import { SupplierPurchasesReportTab } from './SupplierPurchasesReportTab';
 
 export const ProductsAndStockView: React.FC = () => {
   const { 
@@ -84,10 +88,12 @@ export const ProductsAndStockView: React.FC = () => {
     deleteProductBrand,
     addProductTag,
     updateProductTag,
-    deleteProductTag
+    deleteProductTag,
+    supplierProductMappings,
+    stockImportRecords
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'products' | 'movements' | 'xml'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'movements' | 'xml' | 'mappings' | 'history' | 'supplier_report'>('products');
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('todas');
   const [brandFilter, setBrandFilter] = useState('todas');
@@ -747,7 +753,7 @@ export const ProductsAndStockView: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#d8d8d8] pb-2">
+      <div className="flex items-center gap-2 border-b border-[#d8d8d8] pb-2 flex-wrap">
         <button
           onClick={() => setActiveTab('products')}
           className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
@@ -762,7 +768,7 @@ export const ProductsAndStockView: React.FC = () => {
             activeTab === 'movements' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
           }`}
         >
-          Movimentações de Estoque ({stockMovements.length})
+          Movimentações ({stockMovements.length})
         </button>
         <button
           onClick={() => setActiveTab('xml')}
@@ -770,7 +776,31 @@ export const ProductsAndStockView: React.FC = () => {
             activeTab === 'xml' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
           }`}
         >
-          Importador de XML NF-e
+          Importador NF-e XML
+        </button>
+        <button
+          onClick={() => setActiveTab('mappings')}
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+            activeTab === 'mappings' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
+          }`}
+        >
+          Vínculos De-Para ({supplierProductMappings.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+            activeTab === 'history' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
+          }`}
+        >
+          Histórico de Importações ({stockImportRecords.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('supplier_report')}
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+            activeTab === 'supplier_report' ? 'bg-[#53383e] text-white shadow-xs' : 'text-[#363739] hover:bg-[#d8d8d8]/50'
+          }`}
+        >
+          Compras por Fornecedor
         </button>
       </div>
 
@@ -1203,24 +1233,27 @@ export const ProductsAndStockView: React.FC = () => {
                     : [])
                 ]}
                 customContent={
-                  p.photos && p.photos.length > 0 ? (
-                    <div>
-                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-                        Fotos do Produto
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {p.photos.map((photo, idx) => (
-                          <img
-                            key={idx}
-                            src={photo}
-                            alt={`${p.name} ${idx + 1}`}
-                            referrerPolicy="no-referrer"
-                            className="w-20 h-20 rounded-lg object-cover border border-slate-200"
-                          />
-                        ))}
+                  <div className="space-y-4">
+                    {p.photos && p.photos.length > 0 && (
+                      <div>
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                          Fotos do Produto
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {p.photos.map((photo, idx) => (
+                            <img
+                              key={idx}
+                              src={photo}
+                              alt={`${p.name} ${idx + 1}`}
+                              referrerPolicy="no-referrer"
+                              className="w-20 h-20 rounded-lg object-cover border border-slate-200"
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : undefined
+                    )}
+                    <ProductSupplierMappingsBox product={p} readOnly={currentRole === 'tecnico'} />
+                  </div>
                 }
                 actions={
                   currentRole !== 'tecnico' ? (
@@ -1481,6 +1514,15 @@ export const ProductsAndStockView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Tab: Vínculos de Fornecedores (De-Para) */}
+      {activeTab === 'mappings' && <SupplierMappingsTab />}
+
+      {/* Tab: Histórico de Importações (Auditoria e Desfazer) */}
+      {activeTab === 'history' && <StockImportHistoryTab />}
+
+      {/* Tab: Compras e Entradas por Fornecedor */}
+      {activeTab === 'supplier_report' && <SupplierPurchasesReportTab />}
 
       {/* Modal Novo/Editar/Clonar Produto com Todos os Campos Solicitados */}
       {isProductModalOpen && (
@@ -2155,6 +2197,18 @@ export const ProductsAndStockView: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* SEÇÃO 7: VÍNCULOS DE FORNECEDORES (DE-PARA) - Apenas ao editar produto existente */}
+              {editingId && !isDuplicating && (() => {
+                const editedProduct = products.find((item) => item.id === editingId);
+                if (!editedProduct) return null;
+                return (
+                  <ProductSupplierMappingsBox
+                    product={{ ...editedProduct, name: name || editedProduct.name, unit: unit || editedProduct.unit }}
+                    readOnly={currentRole === 'tecnico'}
+                  />
+                );
+              })()}
 
               {/* Footer */}
               <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
