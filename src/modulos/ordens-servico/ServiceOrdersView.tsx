@@ -140,6 +140,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     mode: 'print' | 'download';
     policyName: string;
     days: number;
+    remainingBalance: number;
   } | null>(null);
   const [pdvPixQrUrl, setPdvPixQrUrl] = useState<string>('');
   const [modalOSInfo, setModalOSInfo] = useState<ServiceOrder | null>(null);
@@ -1045,12 +1046,14 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
 
   const handlePrintOS = (os: ServiceOrder) => {
     const warrantyInfo = resolveServiceOrderWarrantyTerm(os, warrantyPolicies, companySettings);
-    if (warrantyInfo.hasWarrantyTerm) {
+    if (warrantyInfo.canGenerateWarrantyTerm) {
+      const financials = calculateServiceOrderFinancials(os, getPaidAmountForSource('os', os.id));
       setWarrantyPromptState({
         os,
         mode: 'print',
         policyName: warrantyInfo.policyName,
-        days: warrantyInfo.days
+        days: warrantyInfo.days,
+        remainingBalance: financials.remainingBalance
       });
       return;
     }
@@ -1091,7 +1094,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     const pixQrPng = !isFullyPaid ? await generatePixQrDataUrl(pixInfo.payload, 240) : '';
 
     const warrantyInfo = resolveServiceOrderWarrantyTerm(os, warrantyPolicies, companySettings);
-    const shouldRenderWarrantyPage = includeWarranty && warrantyInfo.hasWarrantyTerm;
+    const shouldRenderWarrantyPage = includeWarranty && warrantyInfo.canGenerateWarrantyTerm;
 
     const companyDisplayName = companySettings.tradeName || companySettings.companyName || 'FIRE GESTÃO';
     const companyAddressLine =
@@ -1194,6 +1197,8 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
             <div><span class="label">PRAZO: </span><strong>${warrantyInfo.days > 0 ? `${warrantyInfo.days} Dias` : 'Conforme Termo'}</strong></div>
             <div><span class="label">VALIDADE: </span>${warrantyInfo.expiresAt ? formatDateBR(warrantyInfo.expiresAt) : 'A partir da entrega'}</div>
           </div>
+          <div style="margin-top: 3px;"><span class="label">STATUS DA OS: </span><strong style="color: #065f46;">Entregue / Finalizada</strong></div>
+          ${totalDue > 0.01 ? `<div style="margin-top: 4px; padding: 3px 6px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 3px; font-size: 9px; color: #78350f;"><strong>Situação Financeira:</strong> Saldo pendente de <span style="font-family: monospace; font-weight: bold;">${formatBRL(totalDue)}</span> (garantia liberada pela finalização da OS).</div>` : ''}
           <div style="margin-top: 3px;"><span class="label">EQUIPAMENTO: </span>${escapeHtml(os.equipmentType || '-')}${os.equipmentModel ? ` · ${escapeHtml(os.equipmentModel)}` : ''}${os.equipmentSerial ? ` (S/N: ${escapeHtml(os.equipmentSerial)})` : ''}</div>
           ${safeContractRef ? `<div style="margin-top: 3px;"><span class="label">REF. CONTRATO: </span><strong>${safeContractRef}</strong></div>` : ''}
         </div>
@@ -1442,12 +1447,14 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
 
   const handleDownloadOS = (os: ServiceOrder) => {
     const warrantyInfo = resolveServiceOrderWarrantyTerm(os, warrantyPolicies, companySettings);
-    if (warrantyInfo.hasWarrantyTerm) {
+    if (warrantyInfo.canGenerateWarrantyTerm) {
+      const financials = calculateServiceOrderFinancials(os, getPaidAmountForSource('os', os.id));
       setWarrantyPromptState({
         os,
         mode: 'download',
         policyName: warrantyInfo.policyName,
-        days: warrantyInfo.days
+        days: warrantyInfo.days,
+        remainingBalance: financials.remainingBalance
       });
       return;
     }
@@ -1705,7 +1712,7 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
     }
 
     const derivedCreatePaymentStatus: ServiceOrder['paymentStatus'] =
-      (grandTotal > 0.009 && totalPaidInForm >= grandTotal - 0.01) || status === 'entregue_finalizada'
+      grandTotal > 0.009 && totalPaidInForm >= grandTotal - 0.01
         ? 'pago'
         : 'pendente';
 
@@ -2846,8 +2853,8 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto border border-slate-200">
             {/* Modal Actions */}
-            <div className="no-print sticky top-0 bg-white px-6 py-3.5 border-b border-slate-200 flex items-center justify-between z-10">
-              <div className="flex items-center gap-2">
+            <div className="no-print sticky top-0 bg-white px-6 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2 flex-wrap z-10">
+              <div className="flex items-center gap-2 flex-wrap">
                 <ClipboardList className="w-5 h-5 text-blue-600" />
                 <span className="font-bold text-slate-900 text-sm">
                   Visualizar Ordem de Serviço
@@ -2855,6 +2862,36 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
                 <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded bg-slate-900 text-white shadow-2xs">
                   Nº {selectedOSForDetail.code}
                 </span>
+                {(() => {
+                  const detailWarrantyInfo = resolveServiceOrderWarrantyTerm(
+                    selectedOSForDetail,
+                    warrantyPolicies,
+                    companySettings
+                  );
+                  if (detailWarrantyInfo.canGenerateWarrantyTerm) {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        title="OS Finalizada: Termo de Garantia liberado para impressão/PDF mesmo que exista saldo financeiro pendente"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        Garantia Liberada · OS Finalizada
+                      </span>
+                    );
+                  }
+                  if (detailWarrantyInfo.hasWarrantyTerm && !detailWarrantyInfo.isFinalized) {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                        title="O Termo de Garantia só pode ser gerado quando o status da OS estiver como Entregue / Finalizada"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                        Termo de Garantia disponível ao Finalizar OS
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
@@ -5717,6 +5754,12 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
               <p className="text-sm text-slate-800 leading-relaxed font-medium">
                 Esta OS possui termo de garantia vinculado. Deseja imprimir o termo de garantia junto?
               </p>
+              {warrantyPromptState.remainingBalance > 0.01 && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                  <strong>Saldo pendente de {formatBRL(warrantyPromptState.remainingBalance)}:</strong> como esta OS já está com o status{' '}
+                  <strong>Entregue / Finalizada</strong>, o Termo de Garantia está liberado e pode ser gerado normalmente.
+                </div>
+              )}
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
                 Ao escolher <strong>Sim</strong>, o Termo de Garantia será gerado obrigatoriamente em uma{' '}
                 <strong>nova página separada</strong>, repetindo o cabeçalho padrão da OS (logo, dados da empresa, dados do cliente e o número{' '}

@@ -320,8 +320,18 @@ export function getOsReceiptClassificationTitle(
   return 'Recibo de Pagamento Parcial';
 }
 
+export function isServiceOrderFinalized(os: Pick<ServiceOrder, 'status'>): boolean {
+  return os.status === 'entregue_finalizada';
+}
+
 export interface ResolvedWarrantyTerm {
   hasWarrantyTerm: boolean;
+  isFinalized: boolean;
+  /**
+   * Regra de negócio: o Termo de Garantia pode ser gerado mesmo com saldo pendente,
+   * desde que a Ordem de Serviço esteja obrigatoriamente com status Finalizada (`entregue_finalizada`).
+   */
+  canGenerateWarrantyTerm: boolean;
   policyName: string;
   days: number;
   expiresAt?: string;
@@ -329,8 +339,9 @@ export interface ResolvedWarrantyTerm {
 }
 
 /**
- * Resolve se uma OS possui Termo de Garantia vinculado (seja salvo diretamente na OS,
- * via política de garantia vinculada aos serviços, ou garantia padrão da empresa quando warrantyPeriodDays > 0).
+ * Resolve se uma OS possui Termo de Garantia vinculado e se está elegível para emissão/impressão.
+ * A emissão/impressão exige obrigatoriamente status `entregue_finalizada`, independentemente
+ * de haver saldo devedor pendente.
  */
 export function resolveServiceOrderWarrantyTerm(
   os: ServiceOrder,
@@ -338,11 +349,14 @@ export function resolveServiceOrderWarrantyTerm(
   companySettings: CompanySettings
 ): ResolvedWarrantyTerm {
   const days = Number(os.warrantyPeriodDays || 0);
+  const isFinalized = isServiceOrderFinalized(os);
 
   // 1) Termo explicitamente salvo na OS
   if (os.warrantyTerms && os.warrantyTerms.trim().length > 0) {
     return {
       hasWarrantyTerm: true,
+      isFinalized,
+      canGenerateWarrantyTerm: isFinalized,
       policyName: os.warranty || (days > 0 ? `Garantia de ${days} Dias` : 'Termo de Garantia'),
       days,
       expiresAt: os.warrantyExpiresAt,
@@ -362,6 +376,8 @@ export function resolveServiceOrderWarrantyTerm(
     if (matchedPolicy && matchedPolicy.terms.trim().length > 0) {
       return {
         hasWarrantyTerm: true,
+        isFinalized,
+        canGenerateWarrantyTerm: isFinalized,
         policyName: matchedPolicy.name,
         days: days > 0 ? days : matchedPolicy.days,
         expiresAt: os.warrantyExpiresAt,
@@ -376,6 +392,8 @@ export function resolveServiceOrderWarrantyTerm(
     if (defaultPolicy) {
       return {
         hasWarrantyTerm: true,
+        isFinalized,
+        canGenerateWarrantyTerm: isFinalized,
         policyName: os.warranty || defaultPolicy.name,
         days,
         expiresAt: os.warrantyExpiresAt,
@@ -385,6 +403,8 @@ export function resolveServiceOrderWarrantyTerm(
     if (companySettings.defaultWarrantyTerms && companySettings.defaultWarrantyTerms.trim().length > 0) {
       return {
         hasWarrantyTerm: true,
+        isFinalized,
+        canGenerateWarrantyTerm: isFinalized,
         policyName: os.warranty || `Garantia Contratual de ${days} Dias`,
         days,
         expiresAt: os.warrantyExpiresAt,
@@ -395,6 +415,8 @@ export function resolveServiceOrderWarrantyTerm(
 
   return {
     hasWarrantyTerm: false,
+    isFinalized,
+    canGenerateWarrantyTerm: false,
     policyName: '',
     days: 0,
     expiresAt: undefined,

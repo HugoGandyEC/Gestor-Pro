@@ -811,7 +811,7 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
       </div>
 
       {/* ===================== PÁGINA 2 (OPCIONAL): TERMO DE GARANTIA ===================== */}
-      {includeWarrantyPage && warrantyInfo.hasWarrantyTerm && (
+      {includeWarrantyPage && warrantyInfo.canGenerateWarrantyTerm && (
         <div className="os-page-break mt-8 pt-6 border-t-4 border-dashed border-slate-300 print:mt-0 print:pt-0 print:border-none">
           {/* Repetição Obrigatória do Cabeçalho Padrão da OS com Número da OS em Destaque */}
           {renderStandardOsHeader('TERMO DE GARANTIA', `Vinculado à OS Nº ${os.code}`)}
@@ -846,6 +846,16 @@ export const ServiceOrderPrintTemplate: React.FC<ServiceOrderPrintTemplateProps>
                     </span>
                   </div>
                 </div>
+                <div>
+                  <span className="font-bold text-slate-700">STATUS DA OS: </span>
+                  <span className="font-bold text-emerald-800">Entregue / Finalizada</span>
+                </div>
+                {remainingBalance > 0.01 && (
+                  <div className="text-[10px] bg-amber-50 border border-amber-200 rounded px-2 py-1 text-amber-900">
+                    <span className="font-bold">Situação Financeira: </span>
+                    Saldo pendente de <span className="font-mono font-bold">{formatBRL(remainingBalance)}</span> (garantia liberada pela finalização da OS).
+                  </div>
+                )}
                 <div>
                   <span className="font-bold text-slate-700">EQUIPAMENTO: </span>
                   <span className="text-slate-900">
