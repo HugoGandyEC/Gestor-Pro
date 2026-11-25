@@ -6,6 +6,7 @@ import { SystemDocumentationModal } from './components/SystemDocumentationModal'
 import { SystemHelpModal } from './components/SystemHelpModal';
 import { LogoutConfirmationModal } from './components/LogoutConfirmationModal';
 import { PaymentReceiptModal } from './components/PaymentReceiptModal';
+import { OsPaymentReceiptPromptModal } from './components/OsPaymentReceiptPromptModal';
 import { LoginView } from './components/LoginView';
 import { SystemFooter } from './components/SystemFooter';
 import {
@@ -54,7 +55,14 @@ const getInitialTab = (): ActiveTab => {
 };
 
 const MainLayout: React.FC = () => {
-  const { currentRole, activeReceiptModal, closeReceiptModal } = useApp();
+  const {
+    currentRole,
+    activeReceiptModal,
+    closeReceiptModal,
+    pendingReceiptPrompt,
+    confirmPendingReceiptPrompt,
+    dismissPendingReceiptPrompt
+  } = useApp();
   const [modulosEstado, setModulosEstado] = useState(() => getEstadoModulos());
   const [activeTab, setActiveTabState] = useState<ActiveTab>(getInitialTab);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -280,6 +288,13 @@ const MainLayout: React.FC = () => {
 
       {/* Logout Confirmation Modal */}
       <LogoutConfirmationModal />
+
+      {/* Conditional Prompt before opening OS Payment Receipt */}
+      <OsPaymentReceiptPromptModal
+        prompt={pendingReceiptPrompt}
+        onConfirm={confirmPendingReceiptPrompt}
+        onDismiss={dismissPendingReceiptPrompt}
+      />
 
       {/* Global Auto Payment Receipt Modal */}
       <PaymentReceiptModal receipt={activeReceiptModal} onClose={closeReceiptModal} />

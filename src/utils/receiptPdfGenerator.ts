@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CompanySettings, PaymentMethod, PaymentReceipt } from '../types';
+import { getOsReceiptClassificationTitle } from './pixBrCode';
 
 export const RECEIPT_METHOD_LABELS: Record<PaymentMethod, string> = {
   pix: 'PIX',
@@ -12,11 +13,11 @@ export const RECEIPT_METHOD_LABELS: Record<PaymentMethod, string> = {
 };
 
 export const RECEIPT_KIND_LABELS: Record<PaymentReceipt['paymentKind'], string> = {
-  vista: 'Pagamento à Vista',
-  entrada: 'Entrada / Sinal',
-  parcela: 'Pagamento de Parcela',
+  vista: 'Quitação / Pagamento Total',
+  entrada: 'Sinal / Entrada',
+  parcela: 'Pagamento Parcial / Parcela',
   parcial: 'Pagamento Parcial',
-  quitacao: 'Quitação de Saldo'
+  quitacao: 'Quitação / Pagamento Total'
 };
 
 const formatBRL = (value: number): string =>
@@ -38,22 +39,33 @@ const formatDateTimeBR = (iso: string): string => {
   });
 };
 
+const formatDateOnlyBR = (iso: string): string => {
+  if (!iso) return '-';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('pt-BR');
+};
+
 export const buildReceiptShareText = (
   receipt: PaymentReceipt,
   company: CompanySettings
 ): string => {
   const companyName = company.tradeName || company.companyName || 'FIRE GESTÃO';
+  const classificationTitle = getOsReceiptClassificationTitle(
+    receipt.paymentKind,
+    receipt.isFullyPaid
+  );
   const originLabel =
-    receipt.sourceType === 'os' ? `Ordem de Serviço ${receipt.sourceCode}` : `Venda ${receipt.sourceCode}`;
+    receipt.sourceType === 'os'
+      ? `Ordem de Serviço Nº ${receipt.sourceCode}`
+      : `Venda Nº ${receipt.sourceCode}`;
   const statusLine = receipt.isFullyPaid
-    ? '✅ STATUS: QUITADO / INTEGRALMENTE PAGO'
-    : `⏳ STATUS: PAGAMENTO PARCIAL — FALTA RESTANTE: ${formatBRL(receipt.remainingBalance)}`;
-
-  const itemsSummary = receipt.items
-    .filter(i => i.kind !== 'desconto')
-    .slice(0, 8)
-    .map(i => `• ${i.quantity}x ${i.name} (${formatBRL(i.totalPrice)})`)
-    .join('\n');
+    ? 'STATUS: QUITADO / INTEGRALMENTE PAGO (Saldo Restante: R$ 0,00)'
+    : `STATUS: ${classificationTitle.toUpperCase()} — SALDO RESTANTE A PAGAR: ${formatBRL(receipt.remainingBalance)}`;
 
   const methodsLine =
     receipt.payments && receipt.payments.length > 0
@@ -66,27 +78,39 @@ export const buildReceiptShareText = (
           .join(' | ')
       : `${RECEIPT_METHOD_LABELS[receipt.paymentMethod] || receipt.paymentMethod}: ${formatBRL(receipt.amountPaidNow)}`;
 
+  const priorHistoryLines =
+    receipt.previousPaymentsHistory && receipt.previousPaymentsHistory.length > 0
+      ? [
+          `*Pagamentos Anteriores:*`,
+          ...receipt.previousPaymentsHistory.map(
+            h =>
+              `• ${formatDateOnlyBR(h.date)} — ${RECEIPT_METHOD_LABELS[h.method] || h.method}: ${formatBRL(h.amount)}${
+                h.receiptNumber ? ` (${h.receiptNumber})` : ''
+              }`
+          )
+        ].join('\n')
+      : receipt.previouslyPaid > 0.01
+      ? `Pagamentos Anteriores: ${formatBRL(receipt.previouslyPaid)}`
+      : '';
+
   return [
-    `*${companyName}* — RECIBO DE PAGAMENTO`,
+    `*${companyName}* — ${classificationTitle.toUpperCase()}`,
     `Recibo Nº: *${receipt.receiptNumber}*`,
+    `Origem: *${originLabel}*`,
     `Data/Hora: ${formatDateTimeBR(receipt.createdAt)}`,
-    `Origem: ${originLabel} (${RECEIPT_KIND_LABELS[receipt.paymentKind]})`,
     ``,
     `*Cliente:* ${receipt.clientName}`,
     receipt.clientDocument ? `CPF/CNPJ: ${receipt.clientDocument}` : '',
     receipt.clientPhone ? `Telefone: ${receipt.clientPhone}` : '',
     receipt.clientAddress ? `Endereço: ${receipt.clientAddress}` : '',
     ``,
-    itemsSummary ? `*Itens / Serviços:*\n${itemsSummary}` : '',
-    ``,
-    `*Valor Pago Agora:* ${formatBRL(receipt.amountPaidNow)}`,
-    `Total da Operação: ${formatBRL(receipt.orderTotal)}`,
-    receipt.previouslyPaid > 0 ? `Pago Anteriormente: ${formatBRL(receipt.previouslyPaid)}` : '',
-    `Total Já Pago: ${formatBRL(receipt.totalPaidAccumulated)}`,
-    !receipt.isFullyPaid ? `*Saldo Devedor Restante:* ${formatBRL(receipt.remainingBalance)}` : '',
+    `Valor Total da ${receipt.sourceType === 'os' ? 'OS' : 'Venda'}: ${formatBRL(receipt.orderTotal)}`,
+    priorHistoryLines,
+    `*Valor Pago neste Lançamento:* ${formatBRL(receipt.amountPaidNow)}`,
+    `Total Já Pago Acumulado: ${formatBRL(receipt.totalPaidAccumulated)}`,
+    `*Saldo Restante a Pagar:* ${formatBRL(receipt.isFullyPaid ? 0 : receipt.remainingBalance)}`,
     `Forma de Pagamento: ${methodsLine}`,
     receipt.nsu ? `Autenticação / NSU: ${receipt.nsu}` : '',
-    `Operador: ${receipt.operatorName} · ${receipt.terminalName}`,
     ``,
     statusLine
   ]
@@ -108,246 +132,407 @@ export const downloadReceiptPdf = (
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 14;
   const contentWidth = pageWidth - marginX * 2;
-  let cursorY = 14;
+  let cursorY = 12;
 
-  // Header band
-  doc.setFillColor(83, 56, 62); // #53383e
-  doc.rect(marginX, cursorY, contentWidth, 22, 'F');
+  const companyDisplayName = company.tradeName || company.companyName || 'FIRE GESTÃO';
+  const classificationTitle = getOsReceiptClassificationTitle(
+    receipt.paymentKind,
+    receipt.isFullyPaid
+  );
+  const originLabel =
+    receipt.sourceType === 'os'
+      ? `OS Nº ${receipt.sourceCode}`
+      : `VENDA Nº ${receipt.sourceCode}`;
 
-  doc.setTextColor(255, 255, 255);
+  // ===== CABEÇALHO PADRÃO DA OS (Empresa à esquerda + Box OS/Recibo à direita) =====
+  const boxWidth = 58;
+  const boxX = pageWidth - marginX - boxWidth;
+
+  // Logo (se disponível como data URL)
+  let textStartX = marginX;
+  if (company.logoUrl && company.logoUrl.startsWith('data:image/')) {
+    try {
+      const imgType = company.logoUrl.includes('image/png') ? 'PNG' : 'JPEG';
+      doc.addImage(company.logoUrl, imgType, marginX, cursorY, 18, 18);
+      textStartX = marginX + 21;
+    } catch {
+      textStartX = marginX;
+    }
+  }
+
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(company.tradeName || company.companyName || 'FIRE GESTÃO', marginX + 5, cursorY + 8);
+  doc.setFontSize(14);
+  doc.text(companyDisplayName.toUpperCase().slice(0, 36), textStartX, cursorY + 5);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  const companyLine = [
-    company.cnpj ? `CNPJ: ${company.cnpj}` : '',
-    company.phone ? `Tel: ${company.phone}` : '',
-    company.email ? company.email : ''
+  doc.setFontSize(8);
+  doc.setTextColor(51, 65, 85);
+  let infoY = cursorY + 9.5;
+  if (company.companyName && company.companyName !== companyDisplayName) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(company.companyName.toUpperCase().slice(0, 52), textStartX, infoY);
+    doc.setFont('helvetica', 'normal');
+    infoY += 4;
+  }
+  const companyAddr = [
+    [company.street, company.number].filter(Boolean).join(', '),
+    company.neighborhood,
+    company.city ? `${company.city} / ${company.state || ''}` : ''
   ]
     .filter(Boolean)
-    .join('  ·  ');
-  if (companyLine) {
-    doc.text(companyLine, marginX + 5, cursorY + 13.5);
-  }
-  const companyAddr = [company.street, company.number, company.neighborhood].filter(Boolean).join(', ');
+    .join(' - ');
   if (companyAddr) {
-    doc.text(`${companyAddr}${company.city ? ` - ${company.city}/${company.state}` : ''}`, marginX + 5, cursorY + 18);
+    doc.text(companyAddr.slice(0, 62), textStartX, infoY);
+    infoY += 4;
+  }
+  const companyContacts = [
+    company.phone ? `Tel: ${company.phone}` : '',
+    company.email ? `E-mail: ${company.email}` : '',
+    company.cnpj ? `CNPJ: ${company.cnpj}` : ''
+  ]
+    .filter(Boolean)
+    .join(' | ');
+  if (companyContacts) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(companyContacts.slice(0, 66), textStartX, infoY);
   }
 
+  // Right Box matching Standard OS Header
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(boxX, cursorY, boxWidth, 21, 1.5, 1.5, 'S');
+  doc.setFillColor(15, 23, 42);
+  doc.rect(boxX, cursorY, boxWidth, 6, 'F');
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text(classificationTitle.toUpperCase(), boxX + boxWidth / 2, cursorY + 4.2, {
+    align: 'center'
+  });
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('courier', 'bold');
   doc.setFontSize(12);
-  doc.text('RECIBO DE PAGAMENTO', pageWidth - marginX - 5, cursorY + 8.5, { align: 'right' });
+  doc.text(originLabel, boxX + boxWidth / 2, cursorY + 12.2, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Recibo ${receipt.receiptNumber}`, boxX + boxWidth / 2, cursorY + 16.5, {
+    align: 'center'
+  });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text(`Nº ${receipt.receiptNumber}`, pageWidth - marginX - 5, cursorY + 14, { align: 'right' });
-  doc.setFontSize(8);
-  doc.text(formatDateTimeBR(receipt.createdAt), pageWidth - marginX - 5, cursorY + 18.5, { align: 'right' });
+  doc.setFontSize(7);
+  doc.text(formatDateTimeBR(receipt.createdAt), boxX + boxWidth / 2, cursorY + 19.8, {
+    align: 'center'
+  });
 
-  cursorY += 27;
+  // Strong OS-style bottom rule
+  cursorY += 24;
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.7);
+  doc.line(marginX, cursorY, pageWidth - marginX, cursorY);
+  cursorY += 4;
 
-  // Stamp Banner (QUITADO vs PARCIAL)
+  // ===== FAIXA DE CLASSIFICAÇÃO DO PAGAMENTO =====
+  const isEntry = !receipt.isFullyPaid && receipt.paymentKind === 'entrada';
   if (receipt.isFullyPaid) {
     doc.setFillColor(236, 253, 245);
     doc.setDrawColor(16, 185, 129);
-    doc.setLineWidth(0.6);
-    doc.roundedRect(marginX, cursorY, contentWidth, 13, 2, 2, 'FD');
-    doc.setTextColor(6, 95, 70);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text('QUITADO / INTEGRALMENTE PAGO', marginX + 5, cursorY + 8.2);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.text(`Valor Total Quitado: ${formatBRL(receipt.orderTotal)}`, pageWidth - marginX - 5, cursorY + 8.2, {
-      align: 'right'
-    });
+  } else if (isEntry) {
+    doc.setFillColor(239, 246, 255);
+    doc.setDrawColor(59, 130, 246);
   } else {
     doc.setFillColor(255, 251, 235);
     doc.setDrawColor(245, 158, 11);
-    doc.setLineWidth(0.6);
-    doc.roundedRect(marginX, cursorY, contentWidth, 15, 2, 2, 'FD');
-    doc.setTextColor(146, 64, 14);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
-    doc.text(
-      `PAGAMENTO PARCIAL (${RECEIPT_KIND_LABELS[receipt.paymentKind].toUpperCase()})`,
-      marginX + 5,
-      cursorY + 6.5
-    );
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.text(
-      `Pago Agora: ${formatBRL(receipt.amountPaidNow)}   |   Total da OS/Venda: ${formatBRL(receipt.orderTotal)}   |   Saldo Devedor Restante: ${formatBRL(receipt.remainingBalance)}`,
-      marginX + 5,
-      cursorY + 11.8
-    );
   }
-  cursorY += 19;
+  doc.setLineWidth(0.5);
+  doc.roundedRect(marginX, cursorY, contentWidth, 13, 1.5, 1.5, 'FD');
 
-  // Customer Details Card
-  doc.setDrawColor(216, 216, 216);
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(marginX, cursorY, contentWidth, 24, 2, 2, 'FD');
-  doc.setTextColor(83, 56, 62);
+  if (receipt.isFullyPaid) {
+    doc.setTextColor(6, 95, 70);
+  } else if (isEntry) {
+    doc.setTextColor(30, 64, 175);
+  } else {
+    doc.setTextColor(146, 64, 14);
+  }
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('DADOS DO CLIENTE / PAGADOR', marginX + 4, cursorY + 5.5);
-
-  doc.setTextColor(30, 41, 59);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text(receipt.clientName || 'Consumidor Balcão', marginX + 4, cursorY + 11);
+  doc.setFontSize(10.5);
+  doc.text(classificationTitle.toUpperCase(), marginX + 4, cursorY + 5.5);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.2);
   doc.text(
-    `CPF / CNPJ: ${receipt.clientDocument || 'Não informado'}   ·   Telefone: ${receipt.clientPhone || 'Não informado'}`,
+    receipt.isFullyPaid
+      ? `Pagamento integral confirmado referente à ${originLabel}. Saldo restante: R$ 0,00.`
+      : `Lançamento confirmado referente à ${originLabel}. Saldo restante a pagar: ${formatBRL(receipt.remainingBalance)}.`,
     marginX + 4,
-    cursorY + 16
-  );
-  const addressLine = receipt.clientAddress || 'Endereço não cadastrado';
-  doc.text(`Endereço: ${addressLine.slice(0, 105)}`, marginX + 4, cursorY + 21);
-
-  cursorY += 29;
-
-  // Operation Origin Block
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(216, 216, 216);
-  doc.roundedRect(marginX, cursorY, contentWidth, 18, 2, 2, 'FD');
-  doc.setTextColor(83, 56, 62);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('ORIGEM DA OPERAÇÃO & CAIXA', marginX + 4, cursorY + 5.5);
-
-  doc.setTextColor(30, 41, 59);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  const originText =
-    receipt.sourceType === 'os'
-      ? `Ordem de Serviço Nº ${receipt.sourceCode}`
-      : `Venda Direta / Balcão Nº ${receipt.sourceCode}`;
-  doc.text(
-    `${originText}   ·   Operador: ${receipt.operatorName}   ·   Terminal: ${receipt.terminalName}`,
-    marginX + 4,
-    cursorY + 11
-  );
-  doc.text(
-    `Sessão de Caixa: ${receipt.cashSessionCode || receipt.cashSessionId}${receipt.nsu ? `   ·   Autenticação / NSU: ${receipt.nsu}` : ''}`,
-    marginX + 4,
-    cursorY + 15.5
+    cursorY + 10.5
   );
 
-  cursorY += 23;
-
-  // Items / Services Table
-  const itemRows = receipt.items.map((item, idx) => [
-    String(idx + 1).padStart(2, '0'),
-    item.name,
-    String(item.quantity),
-    formatBRL(item.unitPrice),
-    formatBRL(item.totalPrice)
-  ]);
-
-  autoTable(doc, {
-    startY: cursorY,
-    margin: { left: marginX, right: marginX },
-    head: [['#', 'Descrição do Item / Serviço', 'Qtd', 'Unitário', 'Subtotal']],
-    body: itemRows.length > 0 ? itemRows : [['01', originText, '1', formatBRL(receipt.orderTotal), formatBRL(receipt.orderTotal)]],
-    styles: { fontSize: 8, cellPadding: 2.2, textColor: [30, 41, 59] },
-    headStyles: { fillColor: [83, 56, 62], textColor: [255, 255, 255], fontStyle: 'bold' },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      2: { cellWidth: 14, halign: 'center' },
-      3: { cellWidth: 28, halign: 'right' },
-      4: { cellWidth: 28, halign: 'right' }
-    }
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(11.5);
+  doc.text(formatBRL(receipt.amountPaidNow), pageWidth - marginX - 4, cursorY + 8, {
+    align: 'right'
   });
 
-  const finalY = ((doc as any).lastAutoTable?.finalY || cursorY + 25) + 6;
-  cursorY = finalY;
+  cursorY += 17;
 
-  // Payment Methods Table + Financial Summary Box side by side
+  // ===== DADOS DO CLIENTE & REFERÊNCIA DA OS (2 Colunas estilo OS) =====
+  const halfW = (contentWidth - 4) / 2;
+  const cardH = 27;
+
+  // Card 1: Dados do Cliente
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.rect(marginX, cursorY, halfW, cardH, 'S');
+  doc.setFillColor(238, 243, 248);
+  doc.rect(marginX, cursorY, halfW, 5.5, 'F');
+  doc.setTextColor(30, 41, 59);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('DADOS DO CLIENTE', marginX + 3, cursorY + 4);
+
+  doc.setFontSize(8.5);
+  doc.text((receipt.clientName || 'Cliente').toUpperCase().slice(0, 42), marginX + 3, cursorY + 10.2);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`CPF/CNPJ: ${receipt.clientDocument || '-'}`, marginX + 3, cursorY + 14.8);
+  doc.text(`Telefone: ${receipt.clientPhone || '-'}`, marginX + 3, cursorY + 19.2);
+  doc.text(`End.: ${(receipt.clientAddress || '-').slice(0, 48)}`, marginX + 3, cursorY + 23.8);
+
+  // Card 2: Dados do Pagamento & OS
+  const rightCardX = marginX + halfW + 4;
+  doc.rect(rightCardX, cursorY, halfW, cardH, 'S');
+  doc.setFillColor(238, 243, 248);
+  doc.rect(rightCardX, cursorY, halfW, 5.5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('REFERÊNCIA E COMPROVANTE', rightCardX + 3, cursorY + 4);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text(
+    receipt.sourceType === 'os'
+      ? `Ordem de Serviço Nº ${receipt.sourceCode}`
+      : `Venda Direta Nº ${receipt.sourceCode}`,
+    rightCardX + 3,
+    cursorY + 10.2
+  );
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Classificação: ${classificationTitle}`, rightCardX + 3, cursorY + 14.8);
+  doc.text(`Data/Hora: ${formatDateTimeBR(receipt.createdAt)}`, rightCardX + 3, cursorY + 19.2);
+  doc.text(
+    `Forma: ${RECEIPT_METHOD_LABELS[receipt.paymentMethod] || receipt.paymentMethod}${
+      receipt.nsu ? ` · NSU: ${receipt.nsu}` : ''
+    }`,
+    rightCardX + 3,
+    cursorY + 23.8
+  );
+
+  cursorY += cardH + 5;
+
+  // ===== HISTÓRICO DE PAGAMENTOS ANTERIORES (SE HOUVER) =====
+  const priorHistory = receipt.previousPaymentsHistory || [];
+  if (priorHistory.length > 0 || receipt.previouslyPaid > 0.01) {
+    const historyBody =
+      priorHistory.length > 0
+        ? priorHistory.map((h, idx) => [
+            String(idx + 1).padStart(2, '0'),
+            formatDateOnlyBR(h.date),
+            h.receiptNumber || 'Lançamento Anterior',
+            RECEIPT_METHOD_LABELS[h.method] || h.method,
+            formatBRL(h.amount)
+          ])
+        : [['01', '-', 'Pagamentos Anteriores Acumulados', '-', formatBRL(receipt.previouslyPaid)]];
+
+    autoTable(doc, {
+      startY: cursorY,
+      margin: { left: marginX, right: marginX },
+      head: [['#', 'Data', 'Recibo / Referência Anterior', 'Forma', 'Valor Pago']],
+      body: historyBody,
+      styles: { fontSize: 8, cellPadding: 2, textColor: [30, 41, 59] },
+      headStyles: { fillColor: [238, 243, 248], textColor: [30, 41, 59], fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 24 },
+        4: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+      }
+    });
+    cursorY = ((doc as any).lastAutoTable?.finalY || cursorY + 18) + 5;
+  }
+
+  // ===== DETALHAMENTO DOS ITENS / SERVIÇOS DA OS =====
+  if (receipt.items && receipt.items.length > 0) {
+    const itemRows = receipt.items.map((item, idx) => [
+      String(idx + 1).padStart(2, '0'),
+      item.name,
+      String(item.quantity),
+      formatBRL(item.unitPrice),
+      formatBRL(item.totalPrice)
+    ]);
+
+    autoTable(doc, {
+      startY: cursorY,
+      margin: { left: marginX, right: marginX },
+      head: [['#', 'Itens / Serviços da Ordem de Serviço', 'Qtd', 'Unitário', 'Subtotal']],
+      body: itemRows,
+      styles: { fontSize: 7.8, cellPadding: 2, textColor: [30, 41, 59] },
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        2: { cellWidth: 14, halign: 'center' },
+        3: { cellWidth: 26, halign: 'right' },
+        4: { cellWidth: 26, halign: 'right' }
+      }
+    });
+    cursorY = ((doc as any).lastAutoTable?.finalY || cursorY + 20) + 6;
+  }
+
+  // ===== FORMA DE PAGAMENTO DESTE LANÇAMENTO + RESUMO FINANCEIRO =====
   const payRows = (receipt.payments && receipt.payments.length > 0
     ? receipt.payments
-    : [{ id: '1', method: receipt.paymentMethod, amount: receipt.amountPaidNow, netAmount: receipt.amountPaidNow }]
+    : [
+        {
+          id: '1',
+          method: receipt.paymentMethod,
+          amount: receipt.amountPaidNow,
+          netAmount: receipt.amountPaidNow
+        }
+      ]
   ).map(p => [
     RECEIPT_METHOD_LABELS[p.method] || p.method,
-    p.cardBrand ? `${p.cardBrand.toUpperCase()}${p.installments && p.installments > 1 ? ` (${p.installments}x)` : ''}` : '—',
+    p.cardBrand
+      ? `${p.cardBrand.toUpperCase()}${p.installments && p.installments > 1 ? ` (${p.installments}x)` : ''}`
+      : formatDateOnlyBR(p.paidAt || receipt.createdAt),
     formatBRL(p.amount)
   ]);
 
   autoTable(doc, {
     startY: cursorY,
     margin: { left: marginX, right: pageWidth / 2 + 2 },
-    head: [['Forma de Pagamento', 'Detalhe', 'Valor']],
+    head: [['Forma de Pagamento', 'Data / Detalhe', 'Valor']],
     body: payRows,
     styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [54, 55, 57], textColor: [255, 255, 255] },
+    headStyles: { fillColor: [238, 243, 248], textColor: [30, 41, 59], fontStyle: 'bold' },
     columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } }
   });
 
   const summaryX = pageWidth / 2 + 4;
   const summaryWidth = pageWidth - marginX - summaryX;
-  doc.setFillColor(246, 239, 241);
-  doc.setDrawColor(83, 56, 62);
-  doc.roundedRect(summaryX, cursorY, summaryWidth, 34, 2, 2, 'FD');
+  const summaryHeight = 38;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(summaryX, cursorY, summaryWidth, summaryHeight, 1.5, 1.5, 'FD');
 
-  doc.setTextColor(54, 55, 57);
+  doc.setTextColor(30, 41, 59);
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
-  doc.text('Total da OS / Venda:', summaryX + 4, cursorY + 6.5);
-  doc.text(formatBRL(receipt.orderTotal), summaryX + summaryWidth - 4, cursorY + 6.5, { align: 'right' });
+  doc.text(`Valor Total da ${receipt.sourceType === 'os' ? 'OS' : 'Venda'}:`, summaryX + 3.5, cursorY + 6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(formatBRL(receipt.orderTotal), summaryX + summaryWidth - 3.5, cursorY + 6.5, {
+    align: 'right'
+  });
 
-  doc.text('Pago Anteriormente:', summaryX + 4, cursorY + 12);
-  doc.text(formatBRL(receipt.previouslyPaid), summaryX + summaryWidth - 4, cursorY + 12, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.text('Pagamentos Anteriores:', summaryX + 3.5, cursorY + 12.2);
+  doc.text(formatBRL(receipt.previouslyPaid), summaryX + summaryWidth - 3.5, cursorY + 12.2, {
+    align: 'right'
+  });
 
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(83, 56, 62);
-  doc.setFontSize(10);
-  doc.text('VALOR PAGO AGORA:', summaryX + 4, cursorY + 18.5);
-  doc.text(formatBRL(receipt.amountPaidNow), summaryX + summaryWidth - 4, cursorY + 18.5, { align: 'right' });
+  doc.setTextColor(6, 95, 70);
+  doc.setFontSize(9.5);
+  doc.text('Pago neste Lançamento:', summaryX + 3.5, cursorY + 18.8);
+  doc.text(formatBRL(receipt.amountPaidNow), summaryX + summaryWidth - 3.5, cursorY + 18.8, {
+    align: 'right'
+  });
 
-  doc.setFontSize(8.5);
-  doc.setTextColor(receipt.isFullyPaid ? 6 : 180, receipt.isFullyPaid ? 95 : 83, receipt.isFullyPaid ? 70 : 9);
-  doc.text(receipt.isFullyPaid ? 'SALDO RESTANTE (QUITADO):' : 'SALDO DEVEDOR RESTANTE:', summaryX + 4, cursorY + 25.5);
-  doc.text(formatBRL(receipt.remainingBalance), summaryX + summaryWidth - 4, cursorY + 25.5, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(51, 65, 85);
+  doc.setFontSize(8);
+  doc.text('Total Pago Acumulado:', summaryX + 3.5, cursorY + 24.5);
+  doc.text(formatBRL(receipt.totalPaidAccumulated), summaryX + summaryWidth - 3.5, cursorY + 24.5, {
+    align: 'right'
+  });
 
-  if (receipt.changeAmount && receipt.changeAmount > 0) {
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(54, 55, 57);
-    doc.text(`Troco Devolvido: ${formatBRL(receipt.changeAmount)}`, summaryX + 4, cursorY + 31);
-  }
+  doc.setDrawColor(203, 213, 225);
+  doc.line(summaryX + 3, cursorY + 27.5, summaryX + summaryWidth - 3, cursorY + 27.5);
 
-  // Footer / Signature
-  const signY = Math.max(cursorY + 46, ((doc as any).lastAutoTable?.finalY || cursorY) + 18);
-  if (signY < 275) {
-    doc.setDrawColor(148, 163, 184);
-    doc.line(marginX + 10, signY, marginX + 80, signY);
-    doc.line(pageWidth - marginX - 80, signY, pageWidth - marginX - 10, signY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(receipt.isFullyPaid ? 6 : 190, receipt.isFullyPaid ? 95 : 18, receipt.isFullyPaid ? 70 : 60);
+  doc.text('Saldo Restante a Pagar:', summaryX + 3.5, cursorY + 33.5);
+  doc.text(
+    formatBRL(receipt.isFullyPaid ? 0 : receipt.remainingBalance),
+    summaryX + summaryWidth - 3.5,
+    cursorY + 33.5,
+    { align: 'right' }
+  );
+
+  // Observações (se houver)
+  let nextY = Math.max(cursorY + summaryHeight + 5, ((doc as any).lastAutoTable?.finalY || cursorY) + 8);
+  if (receipt.notes) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`${company.tradeName || company.companyName} · ${receipt.operatorName}`, marginX + 45, signY + 4.5, {
-      align: 'center'
-    });
-    doc.text(`${receipt.clientName}`, pageWidth - marginX - 45, signY + 4.5, { align: 'center' });
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Observações: ${receipt.notes}`, marginX, nextY);
+    nextY += 6;
   }
+
+  // ===== CAMPO PARA ASSINATURAS =====
+  const signY = Math.min(266, Math.max(nextY + 18, 225));
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.35);
+  doc.line(marginX + 8, signY, marginX + 82, signY);
+  doc.line(pageWidth - marginX - 82, signY, pageWidth - marginX - 8, signY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  doc.setTextColor(15, 23, 42);
+  doc.text(companyDisplayName.toUpperCase(), marginX + 45, signY + 4.5, { align: 'center' });
+  doc.text((receipt.clientName || 'Cliente').toUpperCase(), pageWidth - marginX - 45, signY + 4.5, {
+    align: 'center'
+  });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Assinatura do Responsável · Op.: ${receipt.operatorName}`, marginX + 45, signY + 8.5, {
+    align: 'center'
+  });
+  doc.text(
+    `Assinatura do Cliente · ${receipt.clientDocument || 'Pagador'}`,
+    pageWidth - marginX - 45,
+    signY + 8.5,
+    { align: 'center' }
+  );
 
   doc.save(`Recibo_${receipt.receiptNumber}_${receipt.sourceCode}.pdf`);
 };
 
 const downloadThermal80mmPdf = (receipt: PaymentReceipt, company: CompanySettings): void => {
-  const estimatedHeight = Math.max(155, 115 + receipt.items.length * 6.5);
+  const priorCount = receipt.previousPaymentsHistory?.length || 0;
+  const estimatedHeight = Math.max(165, 125 + receipt.items.length * 6 + priorCount * 5);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, estimatedHeight] });
   const w = 80;
   const mx = 4;
   let y = 7;
 
+  const classificationTitle = getOsReceiptClassificationTitle(
+    receipt.paymentKind,
+    receipt.isFullyPaid
+  );
+
   doc.setTextColor(20, 20, 20);
   doc.setFont('courier', 'bold');
   doc.setFontSize(10);
-  doc.text((company.tradeName || company.companyName || 'FIRE GESTÃO').slice(0, 32), w / 2, y, { align: 'center' });
+  doc.text((company.tradeName || company.companyName || 'FIRE GESTÃO').slice(0, 32), w / 2, y, {
+    align: 'center'
+  });
   y += 4.2;
 
   doc.setFont('courier', 'normal');
@@ -365,18 +550,21 @@ const downloadThermal80mmPdf = (receipt: PaymentReceipt, company: CompanySetting
   y += 4.2;
 
   doc.setFont('courier', 'bold');
-  doc.setFontSize(9.5);
-  doc.text('RECIBO DE PAGAMENTO', w / 2, y, { align: 'center' });
+  doc.setFontSize(9);
+  doc.text(classificationTitle.toUpperCase(), w / 2, y, { align: 'center' });
   y += 4;
   doc.setFontSize(8);
-  doc.text(`Nº ${receipt.receiptNumber}`, w / 2, y, { align: 'center' });
+  doc.text(
+    `${receipt.sourceType === 'os' ? 'OS' : 'VENDA'} Nº ${receipt.sourceCode} | ${receipt.receiptNumber}`,
+    w / 2,
+    y,
+    { align: 'center' }
+  );
   y += 3.8;
 
   doc.setFont('courier', 'normal');
   doc.setFontSize(7.2);
   doc.text(formatDateTimeBR(receipt.createdAt), w / 2, y, { align: 'center' });
-  y += 3.5;
-  doc.text(`${receipt.terminalName} | Op: ${receipt.operatorName.slice(0, 16)}`, w / 2, y, { align: 'center' });
   y += 3.5;
   doc.line(mx, y, w - mx, y);
   y += 4;
@@ -396,99 +584,58 @@ const downloadThermal80mmPdf = (receipt: PaymentReceipt, company: CompanySetting
     doc.text(`TEL: ${receipt.clientPhone}`, mx, y);
     y += 3.4;
   }
-  if (receipt.clientAddress) {
-    const addrLines = doc.splitTextToSize(`END: ${receipt.clientAddress}`, w - mx * 2);
-    doc.text(addrLines.slice(0, 2), mx, y);
-    y += addrLines.slice(0, 2).length * 3.3;
-  }
-
-  doc.line(mx, y, w - mx, y);
-  y += 4;
-
-  // Origin + Items
-  doc.setFont('courier', 'bold');
-  doc.setFontSize(7.6);
-  doc.text(
-    `${receipt.sourceType === 'os' ? 'O.S.' : 'VENDA'}: ${receipt.sourceCode} (${RECEIPT_KIND_LABELS[receipt.paymentKind]})`,
-    mx,
-    y
-  );
-  y += 4;
-
-  doc.setFont('courier', 'normal');
-  doc.setFontSize(7);
-  receipt.items.slice(0, 18).forEach(it => {
-    const label = `${it.quantity}x ${it.name}`.slice(0, 27);
-    doc.text(label, mx, y);
-    doc.text(formatBRL(it.totalPrice), w - mx, y, { align: 'right' });
-    y += 3.5;
-  });
-
   doc.line(mx, y, w - mx, y);
   y += 4;
 
   // Values
   doc.setFontSize(7.5);
-  doc.text('TOTAL DA OPERACAO:', mx, y);
+  doc.text(`TOTAL DA ${receipt.sourceType === 'os' ? 'OS' : 'VENDA'}:`, mx, y);
   doc.text(formatBRL(receipt.orderTotal), w - mx, y, { align: 'right' });
   y += 3.6;
 
-  if (receipt.previouslyPaid > 0) {
-    doc.text('JA PAGO ANTES:', mx, y);
+  if (receipt.previouslyPaid > 0.01) {
+    doc.text('PAGOS ANTERIORES:', mx, y);
     doc.text(formatBRL(receipt.previouslyPaid), w - mx, y, { align: 'right' });
     y += 3.6;
   }
 
   doc.setFont('courier', 'bold');
   doc.setFontSize(9);
-  doc.text('VALOR PAGO AGORA:', mx, y);
+  doc.text('PAGO NESTE LANC.:', mx, y);
   doc.text(formatBRL(receipt.amountPaidNow), w - mx, y, { align: 'right' });
   y += 4.2;
 
   doc.setFontSize(8);
-  if (receipt.isFullyPaid) {
-    doc.text('SALDO RESTANTE:', mx, y);
-    doc.text('R$ 0,00', w - mx, y, { align: 'right' });
-    y += 5;
-    doc.rect(mx, y - 3.5, w - mx * 2, 7);
-    doc.text('*** QUITADO / INTEGRALMENTE PAGO ***', w / 2, y + 1, { align: 'center' });
-    y += 7;
-  } else {
-    doc.text('FALTA RESTANTE:', mx, y);
-    doc.text(formatBRL(receipt.remainingBalance), w - mx, y, { align: 'right' });
-    y += 5;
-    doc.rect(mx, y - 3.5, w - mx * 2, 7);
-    doc.text('PAGAMENTO PARCIAL - SALDO ABERTO', w / 2, y + 1, { align: 'center' });
-    y += 7;
-  }
+  doc.text('SALDO RESTANTE:', mx, y);
+  doc.text(formatBRL(receipt.isFullyPaid ? 0 : receipt.remainingBalance), w - mx, y, {
+    align: 'right'
+  });
+  y += 5;
+
+  doc.rect(mx, y - 3.5, w - mx * 2, 7);
+  doc.text(
+    receipt.isFullyPaid ? '*** QUITADO (R$ 0,00) ***' : classificationTitle.toUpperCase(),
+    w / 2,
+    y + 1,
+    { align: 'center' }
+  );
+  y += 7;
 
   doc.setFont('courier', 'normal');
   doc.setFontSize(7.2);
   const payDesc =
     receipt.payments && receipt.payments.length > 0
       ? receipt.payments
-          .map(p => {
-            const brand = p.cardBrand ? ` ${p.cardBrand.toUpperCase()}` : '';
-            const inst = p.installments && p.installments > 1 ? ` ${p.installments}x` : '';
-            return `${RECEIPT_METHOD_LABELS[p.method]}${brand}${inst} ${formatBRL(p.amount)}`;
-          })
+          .map(p => `${RECEIPT_METHOD_LABELS[p.method]} ${formatBRL(p.amount)}`)
           .join(', ')
       : `${RECEIPT_METHOD_LABELS[receipt.paymentMethod]}`;
-  const payLines = doc.splitTextToSize(`PGTO: ${payDesc}`, w - mx * 2);
+  const payLines = doc.splitTextToSize(`FORMA PGTO: ${payDesc}`, w - mx * 2);
   doc.text(payLines, mx, y);
-  y += payLines.length * 3.4;
+  y += payLines.length * 3.4 + 8;
 
-  if (receipt.changeAmount && receipt.changeAmount > 0) {
-    doc.text(`TROCO: ${formatBRL(receipt.changeAmount)}`, mx, y);
-    y += 3.6;
-  }
-  if (receipt.nsu) {
-    doc.text(`AUT/NSU: ${receipt.nsu}`, mx, y);
-    y += 3.6;
-  }
-
-  y += 3;
-  doc.text('Obrigado pela preferencia!', w / 2, y, { align: 'center' });
+  doc.line(mx + 6, y, w - mx - 6, y);
+  y += 3.5;
+  doc.text('Assinatura', w / 2, y, { align: 'center' });
 
   doc.save(`Recibo_80mm_${receipt.receiptNumber}.pdf`);
 };

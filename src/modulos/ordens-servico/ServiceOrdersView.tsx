@@ -71,6 +71,12 @@ import { RecordDetailModal } from '../../components/RecordDetailModal';
 import { ViewModeToggle, ViewMode } from '../../components/ViewModeToggle';
 import { useRowHoverTooltip } from '../../components/RowHoverTooltip';
 import { SERVICE_ORDER_STATUS_LIST, getServiceOrderStatusMeta } from '../../utils/serviceOrderStatus';
+import {
+  buildCompanyCnpjPixBrCode,
+  calculateServiceOrderFinancials,
+  generatePixQrDataUrl,
+  resolveServiceOrderWarrantyTerm
+} from '../../utils/pixBrCode';
 
 interface ServiceOrdersViewProps {
   isNewModalOpen: boolean;
@@ -104,6 +110,8 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     getReceiptsForSource,
     getPaidAmountForSource,
     openReceiptModal,
+    registerOsDirectPaymentReceipt,
+    warrantyPolicies,
     currentRole,
     currentUser,
     appointments,
@@ -126,6 +134,14 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     }
   }, [externalStatusFilter]);
   const [selectedOSForDetail, setSelectedOSForDetail] = useState<ServiceOrder | null>(null);
+  const [printIncludeWarranty, setPrintIncludeWarranty] = useState(false);
+  const [warrantyPromptState, setWarrantyPromptState] = useState<{
+    os: ServiceOrder;
+    mode: 'print' | 'download';
+    policyName: string;
+    days: number;
+  } | null>(null);
+  const [pdvPixQrUrl, setPdvPixQrUrl] = useState<string>('');
   const [modalOSInfo, setModalOSInfo] = useState<ServiceOrder | null>(null);
   const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
 
@@ -331,6 +347,36 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
   const [pdvPartialAmount, setPdvPartialAmount] = useState<number>(0);
   const [pdvSelectedSplitId, setPdvSelectedSplitId] = useState<string | null>(null);
   const [pdvReceiptNotes, setPdvReceiptNotes] = useState<string>('');
+
+  React.useEffect(() => {
+    if (!chargingOS || pdvPaymentMethod !== 'pix') {
+      setPdvPixQrUrl('');
+      return;
+    }
+    const osFin = calculateServiceOrderFinancials(chargingOS, getPaidAmountForSource('os', chargingOS.id));
+    const rem = osFin.remainingBalance;
+    let pixTargetAmount: number | null = osFin.hasDefinedValue ? rem : null;
+    if (osFin.hasDefinedValue) {
+      if (pdvPayMode === 'partial') {
+        pixTargetAmount = Math.max(0.01, Math.min(rem, Number(pdvPartialAmount) || rem));
+      } else if (pdvPayMode === 'installment' && pdvSelectedSplitId) {
+        const sp = (chargingOS.payments || []).find(p => p.id === pdvSelectedSplitId);
+        if (sp) pixTargetAmount = Math.min(rem, Number(sp.amount || rem));
+      }
+    }
+    const pdvPixData = buildCompanyCnpjPixBrCode({
+      company: companySettings,
+      amount: pixTargetAmount,
+      txidSource: chargingOS.code
+    });
+    let active = true;
+    generatePixQrDataUrl(pdvPixData.payload, 240).then(url => {
+      if (active) setPdvPixQrUrl(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [chargingOS, pdvPaymentMethod, pdvPayMode, pdvPartialAmount, pdvSelectedSplitId, companySettings, getPaidAmountForSource]);
 
   // Catalog & Custom Services in OS State
   const [serviceAddMode, setServiceAddMode] = useState<'catalogo' | 'avulso' | 'novo_vinculado'>('catalogo');
@@ -975,18 +1021,18 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     setIsNewModalOpen(true);
   };
 
-  const handlePrintOS = (os: ServiceOrder) => {
+  const executePrintOS = (os: ServiceOrder, includeWarranty: boolean) => {
     const prevTitle = document.title;
-    // Define o título como OS-NUMERO para o navegador preencher no nome do arquivo ao Salvar como PDF
     const printDocTitle = `OS-${os.code}`;
     document.title = printDocTitle;
+    setPrintIncludeWarranty(includeWarranty);
     setSelectedOSForDetail(os);
 
     const onAfterPrint = () => {
       window.removeEventListener('afterprint', onAfterPrint);
       setTimeout(() => {
         if (!selectedOSForDetail) {
-          document.title = prevTitle || 'MP PISCINA - ERP';
+          document.title = prevTitle || 'FIRE GESTÃO';
         }
       }, 3000);
     };
@@ -994,45 +1040,200 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
 
     setTimeout(() => {
       window.print();
-    }, 250);
+    }, 380);
   };
 
-  const handleDownloadOS = (os: ServiceOrder) => {
+  const handlePrintOS = (os: ServiceOrder) => {
+    const warrantyInfo = resolveServiceOrderWarrantyTerm(os, warrantyPolicies, companySettings);
+    if (warrantyInfo.hasWarrantyTerm) {
+      setWarrantyPromptState({
+        os,
+        mode: 'print',
+        policyName: warrantyInfo.policyName,
+        days: warrantyInfo.days
+      });
+      return;
+    }
+    executePrintOS(os, false);
+  };
+
+  const executeDownloadOS = async (os: ServiceOrder, includeWarranty: boolean) => {
+    const escapeHtml = (val?: string) =>
+      (val || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
     const activeParts = (os.parts || []).filter(p => p.name && p.name.trim() !== '');
     const activeServices = (os.services || []).filter(s => s.name && s.name.trim() !== '');
     const hasParts = activeParts.length > 0;
     const hasServices = activeServices.length > 0;
 
-    const partsTotal = activeParts.reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
-    const srvTotal = activeServices.reduce((a, s) => a + Number(s.price || 0), 0);
-    const visitFee = Number(os.visitFee || 0);
-    const discount = Number(os.calculatedDiscount || 0);
-    const grandTotal = Math.max(0, partsTotal + srvTotal + visitFee - discount);
-    const isPaid = os.paymentStatus === 'pago';
-    const partialPaid = (os.payments || []).reduce(
-      (acc, p) => (p.status === 'pago' ? acc + Number(p.amount || 0) : acc),
-      0
-    );
-    const totalPaid = isPaid ? grandTotal : Math.min(grandTotal, partialPaid);
-    const totalDue = Math.max(0, grandTotal - totalPaid);
+    const financials = calculateServiceOrderFinancials(os, getPaidAmountForSource('os', os.id));
+    const {
+      partsTotal,
+      servicesTotal: srvTotal,
+      visitFee,
+      discount,
+      grandTotal,
+      totalPaid,
+      remainingBalance: totalDue,
+      hasDefinedValue,
+      isFullyPaid
+    } = financials;
+
+    const pixInfo = buildCompanyCnpjPixBrCode({
+      company: companySettings,
+      amount: hasDefinedValue && !isFullyPaid ? totalDue : null,
+      txidSource: os.code
+    });
+    const pixQrPng = !isFullyPaid ? await generatePixQrDataUrl(pixInfo.payload, 240) : '';
+
+    const warrantyInfo = resolveServiceOrderWarrantyTerm(os, warrantyPolicies, companySettings);
+    const shouldRenderWarrantyPage = includeWarranty && warrantyInfo.hasWarrantyTerm;
+
+    const companyDisplayName = companySettings.tradeName || companySettings.companyName || 'FIRE GESTÃO';
+    const companyAddressLine =
+      [
+        [companySettings.street, companySettings.number].filter(Boolean).join(', '),
+        companySettings.neighborhood,
+        companySettings.city ? `${companySettings.city} / ${companySettings.state || ''}` : ''
+      ]
+        .filter(Boolean)
+        .join(' - ') || 'Endereço Comercial Cadastrado';
+    const companyContactLine = [
+      companySettings.phone ? `Tel: ${companySettings.phone}` : '',
+      companySettings.email ? `E-mail: ${companySettings.email}` : '',
+      companySettings.cnpj ? `CNPJ: ${companySettings.cnpj}` : ''
+    ]
+      .filter(Boolean)
+      .join(' | ');
 
     const addressParts = (os.clientAddress || '').split(' - ');
     const streetPart = addressParts[0] || os.clientAddress || '';
-    const cityStatePart = addressParts[1] || 'Brasília / DF';
-    const technician = employees.find(e => e.id === os.employeeId)?.name || 'Hugo Gandy';
-    const safeContractRef = os.contractReference
-      ? os.contractReference
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
+    const cityStatePart =
+      addressParts[1] ||
+      (companySettings.city ? `${companySettings.city} / ${companySettings.state || ''}` : '-');
+    const technician = employees.find(e => e.id === os.employeeId)?.name || 'Equipe Técnica';
+    const safeContractRef = escapeHtml(os.contractReference);
+
+    const buildStandardHeaderHtml = (badgeLabel: string, subLabel: string) => `
+  <div class="header">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      ${
+        companySettings.logoUrl
+          ? `<img src="${companySettings.logoUrl}" alt="${escapeHtml(companyDisplayName)}" style="max-height: 54px; max-width: 140px; object-fit: contain; border-radius: 6px; flex-shrink: 0;" />`
+          : `<div style="width: 50px; height: 50px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #ea580c); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;">
+              <span style="font-size: 16px; font-weight: 900; line-height: 1;">${escapeHtml(companyDisplayName.slice(0, 2).toUpperCase())}</span>
+              <span style="font-size: 6px; font-weight: 900; letter-spacing: 0.5px; margin-top: 2px;">${escapeHtml(companyDisplayName.slice(0, 8).toUpperCase())}</span>
+            </div>`
+      }
+      <div>
+        <h1 class="company-title">${escapeHtml(companyDisplayName)}</h1>
+        ${
+          companySettings.companyName && companySettings.companyName !== companySettings.tradeName
+            ? `<div class="company-sub" style="color: #0f172a; font-weight: bold;">${escapeHtml(companySettings.companyName)}</div>`
+            : ''
+        }
+        <div class="company-sub">${escapeHtml(companyAddressLine)}</div>
+        ${
+          companyContactLine
+            ? `<div class="company-sub" style="color: #0f172a; font-weight: bold;">${escapeHtml(companyContactLine)}</div>`
+            : ''
+        }
+      </div>
+    </div>
+
+    <div style="border: 2px solid #0f172a; border-radius: 8px; overflow: hidden; background: #fff; text-align: center; min-width: 190px; flex-shrink: 0;">
+      <div style="background: #0f172a; color: #fff; padding: 4px 8px; font-size: 9.5px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;">
+        ${escapeHtml(badgeLabel)}
+      </div>
+      <div style="padding: 5px 8px; background: #f8fafc;">
+        <div style="font-size: 18px; font-weight: 900; font-family: monospace; color: #0f172a; letter-spacing: 1px;">
+          OS Nº ${escapeHtml(os.code)}
+        </div>
+        <div style="font-size: 8px; color: #475569; font-weight: bold; margin-top: 1px; text-transform: uppercase;">
+          ${escapeHtml(subLabel)}
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+    const buildClientCardHtml = () => `
+    <div class="card" style="margin-bottom: 0;">
+      <div class="card-header">DADOS DO CLIENTE</div>
+      <div class="card-body">
+        <div><span class="label">NOME: </span><span style="font-weight: bold; text-transform: uppercase;">${escapeHtml(os.clientName)}</span></div>
+        <div style="display: flex; justify-content: space-between; margin-top: 3px;">
+          <div><span class="label">CPF/CNPJ: </span>${escapeHtml(os.clientDocument) || '-'}</div>
+          <div><span class="label">TEL: </span>${escapeHtml(os.clientPhone) || '-'}</div>
+        </div>
+        <div style="margin-top: 3px;"><span class="label">END.: </span>${escapeHtml(streetPart) || '-'}</div>
+        <div style="margin-top: 3px;"><span class="label">CIDADE: </span>${escapeHtml(cityStatePart)}</div>
+      </div>
+    </div>`;
+
+    const mainBadgeLabel =
+      os.status === 'orcamento_aberto' || os.status === 'aguardando_aprovacao'
+        ? 'ORÇAMENTO & PROPOSTA'
+        : 'ORDEM DE SERVIÇO';
+
+    const warrantyPageHtml = shouldRenderWarrantyPage
+      ? `
+  <div class="warranty-page">
+    ${buildStandardHeaderHtml('TERMO DE GARANTIA', `Vinculado à OS Nº ${os.code}`)}
+
+    <div class="grid-2">
+      ${buildClientCardHtml()}
+      <div class="card" style="margin-bottom: 0;">
+        <div class="card-header">DETALHES DA GARANTIA</div>
+        <div class="card-body">
+          <div><span class="label">POLÍTICA / MODALIDADE: </span><span style="font-weight: bold;">${escapeHtml(warrantyInfo.policyName)}</span></div>
+          <div style="display: flex; justify-content: space-between; margin-top: 3px;">
+            <div><span class="label">PRAZO: </span><strong>${warrantyInfo.days > 0 ? `${warrantyInfo.days} Dias` : 'Conforme Termo'}</strong></div>
+            <div><span class="label">VALIDADE: </span>${warrantyInfo.expiresAt ? formatDateBR(warrantyInfo.expiresAt) : 'A partir da entrega'}</div>
+          </div>
+          <div style="margin-top: 3px;"><span class="label">EQUIPAMENTO: </span>${escapeHtml(os.equipmentType || '-')}${os.equipmentModel ? ` · ${escapeHtml(os.equipmentModel)}` : ''}${os.equipmentSerial ? ` (S/N: ${escapeHtml(os.equipmentSerial)})` : ''}</div>
+          ${safeContractRef ? `<div style="margin-top: 3px;"><span class="label">REF. CONTRATO: </span><strong>${safeContractRef}</strong></div>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="border: 2px solid #0f172a;">
+      <div style="background: #0f172a; color: #fff; padding: 6px 10px; font-size: 10px; font-weight: 900; text-transform: uppercase; display: flex; justify-content: space-between;">
+        <span>CLÁUSULAS E CONDIÇÕES DO TERMO DE GARANTIA</span>
+        <span style="font-family: monospace; color: #fcd34d;">OS Nº ${escapeHtml(os.code)}</span>
+      </div>
+      <div class="card-body" style="padding: 12px; font-size: 10.5px; line-height: 1.5; white-space: pre-line; min-height: 240px;">
+        ${escapeHtml(warrantyInfo.termsText)}
+      </div>
+    </div>
+
+    <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px 10px; font-size: 9.5px; color: #334155; margin-bottom: 14px;">
+      Declaro estar ciente e de acordo com todos os prazos, coberturas e exclusões descritas neste Termo de Garantia, referente aos serviços e/ou peças executados na <strong>Ordem de Serviço Nº ${escapeHtml(os.code)}</strong>.
+    </div>
+
+    <div class="signature-area">
+      <div>
+        ${os.signature ? `<div style="margin-bottom: -15px;"><img src="${os.signature.signatureDataUrl}" style="height: 35px;" /></div>` : ''}
+        <div class="sig-line">${escapeHtml(os.clientName)}</div>
+        <div style="font-size: 9px; color: #64748b;">Ciência e Assinatura do Cliente</div>
+      </div>
+      <div>
+        <div style="font-family: serif; font-style: italic; color: #1e293b; font-weight: bold; margin-bottom: -15px;">${escapeHtml(companyDisplayName)}</div>
+        <div class="sig-line">${escapeHtml(companyDisplayName)}</div>
+        <div style="font-size: 9px; color: #64748b;">Responsável pela Garantia</div>
+      </div>
+    </div>
+  </div>`
       : '';
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>${os.code}</title>
+  <title>OS-${escapeHtml(os.code)}</title>
   <style>
     @page { size: A4 portrait; margin: 6mm; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 15px; color: #1f2937; margin: 0; background: #fff; font-size: 10.5px; line-height: 1.25; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -1047,62 +1248,18 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
     th { background: #f8fafc; border-bottom: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; font-weight: bold; color: #1e293b; }
     td { padding: 4px 6px; border-bottom: 1px solid #e2e8f0; }
-    .check-item { display: inline-flex; align-items: center; gap: 4px; margin: 1px 6px 1px 0; }
-    .check-icon-ok { background: #10b981; color: #fff; width: 13px; height: 13px; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; font-weight: bold; border-radius: 2px; }
-    .check-icon-bad { background: #ef4444; color: #fff; width: 13px; height: 13px; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; font-weight: bold; border-radius: 2px; }
     .finance-row-total { background: #e8f5e9; font-weight: 900; }
-    .finance-row-due { background: ${totalDue > 0 ? '#ffebee' : '#e8f5e9'}; font-weight: 900; color: ${totalDue > 0 ? '#991b1b' : '#166534'}; }
+    .finance-row-due { background: ${totalDue > 0.01 ? '#ffebee' : '#e8f5e9'}; font-weight: 900; color: ${totalDue > 0.01 ? '#991b1b' : '#166534'}; }
     .signature-area { margin-top: 20px; border-top: 1px solid #cbd5e1; padding-top: 10px; display: grid; grid-template-columns: 1fr 1fr; text-align: center; }
     .sig-line { width: 200px; border-top: 1px solid #0f172a; margin: 20px auto 3px auto; font-weight: bold; font-size: 10.5px; text-transform: uppercase; }
+    .warranty-page { page-break-before: always; break-before: page; padding-top: 8px; }
   </style>
 </head>
 <body>
-  {/* Header with Logo on Left and OS Number Box on Top Right */}
-  <div class="header">
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <div style="width: 50px; height: 50px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #1d4ed8); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;">
-        <svg style="width: 26px; height: 26px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2 12h20" /><path d="M20 12v8H4v-8" /><path d="m4 8 16-4" /><path d="m4 4 16 4" />
-          <circle cx="12" cy="12" r="3" fill="#ffffff" stroke="none" />
-        </svg>
-        <span style="font-size: 6px; font-weight: 900; letter-spacing: 0.5px; margin-top: 1px;">MP PISCINA</span>
-      </div>
-      <div>
-        <h1 class="company-title">MP PISCINA</h1>
-        <div class="company-sub" style="color: #0f172a; font-weight: bold;">AQUECIMENTO, FILTROS & ASSISTÊNCIA TÉCNICA ESPECIALIZADA</div>
-        <div class="company-sub">QUADRA QR 114 CONJUNTO 6, 201 - SAMAMBAIA SUL (SAMAMBAIA) · BRASILIA / DF</div>
-        <div class="company-sub" style="color: #0f172a; font-weight: bold;">(61) 99860-1113 | mppiscina2004@gmail.com</div>
-      </div>
-    </div>
-
-    <div style="border: 2px solid #0f172a; border-radius: 8px; overflow: hidden; background: #fff; text-align: center; min-width: 185px; flex-shrink: 0;">
-      <div style="background: #0f172a; color: #fff; padding: 4px 8px; font-size: 9.5px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;">
-        ORDEM DE SERVIÇO
-      </div>
-      <div style="padding: 5px 8px; background: #f8fafc;">
-        <div style="font-size: 18px; font-weight: 900; font-family: monospace; color: #0f172a; letter-spacing: 1px;">
-          Nº ${os.code}
-        </div>
-        <div style="font-size: 8px; color: #475569; font-weight: bold; margin-top: 1px; text-transform: uppercase;">
-          Emissão: ${formatDateBR(os.openDate)}
-        </div>
-      </div>
-    </div>
-  </div>
+  ${buildStandardHeaderHtml(mainBadgeLabel, `Emissão: ${formatDateBR(os.openDate)}`)}
 
   <div class="grid-2">
-    <div class="card" style="margin-bottom: 0;">
-      <div class="card-header">DADOS DO CLIENTE</div>
-      <div class="card-body">
-        <div><span class="label">NOME: </span><span style="font-weight: bold; text-transform: uppercase;">${os.clientName}</span></div>
-        <div style="display: flex; justify-content: space-between; margin-top: 3px;">
-          <div><span class="label">CPF/CNPJ: </span>${os.clientDocument || '-'}</div>
-          <div><span class="label">TEL: </span>${os.clientPhone || '-'}</div>
-        </div>
-        <div style="margin-top: 3px;"><span class="label">END.: </span>${streetPart || '-'}</div>
-        <div style="margin-top: 3px;"><span class="label">CIDADE.: </span>${cityStatePart}</div>
-      </div>
-    </div>
+    ${buildClientCardHtml()}
 
     <div class="card" style="margin-bottom: 0;">
       <div class="card-header">PRAZOS E RESPONSÁVEL</div>
@@ -1116,7 +1273,7 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
           <div><span class="label">GARANTIA: </span>${os.warrantyPeriodDays} Dias</div>
         </div>
         <div style="margin-top: 3px;">
-          <span class="label">TÉCNICO: </span><span style="font-weight: bold; text-transform: uppercase;">${technician}</span>
+          <span class="label">TÉCNICO: </span><span style="font-weight: bold; text-transform: uppercase;">${escapeHtml(technician)}</span>
         </div>
         ${safeContractRef ? `<div style="margin-top: 3px;"><span class="label">REF. CONTRATO: </span><span style="font-weight: bold;">${safeContractRef}</span></div>` : ''}
       </div>
@@ -1128,185 +1285,88 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     <div class="card-body">
       <div>
         <span class="label">EQUIPAMENTO: </span>
-        <span style="font-weight: bold;">${os.equipmentType || 'Multi estruturas Concreto Azul claro'}${os.equipmentModel ? ` · ${os.equipmentModel}` : ''}${os.equipmentSerial ? ` (S/N: ${os.equipmentSerial})` : ''}</span>
+        <span style="font-weight: bold;">${escapeHtml(os.equipmentType || 'Equipamento / Estrutura atendida')}${os.equipmentModel ? ` · ${escapeHtml(os.equipmentModel)}` : ''}${os.equipmentSerial ? ` (S/N: ${escapeHtml(os.equipmentSerial)})` : ''}</span>
       </div>
       <div style="margin-top: 6px;">
         <div style="background: #f1f5f9; padding: 2px 6px; font-size: 9px; font-weight: bold; color: #475569; text-transform: uppercase; border: 1px solid #e2e8f0;">
-          DEFEITO RELATADO:
+          DEFEITO RELATADO / DESCRIÇÃO DOS SERVIÇOS:
         </div>
         <div style="padding: 4px 6px; font-weight: 500;">
-          ${os.description || 'Aquecimento da Piscina / Manutenção Preventiva e Corretiva'}
+          ${escapeHtml(os.description || 'Manutenção / Serviço Técnico')}
         </div>
       </div>
     </div>
   </div>
 
-  <div class="grid-2">
-    <div class="card" style="margin-bottom: 0;">
-      <div class="card-header">CHECKLIST ENTRADA</div>
-      <div class="card-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-        <div><span class="check-icon-ok">✓</span> Dreno fundo</div>
-        <div><span class="check-icon-ok">✓</span> Retorno</div>
-        <div><span class="check-icon-ok">✓</span> Tubulações ida/volta</div>
-        <div><span class="check-icon-ok">✓</span> Cabos adequados</div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom: 0;">
-      <div class="card-header">CHECKLIST SAÍDA</div>
-      <div class="card-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-        <div><span class="check-icon-bad">✗</span> Teste funcionam. aquec</div>
-        <div><span class="check-icon-bad">✗</span> Controlador testado</div>
-        <div><span class="check-icon-bad">✗</span> Bomba funcionando</div>
-      </div>
-    </div>
-  </div>
-
-  ${/* CONDITIONAL PRODUCT & SERVICE RENDERING */ ''}
   ${hasParts && hasServices ? `
-  <div class="grid-2" style="margin-top: 10px;">
-    <div class="card" style="margin-bottom: 0;">
-      <div class="card-header">PEÇAS / PRODUTOS</div>
+    <div class="grid-2" style="margin-top: 8px;">
+      <div class="card" style="margin-bottom: 0;">
+        <div class="card-header">PEÇAS / PRODUTOS</div>
+        <table>
+          <thead><tr><th>DESCRIÇÃO</th><th style="text-align: center; width: 45px;">QTD</th><th style="text-align: right; width: 75px;">TOTAL</th></tr></thead>
+          <tbody>
+            ${activeParts.map(p => `<tr><td>${escapeHtml(p.name)}</td><td style="text-align: center; font-family: monospace;">${Number(p.quantity).toFixed(2)}</td><td style="text-align: right; font-family: monospace;">${formatBRL(Number(p.price || 0) * Number(p.quantity || 1))}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="margin-bottom: 0;">
+        <div class="card-header">MÃO DE OBRA</div>
+        <table>
+          <thead><tr><th>DESCRIÇÃO</th><th style="text-align: center; width: 45px;">QTD</th><th style="text-align: right; width: 75px;">TOTAL</th></tr></thead>
+          <tbody>
+            ${activeServices.map(s => `<tr><td>${escapeHtml(s.name)}</td><td style="text-align: center; font-family: monospace;">${Number(s.hours || 1).toFixed(2)}</td><td style="text-align: right; font-family: monospace;">${formatBRL(Number(s.price || 0))}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : hasParts ? `
+    <div class="card" style="margin-top: 8px;">
+      <div class="card-header">PEÇAS / PRODUTOS (VENDA)</div>
       <table>
-        <thead>
-          <tr>
-            <th>DESCRIÇÃO</th>
-            <th style="text-align: center; width: 40px;">QTD</th>
-            <th style="text-align: right; width: 80px;">TOTAL</th>
-          </tr>
-        </thead>
+        <thead><tr><th>DESCRIÇÃO</th><th style="text-align: center; width: 55px;">QTD</th><th style="text-align: right; width: 85px;">UNITÁRIO</th><th style="text-align: right; width: 85px;">TOTAL</th></tr></thead>
         <tbody>
-          ${activeParts.map(p => `
-            <tr>
-              <td>${p.name}</td>
-              <td style="text-align: center; font-family: monospace;">${Number(p.quantity).toFixed(2)}</td>
-              <td style="text-align: right; font-family: monospace; font-weight: 500;">${formatBRL(Number(p.price || 0) * Number(p.quantity || 1))}</td>
-            </tr>
-          `).join('')}
+          ${activeParts.map(p => `<tr><td style="font-weight: 500;">${escapeHtml(p.name)}</td><td style="text-align: center; font-family: monospace;">${Number(p.quantity).toFixed(2)}</td><td style="text-align: right; font-family: monospace;">${formatBRL(Number(p.price || 0))}</td><td style="text-align: right; font-family: monospace; font-weight: bold;">${formatBRL(Number(p.price || 0) * Number(p.quantity || 1))}</td></tr>`).join('')}
         </tbody>
       </table>
     </div>
-
-    <div class="card" style="margin-bottom: 0;">
-      <div class="card-header">MÃO DE OBRA</div>
+  ` : hasServices ? `
+    <div class="card" style="margin-top: 8px;">
+      <div class="card-header">MÃO DE OBRA (SERVIÇOS)</div>
       <table>
-        <thead>
-          <tr>
-            <th>DESCRIÇÃO</th>
-            <th style="text-align: center; width: 40px;">QTD</th>
-            <th style="text-align: right; width: 80px;">TOTAL</th>
-          </tr>
-        </thead>
+        <thead><tr><th>DESCRIÇÃO DO SERVIÇO</th><th style="text-align: center; width: 65px;">HORAS/QTD</th><th style="text-align: right; width: 85px;">TOTAL</th></tr></thead>
         <tbody>
-          ${activeServices.map(s => `
-            <tr>
-              <td>${s.name}</td>
-              <td style="text-align: center; font-family: monospace;">${Number(s.hours || 1).toFixed(2)}</td>
-              <td style="text-align: right; font-family: monospace; font-weight: 500;">${formatBRL(Number(s.price || 0))}</td>
-            </tr>
-          `).join('')}
+          ${activeServices.map(s => `<tr><td style="font-weight: 500;">${escapeHtml(s.name)}</td><td style="text-align: center; font-family: monospace;">${Number(s.hours || 1).toFixed(2)}</td><td style="text-align: right; font-family: monospace; font-weight: bold;">${formatBRL(Number(s.price || 0))}</td></tr>`).join('')}
         </tbody>
       </table>
     </div>
-  </div>
   ` : ''}
 
-  ${hasParts && !hasServices ? `
-  <div class="card" style="margin-top: 10px;">
-    <div class="card-header">PEÇAS / PRODUTOS (VENDA)</div>
-    <table>
-      <thead>
-        <tr>
-          <th>DESCRIÇÃO</th>
-          <th style="text-align: center; width: 50px;">QTD</th>
-          <th style="text-align: right; width: 90px;">UNITÁRIO</th>
-          <th style="text-align: right; width: 90px;">TOTAL</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${activeParts.map(p => `
-          <tr>
-            <td style="font-weight: 500;">${p.name}</td>
-            <td style="text-align: center; font-family: monospace;">${Number(p.quantity).toFixed(2)}</td>
-            <td style="text-align: right; font-family: monospace;">${formatBRL(Number(p.price || 0))}</td>
-            <td style="text-align: right; font-family: monospace; font-weight: bold;">${formatBRL(Number(p.price || 0) * Number(p.quantity || 1))}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>
-  ` : ''}
-
-  ${!hasParts && hasServices ? `
-  <div class="card" style="margin-top: 10px;">
-    <div class="card-header">MÃO DE OBRA (SERVIÇOS)</div>
-    <table>
-      <thead>
-        <tr>
-          <th>DESCRIÇÃO DO SERVIÇO</th>
-          <th style="text-align: center; width: 60px;">HORAS/QTD</th>
-          <th style="text-align: right; width: 100px;">TOTAL</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${activeServices.map(s => `
-          <tr>
-            <td style="font-weight: 500;">${s.name}</td>
-            <td style="text-align: center; font-family: monospace;">${Number(s.hours || 1).toFixed(2)}</td>
-            <td style="text-align: right; font-family: monospace; font-weight: bold;">${formatBRL(Number(s.price || 0))}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>
-  ` : ''}
-
-  <div class="grid-2" style="margin-top: 10px;">
+  <div class="grid-2" style="margin-top: 8px;">
     <div class="card" style="margin-bottom: 0;">
       <div class="card-header">RESUMO FINANCEIRO</div>
       <table style="font-family: monospace;">
         <tbody>
-          ${hasParts ? `
-            <tr>
-              <td style="font-family: sans-serif;">Total Produtos</td>
-              <td style="text-align: right;">${formatBRL(partsTotal)}</td>
-            </tr>
-          ` : ''}
-          ${hasServices ? `
-            <tr>
-              <td style="font-family: sans-serif;">Total Serviços</td>
-              <td style="text-align: right;">${formatBRL(srvTotal)}</td>
-            </tr>
-          ` : ''}
-          ${visitFee > 0 ? `
-            <tr>
-              <td style="font-family: sans-serif;">Taxa de Visita Técnica</td>
-              <td style="text-align: right;">${formatBRL(visitFee)}</td>
-            </tr>
-          ` : ''}
-          ${discount > 0 ? `
-            <tr style="color: #b91c1c;">
-              <td style="font-family: sans-serif;">Desconto Concedido</td>
-              <td style="text-align: right;">-${formatBRL(discount)}</td>
-            </tr>
-          ` : ''}
+          ${hasParts ? `<tr><td style="font-family: sans-serif;">Total Produtos</td><td style="text-align: right;">${formatBRL(partsTotal)}</td></tr>` : ''}
+          ${hasServices ? `<tr><td style="font-family: sans-serif;">Total Serviços</td><td style="text-align: right;">${formatBRL(srvTotal)}</td></tr>` : ''}
+          ${visitFee > 0 ? `<tr><td style="font-family: sans-serif;">Taxa de Visita Técnica</td><td style="text-align: right;">${formatBRL(visitFee)}</td></tr>` : ''}
+          ${discount > 0 ? `<tr style="color: #b91c1c;"><td style="font-family: sans-serif;">Desconto Concedido</td><td style="text-align: right;">-${formatBRL(discount)}</td></tr>` : ''}
           <tr class="finance-row-total">
-            <td style="font-family: sans-serif; font-weight: 900;">VALOR TOTAL</td>
+            <td style="font-family: sans-serif; font-weight: 900;">VALOR TOTAL DA OS</td>
             <td style="text-align: right; font-weight: 900;">${formatBRL(grandTotal)}</td>
           </tr>
           <tr>
             <td style="font-family: sans-serif; font-weight: bold;">TOTAL PAGO</td>
-            <td style="text-align: right; font-weight: bold;">${formatBRL(totalPaid)}</td>
+            <td style="text-align: right; font-weight: bold; color: #166534;">${formatBRL(totalPaid)}</td>
           </tr>
           <tr class="finance-row-due">
-            <td style="font-family: sans-serif; font-weight: 900;">VALOR DEVIDO</td>
+            <td style="font-family: sans-serif; font-weight: 900;">SALDO RESTANTE A PAGAR</td>
             <td style="text-align: right; font-weight: 900;">${formatBRL(totalDue)}</td>
           </tr>
         </tbody>
       </table>
       ${(os.payments && os.payments.length > 0) ? `
         <div style="border-top: 1px solid #cbd5e1; padding: 5px 8px; background: #f8fafc;">
-          <div style="font-size: 8.5px; font-weight: bold; text-transform: uppercase; color: #334155; margin-bottom: 3px;">CONDIÇÕES E PARCELAS</div>
+          <div style="font-size: 8.5px; font-weight: bold; text-transform: uppercase; color: #334155; margin-bottom: 3px;">LANÇAMENTOS E PARCELAS</div>
           <table style="font-size: 8.5px;">
             <tbody>
               ${os.payments.map((p, idx) => {
@@ -1325,45 +1385,47 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
       ` : ''}
     </div>
 
-    <div class="card" style="margin-bottom: 0; text-align: center; display: flex; flex-direction: column;">
-      <div class="card-header">PAGAMENTO VIA PIX</div>
-      <div class="card-body" style="display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1;">
-        <div style="border: 2px solid #111827; padding: 4px; border-radius: 6px; width: 90px; height: 90px; margin: 0 auto 6px auto;">
-          <svg viewBox="0 0 100 100" style="width: 100%; height: 100%;">
-            <rect width="30" height="30" x="5" y="5" fill="#111827" />
-            <rect width="20" height="20" x="10" y="10" fill="white" />
-            <rect width="10" height="10" x="15" y="15" fill="#111827" />
-            <rect width="30" height="30" x="65" y="5" fill="#111827" />
-            <rect width="20" height="20" x="70" y="10" fill="white" />
-            <rect width="10" height="10" x="75" y="15" fill="#111827" />
-            <rect width="30" height="30" x="5" y="65" fill="#111827" />
-            <rect width="20" height="20" x="10" y="70" fill="white" />
-            <rect width="10" height="10" x="15" y="75" fill="#111827" />
-            <rect width="8" height="8" x="46" y="12" fill="#111827" />
-            <rect width="8" height="8" x="46" y="46" fill="#111827" />
-            <rect width="8" height="8" x="65" y="46" fill="#111827" />
-            <rect width="8" height="8" x="46" y="65" fill="#111827" />
-          </svg>
-        </div>
-        <div style="font-weight: bold; font-size: 10px;">Chave PIX: mppiscina2004@gmail.com</div>
-        <div style="font-size: 9px; color: #64748b;">Titular: MP PISCINA</div>
+    <div class="card" style="margin-bottom: 0; border: 2px solid #0f172a; text-align: center; display: flex; flex-direction: column;">
+      <div style="background: #0f172a; color: #fff; padding: 5px 8px; font-size: 9.5px; font-weight: 900; text-transform: uppercase; display: flex; justify-content: space-between;">
+        <span>Pague via PIX (Chave CNPJ)</span>
+        <span style="font-family: monospace; color: #6ee7b7;">BR Code</span>
+      </div>
+      <div class="card-body" style="display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 10px;">
+        ${
+          isFullyPaid
+            ? `<div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 12px; width: 100%;">
+                <div style="font-size: 11px; font-weight: 900; color: #065f46; text-transform: uppercase;">OS 100% Quitada</div>
+                <div style="font-size: 16px; font-weight: 900; font-family: monospace; color: #047857; margin-top: 2px;">Saldo: ${formatBRL(0)}</div>
+                <div style="font-size: 9px; color: #065f46; margin-top: 4px;">Chave CNPJ: ${escapeHtml(pixInfo.pixKeyDisplay)}</div>
+              </div>`
+            : `${pixQrPng ? `<div style="border: 2px solid #0f172a; padding: 4px; border-radius: 6px; width: 118px; height: 118px; margin: 0 auto 6px auto; background: #fff;"><img src="${pixQrPng}" alt="QR Code PIX" style="width: 100%; height: 100%; object-fit: contain;" /></div>` : ''}
+               <div style="font-weight: 900; font-size: 10.5px; color: #0f172a; text-transform: uppercase;">Pague via PIX (Chave CNPJ)</div>
+               ${
+                 hasDefinedValue
+                   ? `<div style="margin: 4px 0; padding: 3px 10px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 4px; font-weight: 900; font-size: 12px; font-family: monospace; color: #065f46;">Saldo a Pagar: ${formatBRL(totalDue)}</div>`
+                   : `<div style="margin: 4px 0; padding: 3px 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 4px; font-weight: bold; font-size: 9px; color: #92400e;">QR Code Estático · Valor em aberto (digite no app do banco)</div>`
+               }
+               <div style="font-weight: bold; font-size: 9.5px; color: #1e293b;">Chave CNPJ: <span style="font-family: monospace;">${escapeHtml(pixInfo.pixKeyDisplay)}</span></div>
+               <div style="font-size: 8.5px; color: #64748b;">Favorecido: ${escapeHtml(companyDisplayName)}</div>`
+        }
       </div>
     </div>
   </div>
 
   <div class="signature-area">
     <div>
-      ${os.signature ? `
-        <div style="margin-bottom: -15px;"><img src="${os.signature.signatureDataUrl}" style="height: 35px;" /></div>
-      ` : ''}
-      <div class="sig-line">${os.clientName}</div>
+      ${os.signature ? `<div style="margin-bottom: -15px;"><img src="${os.signature.signatureDataUrl}" style="height: 35px;" /></div>` : ''}
+      <div class="sig-line">${escapeHtml(os.clientName)}</div>
+      <div style="font-size: 9px; color: #64748b;">Assinatura do Cliente</div>
     </div>
     <div>
-      <div style="font-family: serif; font-style: italic; color: #1e3a8a; font-weight: bold; margin-bottom: -15px;">MP Piscina</div>
-      <div class="sig-line">MP PISCINA</div>
-      <div style="font-size: 9px; color: #64748b;">Assinatura do Profissional</div>
+      <div style="font-family: serif; font-style: italic; color: #1e293b; font-weight: bold; margin-bottom: -15px;">${escapeHtml(companyDisplayName)}</div>
+      <div class="sig-line">${escapeHtml(companyDisplayName)}</div>
+      <div style="font-size: 9px; color: #64748b;">Assinatura do Responsável Técnico</div>
     </div>
   </div>
+
+  ${warrantyPageHtml}
 </body>
 </html>`;
 
@@ -1375,6 +1437,21 @@ export const ServiceOrdersView: React.FC<ServiceOrdersViewProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handleDownloadOS = (os: ServiceOrder) => {
+    const warrantyInfo = resolveServiceOrderWarrantyTerm(os, warrantyPolicies, companySettings);
+    if (warrantyInfo.hasWarrantyTerm) {
+      setWarrantyPromptState({
+        os,
+        mode: 'download',
+        policyName: warrantyInfo.policyName,
+        days: warrantyInfo.days
+      });
+      return;
+    }
+    void executeDownloadOS(os, false);
   };
 
   const handleOpenPDV = (os: ServiceOrder) => {
@@ -1546,8 +1623,34 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
     const normalizedContractRef = contractReference.trim() || undefined;
 
+    const grandTotal = Math.max(0, Number((subtotal - calculatedDiscount).toFixed(2)));
+    const filteredServices = services.filter(s => s.name.trim() !== '');
+    const filteredParts = parts.filter(p => p.name.trim() !== '');
+    const currentPaidSplits = (payments || []).filter(p => p.status === 'pago' && Number(p.amount || 0) > 0.009);
+    const totalPaidInForm = Number(currentPaidSplits.reduce((acc, p) => acc + Number(p.amount || 0), 0).toFixed(2));
+
     if (editingOSId) {
-      updateServiceOrder(editingOSId, {
+      const previousOrder = serviceOrders.find(o => o.id === editingOSId);
+      const prevPaidSplits = (previousOrder?.payments || []).filter(p => p.status === 'pago' && Number(p.amount || 0) > 0.009);
+      const prevPaidIds = new Set(prevPaidSplits.map(p => p.id));
+      const newlyPaidSplits = currentPaidSplits.filter(p => !prevPaidIds.has(p.id));
+      const previouslyPaidAmount = previousOrder
+        ? Math.max(
+            getPaidAmountForSource('os', editingOSId),
+            Number(prevPaidSplits.reduce((acc, p) => acc + Number(p.amount || 0), 0).toFixed(2))
+          )
+        : 0;
+
+      const updatedPaymentStatus: ServiceOrder['paymentStatus'] =
+        grandTotal > 0.009 && (previouslyPaidAmount + newlyPaidSplits.reduce((a, p) => a + Number(p.amount || 0), 0)) >= grandTotal - 0.01
+          ? 'pago'
+          : totalPaidInForm >= grandTotal - 0.01 && grandTotal > 0.009
+          ? 'pago'
+          : previousOrder?.paymentStatus === 'pago' && newlyPaidSplits.length === 0
+          ? 'pago'
+          : 'pendente';
+
+      const orderUpdates: Partial<ServiceOrder> = {
         clientId: clientObj.id,
         clientName: clientObj.name,
         clientDocument: clientObj.document,
@@ -1568,17 +1671,29 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
         warrantyExpiresAt: new Date(Date.now() + Number(warrantyPeriodDays) * 86400000).toISOString().split('T')[0],
         visitFee: Number(visitFee),
         description,
-        services: services.filter(s => s.name.trim() !== ''),
-        parts: parts.filter(p => p.name.trim() !== ''),
+        services: filteredServices,
+        parts: filteredParts,
         discountType,
         discountValue: Number(discountValue),
         calculatedDiscount,
         paymentMethod: payments[0]?.method || 'pix',
+        paymentStatus: updatedPaymentStatus,
         payments,
         checklists,
         entryPhotos,
         exitPhotos
-      });
+      };
+
+      updateServiceOrder(editingOSId, orderUpdates);
+
+      if (previousOrder && newlyPaidSplits.length > 0) {
+        registerOsDirectPaymentReceipt({
+          order: { ...previousOrder, ...orderUpdates } as ServiceOrder,
+          newlyPaidSplits,
+          previouslyPaid: previouslyPaidAmount
+        });
+      }
+
       setEditingOSId(null);
       setEditingOSCode(null);
       setContractReference('');
@@ -1589,7 +1704,12 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       return;
     }
 
-    addServiceOrder({
+    const derivedCreatePaymentStatus: ServiceOrder['paymentStatus'] =
+      (grandTotal > 0.009 && totalPaidInForm >= grandTotal - 0.01) || status === 'entregue_finalizada'
+        ? 'pago'
+        : 'pendente';
+
+    const createdOrder = addServiceOrder({
       clientId: clientObj.id,
       clientName: clientObj.name,
       clientDocument: clientObj.document,
@@ -1611,18 +1731,26 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
       warrantyExpiresAt: new Date(Date.now() + Number(warrantyPeriodDays) * 86400000).toISOString().split('T')[0],
       visitFee: Number(visitFee),
       description,
-      services: services.filter(s => s.name.trim() !== ''),
-      parts: parts.filter(p => p.name.trim() !== ''),
+      services: filteredServices,
+      parts: filteredParts,
       discountType,
       discountValue: Number(discountValue),
       calculatedDiscount,
       paymentMethod: payments[0]?.method || 'pix',
       payments,
-      paymentStatus: (status === 'entregue_finalizada') ? 'pago' : 'pendente',
+      paymentStatus: derivedCreatePaymentStatus,
       checklists,
       entryPhotos,
       exitPhotos
     });
+
+    if (currentPaidSplits.length > 0) {
+      registerOsDirectPaymentReceipt({
+        order: createdOrder,
+        newlyPaidSplits: currentPaidSplits,
+        previouslyPaid: 0
+      });
+    }
 
     setHasCustomPayments(false);
     setCompletionDate('');
@@ -2781,11 +2909,12 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
               </div>
             </div>
 
-            {/* Document Content rendered with exact MP PISCINA PDF layout */}
+            {/* Document Content */}
             <div className="p-4 sm:p-6 bg-slate-100/60 overflow-y-auto">
               <ServiceOrderPrintTemplate
                 os={selectedOSForDetail}
                 employee={employees.find(e => e.id === selectedOSForDetail.employeeId)}
+                includeWarrantyPage={printIncludeWarranty}
               />
             </div>
           </div>
@@ -5164,57 +5293,80 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
 
               {/* Payment Method Details */}
               <div className="p-4 bg-[#f4f5f6] rounded-xl border border-[#d8d8d8] space-y-3">
-                {pdvPaymentMethod === 'pix' && (
-                  <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-4 rounded-xl border border-[#d8d8d8]">
-                    {/* Simulated Pix QR Code Box */}
-                    <div className="w-32 h-32 bg-white p-2 border-2 border-[#53383e] rounded-xl flex flex-col items-center justify-center shrink-0 shadow-2xs">
-                      <div className="grid grid-cols-5 gap-1 w-24 h-24 p-1 bg-black/5 rounded">
-                        <div className="bg-[#363739] col-span-2 row-span-2 rounded-xs"></div>
-                        <div className="bg-[#53383e] col-span-1 rounded-xs"></div>
-                        <div className="bg-[#363739] col-span-2 row-span-2 rounded-xs"></div>
-                        <div className="bg-[#363739] col-span-1 rounded-xs"></div>
-                        <div className="bg-[#53383e] col-span-2 rounded-xs"></div>
-                        <div className="bg-[#363739] col-span-2 row-span-2 rounded-xs"></div>
-                        <div className="bg-[#363739] col-span-1 rounded-xs"></div>
-                        <div className="bg-[#53383e] col-span-1 rounded-xs"></div>
-                        <div className="bg-[#363739] col-span-1 rounded-xs"></div>
-                      </div>
-                      <span className="text-[9px] font-bold text-[#53383e] mt-1">PIX Dinâmico</span>
-                    </div>
+                {pdvPaymentMethod === 'pix' && chargingOS && (() => {
+                  const osFin = calculateServiceOrderFinancials(chargingOS, getPaidAmountForSource('os', chargingOS.id));
+                  const rem = osFin.remainingBalance;
+                  let pixTargetAmount: number | null = osFin.hasDefinedValue ? rem : null;
+                  if (osFin.hasDefinedValue) {
+                    if (pdvPayMode === 'partial') {
+                      pixTargetAmount = Math.max(0.01, Math.min(rem, Number(pdvPartialAmount) || rem));
+                    } else if (pdvPayMode === 'installment' && pdvSelectedSplitId) {
+                      const sp = (chargingOS.payments || []).find(p => p.id === pdvSelectedSplitId);
+                      if (sp) pixTargetAmount = Math.min(rem, Number(sp.amount || rem));
+                    }
+                  }
+                  const pdvPixData = buildCompanyCnpjPixBrCode({
+                    company: companySettings,
+                    amount: pixTargetAmount,
+                    txidSource: chargingOS.code
+                  });
 
-                    <div className="flex-1 space-y-2 w-full">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#363739]">Chave PIX Copia e Cola / QR Code</span>
-                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          Compensação Imediata
+                  return (
+                    <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-4 rounded-xl border border-[#d8d8d8]">
+                      {/* Real BR Code PIX QR */}
+                      <div className="w-36 h-36 bg-white p-2 border-2 border-[#53383e] rounded-xl flex flex-col items-center justify-center shrink-0 shadow-2xs">
+                        {pdvPixQrUrl ? (
+                          <img
+                            src={pdvPixQrUrl}
+                            alt="QR Code PIX BR Code"
+                            className="w-28 h-28 object-contain"
+                          />
+                        ) : (
+                          <div className="text-[10px] text-slate-400">Gerando QR...</div>
+                        )}
+                        <span className="text-[8.5px] font-black text-[#53383e] mt-0.5 uppercase">
+                          Chave CNPJ
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#707174]">
-                        O cliente pode ler o QR Code na tela do smartphone do técnico ou copiar a chave gerada com o valor exato da fatura.
-                      </p>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          readOnly
-                          value="00020126580014br.gov.bcb.pix0136gestaopro-financeiro@empresa.com.br5204000053039865802BR"
-                          className="flex-1 p-2 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg font-mono text-[11px] text-[#363739]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText('00020126580014br.gov.bcb.pix0136gestaopro-financeiro@empresa.com.br5204000053039865802BR');
-                            setCopiedPix(true);
-                            setTimeout(() => setCopiedPix(false), 2500);
-                          }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
-                        >
-                          {copiedPix ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                          <span>{copiedPix ? 'Copiado!' : 'Copiar'}</span>
-                        </button>
+
+                      <div className="flex-1 space-y-2 w-full">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-xs font-bold text-[#363739]">
+                            Pague via PIX (Chave CNPJ: {pdvPixData.pixKeyDisplay})
+                          </span>
+                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono">
+                            {pixTargetAmount && pixTargetAmount > 0
+                              ? `Valor no QR: ${formatBRL(pixTargetAmount)}`
+                              : 'QR Estático (Valor aberto)'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#707174]">
+                          QR Code gerado automaticamente no padrão BR Code com o CNPJ da empresa e o saldo selecionado para cobrança.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={pdvPixData.payload}
+                            className="flex-1 p-2 bg-[#f4f5f6] border border-[#d8d8d8] rounded-lg font-mono text-[11px] text-[#363739]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(pdvPixData.payload);
+                              setCopiedPix(true);
+                              setTimeout(() => setCopiedPix(false), 2500);
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-[#53383e] hover:bg-[#432c32] rounded-lg cursor-pointer"
+                          >
+                            {copiedPix ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedPix ? 'Copiado!' : 'Copiar'}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {pdvPaymentMethod === 'cartao_credito' && (
                   <div className="space-y-3">
@@ -5530,6 +5682,91 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
           </div>
         );
       })()}
+      {/* Modal Condicional: Impressão / PDF do Termo de Garantia */}
+      {warrantyPromptState && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Termo de Garantia Vinculado
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    OS Nº <strong>{warrantyPromptState.os.code}</strong> · {warrantyPromptState.policyName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWarrantyPromptState(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-slate-800 leading-relaxed font-medium">
+                Esta OS possui termo de garantia vinculado. Deseja imprimir o termo de garantia junto?
+              </p>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+                Ao escolher <strong>Sim</strong>, o Termo de Garantia será gerado obrigatoriamente em uma{' '}
+                <strong>nova página separada</strong>, repetindo o cabeçalho padrão da OS (logo, dados da empresa, dados do cliente e o número{' '}
+                <strong>OS Nº {warrantyPromptState.os.code}</strong> em destaque).
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setWarrantyPromptState(null)}
+                className="px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const { os, mode } = warrantyPromptState;
+                  setWarrantyPromptState(null);
+                  if (mode === 'print') {
+                    executePrintOS(os, false);
+                  } else {
+                    void executeDownloadOS(os, false);
+                  }
+                }}
+                className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                Não
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const { os, mode } = warrantyPromptState;
+                  setWarrantyPromptState(null);
+                  if (mode === 'print') {
+                    executePrintOS(os, true);
+                  } else {
+                    void executeDownloadOS(os, true);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Sim</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

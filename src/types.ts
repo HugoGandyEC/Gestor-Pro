@@ -1014,6 +1014,14 @@ export interface PaymentReceiptItem {
   kind?: 'servico' | 'peca' | 'produto' | 'taxa' | 'desconto';
 }
 
+export interface PaymentReceiptHistoryEntry {
+  date: string;
+  method: PaymentMethod;
+  amount: number;
+  label?: string;
+  receiptNumber?: string;
+}
+
 export interface PaymentReceipt {
   id: string;
   receiptNumber: string; // Ex: REC-2026-0001
@@ -1036,6 +1044,7 @@ export interface PaymentReceipt {
   paymentKind: PaymentReceiptKind;
   orderTotal: number;
   previouslyPaid: number;
+  previousPaymentsHistory?: PaymentReceiptHistoryEntry[];
   amountPaidNow: number;
   totalPaidAccumulated: number;
   remainingBalance: number;
@@ -1049,6 +1058,12 @@ export interface PaymentReceipt {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+}
+
+export interface PendingReceiptPrompt {
+  receipt: PaymentReceipt;
+  classificationLabel: 'Entrada' | 'Pagamento Parcial' | 'Quitação';
+  receiptTitle: 'Recibo de Entrada' | 'Recibo de Pagamento Parcial' | 'Recibo de Quitação';
 }
 
 

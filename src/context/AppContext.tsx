@@ -38,6 +38,8 @@ import {
   PaymentReceipt,
   PaymentReceiptItem,
   PaymentReceiptKind,
+  PaymentReceiptHistoryEntry,
+  PendingReceiptPrompt,
   SelectiveBackupImportOptions,
   SupplierProductMapping,
   StockImportRecord,
@@ -45,6 +47,7 @@ import {
   StockImportUndoAnalysis,
   ImportFinancialInstallment
 } from '../types';
+import { classifyServiceOrderPayment } from '../utils/pixBrCode';
 import {
   buildQuickInstallments,
   buildSupplierItemKey,
@@ -312,7 +315,7 @@ interface AppContextType {
   addCustomerTicket: (t: Omit<CustomerPortalTicket, 'id' | 'createdAt' | 'status'>) => void;
   updateCustomerTicketStatus: (id: string, status: CustomerPortalTicket['status']) => void;
 
-  addServiceOrder: (so: Omit<ServiceOrder, 'id' | 'code'>) => void;
+  addServiceOrder: (so: Omit<ServiceOrder, 'id' | 'code'>) => ServiceOrder;
   updateServiceOrder: (id: string, updates: Partial<ServiceOrder>) => void;
   deleteServiceOrder: (id: string) => void;
 
@@ -335,8 +338,18 @@ interface AppContextType {
   activeCashSession: CashRegisterSession | null;
   paymentReceipts: PaymentReceipt[];
   activeReceiptModal: PaymentReceipt | null;
+  pendingReceiptPrompt: PendingReceiptPrompt | null;
   openReceiptModal: (receipt: PaymentReceipt) => void;
   closeReceiptModal: () => void;
+  confirmPendingReceiptPrompt: () => void;
+  dismissPendingReceiptPrompt: () => void;
+  registerOsDirectPaymentReceipt: (params: {
+    order: ServiceOrder;
+    newlyPaidSplits: PaymentSplit[];
+    previouslyPaid: number;
+    previousPaymentsHistory?: PaymentReceiptHistoryEntry[];
+    notes?: string;
+  }) => PaymentReceipt | null;
   getReceiptsForSource: (sourceType: 'os' | 'venda', sourceId: string) => PaymentReceipt[];
   getPaidAmountForSource: (sourceType: 'os' | 'venda', sourceId: string) => number;
   openCashSession: (terminalName: string, openingBalance: number, notes?: string) => CashRegisterSession;
@@ -943,6 +956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [activeReceiptModal, setActiveReceiptModal] = useState<PaymentReceipt | null>(null);
+  const [pendingReceiptPrompt, setPendingReceiptPrompt] = useState<PendingReceiptPrompt | null>(null);
 
   const [supplierProductMappings, setSupplierProductMappings] = useState<SupplierProductMapping[]>(() => {
     const saved = localStorage.getItem(KEYS.SUPPLIER_PRODUCT_MAPPINGS);
@@ -3636,6 +3650,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     });
 
     addAuditLog(isBudget ? 'Novo Orçamento' : 'Abertura de OS', `${isBudget ? 'Orçamento' : 'Ordem de Serviço'} ${code} criada para ${so.clientName}.`);
+    return newOrder;
   };
 
   const updateServiceOrder = (id: string, updates: Partial<ServiceOrder>) => {
@@ -4088,6 +4103,17 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     setActiveReceiptModal(null);
   };
 
+  const confirmPendingReceiptPrompt = () => {
+    if (pendingReceiptPrompt) {
+      setActiveReceiptModal(pendingReceiptPrompt.receipt);
+      setPendingReceiptPrompt(null);
+    }
+  };
+
+  const dismissPendingReceiptPrompt = () => {
+    setPendingReceiptPrompt(null);
+  };
+
   const getReceiptsForSource = (sourceType: 'os' | 'venda', sourceId: string): PaymentReceipt[] => {
     return paymentReceipts
       .filter(r => r.sourceType === sourceType && r.sourceId === sourceId)
@@ -4432,21 +4458,51 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       (params.payments.reduce((acc, p) => acc + Number(p.netAmount ?? p.amount ?? 0), 0) || grossAmount - feeAmount).toFixed(2)
     );
 
-    const totalPaidAccumulated = Number(Math.min(orderTotal, previouslyPaid + grossAmount).toFixed(2));
-    const remainingBalance = Math.max(0, Number((orderTotal - totalPaidAccumulated).toFixed(2)));
-    const isFullyPaid = remainingBalance <= 0.01;
+    const classification = classifyServiceOrderPayment({
+      orderTotal,
+      previouslyPaid,
+      amountPaidNow: grossAmount
+    });
 
-    const paymentKind: PaymentReceiptKind =
-      params.paymentKind ||
-      (previouslyPaid <= 0.01 && isFullyPaid
-        ? 'vista'
-        : previouslyPaid > 0.01 && isFullyPaid
-        ? 'quitacao'
-        : params.splitId
-        ? 'parcela'
-        : previouslyPaid <= 0.01 && !isFullyPaid
-        ? 'entrada'
-        : 'parcial');
+    const totalPaidAccumulated = classification.totalPaidAccumulated;
+    const remainingBalance = classification.remainingBalance;
+    const isFullyPaid = classification.isFullyPaid;
+
+    const paymentKind: PaymentReceiptKind = params.paymentKind || classification.paymentKind;
+
+    // Histórico de pagamentos anteriores (para detalhamento no recibo)
+    const priorReceiptsForOs = paymentReceipts
+      .filter(r => r.sourceType === 'os' && r.sourceId === order.id && !r.cancelled)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    let previousPaymentsHistory: PaymentReceiptHistoryEntry[] = priorReceiptsForOs.map(r => ({
+      date: r.createdAt,
+      amount: Number(r.amountPaidNow || 0),
+      method: r.paymentMethod,
+      label: r.paymentKind === 'entrada' ? 'Entrada' : r.isFullyPaid ? 'Quitação' : 'Pagamento Parcial',
+      receiptNumber: r.receiptNumber
+    }));
+
+    if (previousPaymentsHistory.length === 0 && previouslyPaid > 0.01) {
+      const priorPaidSplits = (order.payments || []).filter(p => p.status === 'pago' && Number(p.amount || 0) > 0);
+      if (priorPaidSplits.length > 0) {
+        previousPaymentsHistory = priorPaidSplits.map(p => ({
+          date: p.paidAt || order.openDate,
+          amount: Number(p.amount || 0),
+          method: p.method,
+          label: p.entryType === 'entrada' ? 'Entrada' : 'Pagamento Parcial'
+        }));
+      } else {
+        previousPaymentsHistory = [
+          {
+            date: order.openDate,
+            amount: previouslyPaid,
+            method: order.paymentMethod || 'pix',
+            label: 'Entrada'
+          }
+        ];
+      }
+    }
 
     const settledAt = new Date().toISOString();
     const settledDateOnly = settledAt.split('T')[0];
@@ -4515,7 +4571,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       sourceCode: order.code,
       clientId: clientSnap.clientId,
       clientName: clientSnap.clientName,
-      description: `Baixa ${isFullyPaid ? 'Total' : 'Parcial'} OS ${order.code} - ${clientSnap.clientName}`,
+      description: `Baixa ${classification.shortLabel} OS ${order.code} - ${clientSnap.clientName}`,
       paymentMethod: params.paymentMethod,
       payments: stampedNewSplits,
       grossAmount,
@@ -4586,6 +4642,7 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
       paymentKind,
       orderTotal,
       previouslyPaid,
+      previousPaymentsHistory,
       amountPaidNow: grossAmount,
       totalPaidAccumulated,
       remainingBalance,
@@ -4603,14 +4660,149 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
     syncPaymentReceiptToCloud(receipt);
 
     if (!params.suppressAutoModal) {
-      setActiveReceiptModal(receipt);
+      setPendingReceiptPrompt({
+        receipt,
+        classificationLabel: classification.shortLabel,
+        receiptTitle: classification.receiptTitle
+      });
     }
 
     addAuditLog(
       'Baixa de OS & Emissão de Recibo',
-      `OS ${order.code} — Recibo ${receipt.receiptNumber} (${isFullyPaid ? 'Quitado' : `Parcial, falta R$ ${remainingBalance.toFixed(2)}`}). Recebido: R$ ${grossAmount.toFixed(2)}.`
+      `OS ${order.code} — Recibo ${receipt.receiptNumber} (${classification.shortLabel}${isFullyPaid ? '' : `, falta R$ ${remainingBalance.toFixed(2)}`}). Recebido: R$ ${grossAmount.toFixed(2)}.`
     );
     return movement;
+  };
+
+  const registerOsDirectPaymentReceipt = (params: {
+    order: ServiceOrder;
+    newlyPaidSplits: PaymentSplit[];
+    previouslyPaid: number;
+    previousPaymentsHistory?: PaymentReceiptHistoryEntry[];
+    notes?: string;
+  }): PaymentReceipt | null => {
+    const { order, newlyPaidSplits, previouslyPaid, notes } = params;
+    const validSplits = (newlyPaidSplits || []).filter(s => Number(s.amount || 0) > 0.009);
+    if (validSplits.length === 0) return null;
+
+    const srvTotal = (order.services || []).reduce((a, s) => a + Number(s.price || 0), 0);
+    const prtTotal = (order.parts || []).reduce((a, p) => a + (Number(p.price || 0) * Number(p.quantity || 1)), 0);
+    const orderTotal = Math.max(0, Number((srvTotal + prtTotal + Number(order.visitFee || 0) - Number(order.calculatedDiscount || 0)).toFixed(2)));
+    const amountPaidNow = Number(validSplits.reduce((acc, s) => acc + Number(s.amount || 0), 0).toFixed(2));
+    if (amountPaidNow <= 0.009) return null;
+
+    const classification = classifyServiceOrderPayment({
+      orderTotal,
+      previouslyPaid,
+      amountPaidNow
+    });
+
+    const priorReceiptsForOs = paymentReceipts
+      .filter(r => r.sourceType === 'os' && r.sourceId === order.id && !r.cancelled)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    const previousPaymentsHistory: PaymentReceiptHistoryEntry[] =
+      params.previousPaymentsHistory && params.previousPaymentsHistory.length > 0
+        ? params.previousPaymentsHistory
+        : priorReceiptsForOs.map(r => ({
+            date: r.createdAt,
+            amount: Number(r.amountPaidNow || 0),
+            method: r.paymentMethod,
+            label: r.paymentKind === 'entrada' ? 'Entrada' : r.isFullyPaid ? 'Quitação' : 'Pagamento Parcial',
+            receiptNumber: r.receiptNumber
+          }));
+
+    const clientSnap = resolveClientSnapshot(
+      order.clientId,
+      order.clientName,
+      order.clientDocument,
+      order.clientPhone,
+      order.clientAddress
+    );
+
+    const receiptItems: PaymentReceiptItem[] = [
+      ...(order.services || []).map(s => ({
+        name: `Serviço: ${s.name}`,
+        quantity: 1,
+        unitPrice: Number(s.price || 0),
+        totalPrice: Number(s.price || 0),
+        kind: 'servico' as const
+      })),
+      ...(order.parts || []).map(p => ({
+        name: p.name,
+        quantity: Number(p.quantity || 1),
+        unitPrice: Number(p.price || 0),
+        totalPrice: Number(p.price || 0) * Number(p.quantity || 1),
+        kind: 'peca' as const
+      }))
+    ];
+    if (Number(order.visitFee || 0) > 0) {
+      receiptItems.push({
+        name: 'Taxa de Visita Técnica',
+        quantity: 1,
+        unitPrice: Number(order.visitFee || 0),
+        totalPrice: Number(order.visitFee || 0),
+        kind: 'taxa'
+      });
+    }
+    if (Number(order.calculatedDiscount || 0) > 0) {
+      receiptItems.push({
+        name: 'Desconto Aplicado',
+        quantity: 1,
+        unitPrice: -Number(order.calculatedDiscount || 0),
+        totalPrice: -Number(order.calculatedDiscount || 0),
+        kind: 'desconto'
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    const primaryMethod: PaymentMethod = validSplits[0]?.method || order.paymentMethod || 'pix';
+    const receipt: PaymentReceipt = {
+      id: `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      receiptNumber: generateNextReceiptNumber(),
+      sourceType: 'os',
+      sourceId: order.id,
+      sourceCode: order.code,
+      cashSessionId: activeCashSession?.id || 'os-direto',
+      cashSessionCode: activeCashSession?.code,
+      cashMovementId: `cm-os-direto-${Date.now()}`,
+      terminalName: 'Lançamento Direto na OS',
+      operatorName: currentUser?.name || 'Operador',
+      clientId: clientSnap.clientId,
+      clientName: clientSnap.clientName,
+      clientDocument: clientSnap.clientDocument,
+      clientPhone: clientSnap.clientPhone,
+      clientAddress: clientSnap.clientAddress,
+      items: receiptItems,
+      paymentMethod: primaryMethod,
+      payments: validSplits,
+      paymentKind: classification.paymentKind,
+      orderTotal,
+      previouslyPaid,
+      previousPaymentsHistory,
+      amountPaidNow,
+      totalPaidAccumulated: classification.totalPaidAccumulated,
+      remainingBalance: classification.remainingBalance,
+      isFullyPaid: classification.isFullyPaid,
+      notes,
+      createdAt: nowIso
+    };
+
+    setPaymentReceipts(prev => [receipt, ...prev]);
+    syncPaymentReceiptToCloud(receipt);
+
+    setPendingReceiptPrompt({
+      receipt,
+      classificationLabel: classification.shortLabel,
+      receiptTitle: classification.receiptTitle
+    });
+
+    addAuditLog(
+      'Lançamento Financeiro na OS',
+      `OS ${order.code} — ${classification.shortLabel} de R$ ${amountPaidNow.toFixed(2)} (Recibo ${receipt.receiptNumber}).`
+    );
+
+    return receipt;
   };
 
   const addGeneralExpense = (exp: Omit<GeneralExpense, 'id'>) => {
@@ -5483,8 +5675,12 @@ const broadcastSync = (type: 'KEY' | 'FULL', key?: string) => {
         activeCashSession,
         paymentReceipts,
         activeReceiptModal,
+        pendingReceiptPrompt,
         openReceiptModal,
         closeReceiptModal,
+        confirmPendingReceiptPrompt,
+        dismissPendingReceiptPrompt,
+        registerOsDirectPaymentReceipt,
         getReceiptsForSource,
         getPaidAmountForSource,
         openCashSession,

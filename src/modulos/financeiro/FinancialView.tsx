@@ -20,9 +20,11 @@ import {
   ShieldCheck,
   RefreshCw,
   Search,
-  Receipt
+  Receipt,
+  X
 } from 'lucide-react';
 import { useApp, formatBRL, formatDateBR } from '../../context/AppContext';
+import { PaymentMethod, ServiceOrder } from '../../types';
 import { LiveSearchInput } from '../../components/LiveSearchInput';
 import { ViewModeToggle, ViewMode } from '../../components/ViewModeToggle';
 import { useRowHoverTooltip } from '../../components/RowHoverTooltip';
@@ -32,6 +34,10 @@ import {
   isAutoPayrollExpense,
   isServiceOrderReceivable
 } from '../../utils/financialHelpers';
+import {
+  calculateServiceOrderFinancials,
+  classifyServiceOrderPayment
+} from '../../utils/pixBrCode';
 
 export const FinancialView: React.FC = () => {
   const { 
@@ -45,6 +51,7 @@ export const FinancialView: React.FC = () => {
     toggleDirectSalePayment,
     toggleServiceOrderPayment,
     toggleGeneralExpensePayment,
+    settleServiceOrderInPdv,
     getReceiptsForSource,
     getPaidAmountForSource,
     openReceiptModal
@@ -53,6 +60,49 @@ export const FinancialView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'dre' | 'receber' | 'pagar'>('dre');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const { showTooltip, hideTooltip, tooltipElement } = useRowHoverTooltip();
+
+  // Modal de Lançamento Financeiro de OS (Entrada / Parcial / Quitação)
+  const [receivingOsModal, setReceivingOsModal] = useState<ServiceOrder | null>(null);
+  const [osPayAmount, setOsPayAmount] = useState<number>(0);
+  const [osPayMethod, setOsPayMethod] = useState<PaymentMethod>('pix');
+  const [osPayNotes, setOsPayNotes] = useState<string>('');
+
+  const handleOpenOsPaymentModal = (orderId: string) => {
+    const targetOs = serviceOrders.find(o => o.id === orderId);
+    if (!targetOs) return;
+    const fin = calculateServiceOrderFinancials(targetOs, getPaidAmountForSource('os', targetOs.id));
+    setReceivingOsModal(targetOs);
+    setOsPayAmount(fin.remainingBalance > 0 ? fin.remainingBalance : fin.grandTotal);
+    setOsPayMethod(targetOs.paymentMethod || 'pix');
+    setOsPayNotes('');
+  };
+
+  const handleConfirmOsPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!receivingOsModal) return;
+    const amount = Number(Number(osPayAmount || 0).toFixed(2));
+    if (amount <= 0.009) return;
+
+    settleServiceOrderInPdv(receivingOsModal.id, {
+      payments: [
+        {
+          id: `fin-pay-${Date.now()}`,
+          method: osPayMethod,
+          amount,
+          netAmount: amount,
+          status: 'pago'
+        }
+      ],
+      paymentMethod: osPayMethod,
+      paidAmount: amount,
+      terminalName: 'Financeiro - Contas a Receber',
+      orderOverride: receivingOsModal,
+      notes: osPayNotes.trim() || undefined
+    });
+
+    setReceivingOsModal(null);
+    setOsPayNotes('');
+  };
   
   // Filters for Receivables and Payables
   const [receivableFilter, setReceivableFilter] = useState<'todos' | 'pendente' | 'pago'>('todos');
@@ -817,7 +867,11 @@ export const FinancialView: React.FC = () => {
                             <button
                               onClick={() => {
                                 if (item.type === 'os') {
-                                  toggleServiceOrderPayment(item.id);
+                                  if (item.paymentStatus === 'pago') {
+                                    toggleServiceOrderPayment(item.id);
+                                  } else {
+                                    handleOpenOsPaymentModal(item.id);
+                                  }
                                 } else {
                                   toggleDirectSalePayment(item.id);
                                 }
@@ -893,7 +947,11 @@ export const FinancialView: React.FC = () => {
                           type="button"
                           onClick={() => {
                             if (item.type === 'os') {
-                              toggleServiceOrderPayment(item.id);
+                              if (item.paymentStatus === 'pago') {
+                                toggleServiceOrderPayment(item.id);
+                              } else {
+                                handleOpenOsPaymentModal(item.id);
+                              }
                             } else {
                               toggleDirectSalePayment(item.id);
                             }
@@ -1125,6 +1183,153 @@ export const FinancialView: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Modal de Lançamento Financeiro em OS (Entrada / Pagamento Parcial / Quitação) */}
+      {receivingOsModal && (() => {
+        const fin = calculateServiceOrderFinancials(
+          receivingOsModal,
+          getPaidAmountForSource('os', receivingOsModal.id)
+        );
+        const liveClass = classifyServiceOrderPayment({
+          orderTotal: fin.grandTotal,
+          previouslyPaid: fin.totalPaid,
+          amountPaidNow: Number(osPayAmount || 0)
+        });
+        const badgeClass =
+          liveClass.shortLabel === 'Quitação'
+            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+            : liveClass.shortLabel === 'Entrada'
+            ? 'bg-blue-100 text-blue-800 border-blue-300'
+            : 'bg-amber-100 text-amber-800 border-amber-300';
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+              <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Registrar Recebimento · OS Nº {receivingOsModal.code}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{receivingOsModal.clientName}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReceivingOsModal(null)}
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmOsPayment} className="p-5 space-y-4 text-xs">
+                {/* Resumo da OS */}
+                <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase text-slate-500">Total OS</div>
+                    <div className="font-mono font-bold text-slate-900 mt-0.5">{formatBRL(fin.grandTotal)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase text-emerald-700">Já Pago</div>
+                    <div className="font-mono font-bold text-emerald-700 mt-0.5">{formatBRL(fin.totalPaid)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase text-rose-700">Saldo Atual</div>
+                    <div className="font-mono font-bold text-rose-700 mt-0.5">{formatBRL(fin.remainingBalance)}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Valor Recebido (R$) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={fin.remainingBalance > 0 ? fin.remainingBalance : undefined}
+                      required
+                      value={osPayAmount}
+                      onChange={e => setOsPayAmount(Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Forma de Pagamento *
+                    </label>
+                    <select
+                      value={osPayMethod}
+                      onChange={e => setOsPayMethod(e.target.value as PaymentMethod)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="pix">PIX</option>
+                      <option value="dinheiro">Dinheiro</option>
+                      <option value="cartao_debito">Cartão de Débito</option>
+                      <option value="cartao_credito">Cartão de Crédito</option>
+                      <option value="boleto">Boleto Bancário</option>
+                      <option value="faturado_30d">Faturado (30d)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Classificação Automática em Tempo Real */}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase text-slate-500">Classificação Automática</div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className={`text-[10.5px] font-extrabold uppercase px-2 py-0.5 rounded border ${badgeClass}`}>
+                        {liveClass.shortLabel}
+                      </span>
+                      <span className="text-[11px] text-slate-600">{liveClass.receiptTitle}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold uppercase text-slate-500">Novo Saldo</div>
+                    <div className={`font-mono font-black text-sm ${liveClass.remainingBalance > 0.01 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                      {formatBRL(liveClass.remainingBalance)}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Observações (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={osPayNotes}
+                    onChange={e => setOsPayNotes(e.target.value)}
+                    placeholder="Ex.: Sinal de 50% para início da obra..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReceivingOsModal(null)}
+                    className="px-3.5 py-2 font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Confirmar Recebimento</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
       {tooltipElement}
     </div>
