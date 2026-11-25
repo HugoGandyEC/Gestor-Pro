@@ -694,8 +694,8 @@ export const ProductsAndStockView: React.FC = () => {
               Produtos, Peças, Marcas & Movimentações
             </span>
           </div>
-          <p className="hidden md:block text-xs text-[#707174] mt-1">
-            Gestão completa de estoque de produtos, reservatórios térmicos, bombas e peças com marcas, URLs amigáveis, tags e movimentações Kardex.
+          <p className="text-xs text-[#707174] mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Gerencie produtos, peças, importação de NF-e, vínculos de fornecedores e movimentações de estoque.
           </p>
         </div>
 

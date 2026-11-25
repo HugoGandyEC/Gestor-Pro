@@ -315,8 +315,8 @@ export const MasterRegistrationsView: React.FC = () => {
             </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Cadastro Geral do Sistema</h1>
-          <p className="text-sm text-slate-300 mt-1">
-            Gerencie todas as entidades essenciais do ERP em uma interface centralizada e integrada.
+          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Gerencie clientes, fornecedores, produtos, serviços e cadastros essenciais do ERP em um só lugar.
           </p>
         </div>
 

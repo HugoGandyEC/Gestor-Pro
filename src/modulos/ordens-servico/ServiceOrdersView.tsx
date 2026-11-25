@@ -1877,8 +1877,8 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
               Checklist com Fotos · Assinatura Digital Touch
             </span>
           </div>
-          <p className="hidden md:block text-xs text-[#707174] mt-1">
-            Ciclo completo de atendimento técnico para reservatórios térmicos, tanques, bombas e tubulações, com taxa de visita e conversão ágil de orçamento.
+          <p className="text-xs text-[#707174] mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Gerencie orçamentos, atendimentos técnicos, fotos, garantias e assinaturas digitais do início à entrega.
           </p>
         </div>
 

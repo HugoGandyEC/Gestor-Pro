@@ -980,8 +980,8 @@ export const PdvView: React.FC<PdvViewProps> = ({ externalSaleTrigger }) => {
               </span>
             )}
           </div>
-          <p className="hidden md:block text-xs text-[#5a5b5e] mt-1">
-            Central de recebimento unificada: todas as Ordens de Serviço e Vendas Diretas passam pelo caixa para conferência, baixa de valores e emissão de comprovante.
+          <p className="text-xs text-[#5a5b5e] mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Receba pagamentos de Ordens de Serviço e vendas diretas com conferência de caixa e emissão de comprovantes.
           </p>
         </div>
 

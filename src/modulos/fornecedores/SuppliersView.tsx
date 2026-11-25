@@ -266,8 +266,8 @@ export const SuppliersView: React.FC = () => {
               <h1 className="text-xl font-bold text-[#363739] tracking-tight">
                 Cadastro de Fornecedores
               </h1>
-              <p className="hidden md:block text-xs text-[#707174] mt-0.5">
-                Gestão e homologação de fabricantes de tanques térmicos, bombas, válvulas e insumos com consulta automática de CNPJ e CEP.
+              <p className="text-xs text-[#707174] mt-0.5 max-w-2xl line-clamp-2 leading-relaxed">
+                Cadastre e gerencie fornecedores e fabricantes com consulta automática de CNPJ, CEP e contatos.
               </p>
             </div>
           </div>

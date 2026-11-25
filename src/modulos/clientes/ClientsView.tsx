@@ -541,8 +541,8 @@ export const ClientsView: React.FC = () => {
               <h1 className="text-xl font-bold text-[#363739] tracking-tight">
                 Cadastro de Clientes
               </h1>
-              <p className="hidden md:block text-xs text-[#707174] mt-0.5">
-                Escolha dinâmica entre Pessoa Jurídica (CNPJ) e Pessoa Física (CPF/RG) com suporte a múltiplos endereços identificados por título de referência.
+              <p className="text-xs text-[#707174] mt-0.5 max-w-2xl line-clamp-2 leading-relaxed">
+                Cadastre e gerencie clientes Pessoa Física e Jurídica com múltiplos endereços e histórico completo.
               </p>
             </div>
           </div>

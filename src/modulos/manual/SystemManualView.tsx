@@ -561,8 +561,8 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
                   {SYSTEM_VERSION}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Guia operacional completo e registro oficial de todas as versões e alterações do sistema ({SYSTEM_CHANGELOG[SYSTEM_CHANGELOG.length - 1]?.version} até {SYSTEM_VERSION}).
+              <p className="text-xs text-slate-500 mt-0.5 max-w-2xl line-clamp-2 leading-relaxed">
+                Consulte o guia operacional dos módulos e acompanhe o histórico oficial de versões do sistema.
               </p>
             </div>
           </div>

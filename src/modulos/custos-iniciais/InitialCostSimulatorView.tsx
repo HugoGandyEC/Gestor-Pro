@@ -380,8 +380,8 @@ export const InitialCostSimulatorView: React.FC = () => {
               Gestão Financeira & Break-Even
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-4xl">
-            Cadastre e edite contas recorrentes (salários, combustíveis, aluguel, internet, alimentação, DAS MEI), dívidas da empresa (empréstimos, IPVA, seguros parcelados em X vezes com controle de parcelas pagas) e alimente automaticamente o sistema financeiro e o Ponto de Equilíbrio.
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Cadastre contas recorrentes, gerencie dívidas parceladas e simule o ponto de equilíbrio financeiro.
           </p>
         </div>
 

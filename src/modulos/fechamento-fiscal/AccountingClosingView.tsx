@@ -149,8 +149,8 @@ Salvo automaticamente via Google Drive pelo FIRE GESTÃO.
                 Espelho Fiscal & Contábil
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              {companySettings.tradeName || companySettings.companyName || 'FIRE GESTÃO'} · Consolidação das notas fiscais, faturamento tributável (Serviços vs Comércio) e deduções fiscais.
+            <p className="text-xs text-slate-500 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+              Consolide notas fiscais, faturamento tributável e deduções mensais para envio rápido à contabilidade.
             </p>
           </div>
         </div>

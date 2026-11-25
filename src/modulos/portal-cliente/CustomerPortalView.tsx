@@ -420,8 +420,8 @@ export const CustomerPortalView: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-white mt-2">
             Portal do Cliente FIRE GESTÃO
           </h1>
-          <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-            Acompanhe o andamento das suas Ordens de Serviço, consulte termos de garantia com número de série (S/N) de equipamentos, acione a garantia com 1 clique, visualize seu histórico de compras e gerencie seus dados de acesso.
+          <p className="text-xs text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Acompanhe suas Ordens de Serviço, consulte termos de garantia, acione suporte e visualize seu histórico de compras.
           </p>
         </div>
 

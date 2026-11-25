@@ -562,9 +562,8 @@ export const GoogleCalendarView: React.FC = () => {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                 Google Agenda & Agendamentos
               </h1>
-              <p className="text-white/80 text-sm mt-1 max-w-2xl">
-                Controle integral de visitas técnicas de campo, serviços especializados de piscinas e aquecedores, 
-                e compromissos diários da empresa integrados ao Google Agenda.
+              <p className="text-white/80 text-xs sm:text-sm mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+                Organize visitas técnicas, serviços em campo e compromissos da equipe integrados ao Google Agenda.
               </p>
             </div>
 

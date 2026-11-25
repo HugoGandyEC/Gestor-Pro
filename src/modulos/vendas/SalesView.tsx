@@ -751,8 +751,8 @@ export const SalesView: React.FC<SalesViewProps> = ({ onSendToPdvAndNavigate }) 
               Varejo & Atacado · Múltiplas Formas & Bandeiras
             </span>
           </div>
-          <p className="hidden md:block text-xs text-slate-500 mt-1">
-            Lançamento de vendas com múltiplos pagamentos e bandeiras de cartão diferentes, envio direto ao PDV para finalização e controle de cancelamento/exclusão.
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Registre vendas de balcão com múltiplas formas de pagamento, envio ao PDV e controle de cancelamentos.
           </p>
         </div>
 

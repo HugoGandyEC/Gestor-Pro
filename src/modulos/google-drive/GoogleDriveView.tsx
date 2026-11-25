@@ -434,8 +434,8 @@ Documento gerado e salvo automaticamente no Google Drive pelo FIRE GESTÃO.
             <HardDrive className="w-6 h-6 text-blue-400" />
             Armazenamento em Nuvem & Google Drive
           </h1>
-          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
-            Acesse, organize e armazene arquivos, ordens de serviço, comprovantes fiscais e cópias de segurança do ERP diretamente no seu Google Drive corporativo.
+          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Organize e armazene arquivos, ordens de serviço, comprovantes e backups no Google Drive corporativo.
           </p>
         </div>
 

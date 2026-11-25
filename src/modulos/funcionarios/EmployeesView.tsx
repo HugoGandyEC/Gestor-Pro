@@ -160,8 +160,8 @@ export const EmployeesView: React.FC = () => {
               Salários · Hora Trabalhada · Comissões
             </span>
           </div>
-          <p className="hidden md:block text-xs text-slate-500 mt-1">
-            Gestão da equipe técnica e de vendas com sincronização automática de folha e comissões no módulo Financeiro.
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Gerencie técnicos, vendedores, salários e comissões com sincronização automática no módulo financeiro.
           </p>
         </div>
 

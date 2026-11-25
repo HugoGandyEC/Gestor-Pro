@@ -211,8 +211,8 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
             <span>Minha Escala de Serviços & Diárias</span>
           </h1>
 
-          <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-            Acompanhe exclusivamente os atendimentos técnicos alocados a você, endereços para rota, diagnósticos a executar e o extrato dos seus valores a receber por diárias e serviços concluídos.
+          <p className="text-xs text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Acompanhe seus atendimentos técnicos, rotas do dia, diagnósticos pendentes e extrato de valores a receber.
           </p>
         </div>
 

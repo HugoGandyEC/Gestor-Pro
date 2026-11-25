@@ -1685,8 +1685,8 @@ export const AnalyticsChartsView: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               Gráficos & Indicadores Gerenciais (BI)
             </h1>
-            <p className="hidden md:block text-xs text-slate-500 mt-0.5">
-              Central financeira e cadastral com filtros por data, período, cliente, produto, serviço e modelo global de gráfico.
+            <p className="text-xs text-slate-500 mt-0.5 max-w-2xl line-clamp-2 leading-relaxed">
+              Analise gráficos financeiros e operacionais com filtros por período, cliente, produto e serviço.
             </p>
           </div>
         </div>

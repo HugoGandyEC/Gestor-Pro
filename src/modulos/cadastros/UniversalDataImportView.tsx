@@ -1417,8 +1417,8 @@ export const UniversalDataImportView: React.FC = () => {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
             Importador Universal de Dados & Migração
           </h1>
-          <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-2xl">
-            Traga seus backups e cadastros existentes nos formatos <strong>CSV, XLS / XLSX, TXT, PDF, XML e SQL</strong> para Clientes, Serviços, Ordens de Serviço, Vendas, Compras e Pagamentos.
+          <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Importe cadastros e backups em <strong>CSV, XLSX, TXT, PDF, XML ou SQL</strong> com mapeamento inteligente de campos.
           </p>
         </div>
 

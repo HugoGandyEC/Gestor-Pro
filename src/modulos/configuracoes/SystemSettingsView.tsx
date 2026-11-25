@@ -660,8 +660,8 @@ export const SystemSettingsView: React.FC = () => {
             </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Configurações Gerais do Sistema</h1>
-          <p className="text-sm text-slate-300 mt-1">
-            Personalize os parâmetros operacionais, taxas financeiras, dados fiscais da empresa e rotinas de segurança.
+          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Gerencie parâmetros operacionais, dados fiscais, taxas e regras de segurança do sistema.
           </p>
         </div>
       </div>

@@ -146,8 +146,8 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
                 Auditoria de Custos Reais
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              {companySettings.tradeName || companySettings.companyName || 'FIRE GESTÃO'} · Apuração exata da receita faturada deduzindo peças, salários, comissões, combustível, manutenção da frota e despesas operacionais.
+            <p className="text-xs text-slate-500 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+              Acompanhe a lucratividade real por colaborador deduzindo peças, salários, comissões, frota e despesas.
             </p>
           </div>
         </div>

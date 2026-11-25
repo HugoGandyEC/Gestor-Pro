@@ -109,8 +109,8 @@ export const OperationalCostsView: React.FC = () => {
               Aluguel · Internet · Celular · Alimentação
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Controle de despesas estruturais e rateio de linhas celulares e refeições em campo diretamente para cada colaborador.
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Controle despesas fixas da empresa e faça o rateio de custos operacionais por colaborador.
           </p>
         </div>
 

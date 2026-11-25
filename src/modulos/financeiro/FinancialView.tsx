@@ -407,8 +407,8 @@ export const FinancialView: React.FC = () => {
               Competência {getMonthLabelBR(selectedMonthYear)}
             </span>
           </div>
-          <p className="hidden md:block text-xs text-slate-500 mt-1">
-            Controle integrado de Contas a Receber (OS + Vendas), Contas a Pagar (Despesas, Frota e Dívidas) e DRE Oficial com conciliação automática.
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Controle contas a receber, contas a pagar, fluxo de caixa e DRE gerencial com conciliação automática.
           </p>
         </div>
 

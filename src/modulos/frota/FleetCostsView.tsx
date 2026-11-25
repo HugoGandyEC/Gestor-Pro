@@ -127,8 +127,8 @@ export const FleetCostsView: React.FC = () => {
               Controle Individual por Placa
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Gestão de combustível, troca de óleo, pastilhas de freio, IPVA, seguro e cálculo de amortização alocada a cada técnico.
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
+            Gerencie veículos, abastecimentos, manutenções, documentos e custos da frota alocados por técnico.
           </p>
         </div>
 
