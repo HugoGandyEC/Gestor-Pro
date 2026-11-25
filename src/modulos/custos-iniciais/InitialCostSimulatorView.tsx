@@ -371,12 +371,12 @@ export const InitialCostSimulatorView: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Custos Iniciais, Contas Recorrentes & Dívidas da Empresa
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight sm:whitespace-nowrap">
+              Custos Iniciais
             </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
               Gestão Financeira & Break-Even
             </span>
           </div>
@@ -385,21 +385,21 @@ export const InitialCostSimulatorView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             onClick={handleSyncExpenses}
             title="Sincroniza todas as contas recorrentes e parcelas do mês diretamente com a tela de Contas a Pagar / Despesas Gerais"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+            <RefreshCw className="w-3.5 h-3.5 text-blue-600 shrink-0" />
             <span>Sincronizar com Contas a Pagar</span>
           </button>
 
           <button
             onClick={() => handleOpenCreateModal()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>+ Nova Conta / Dívida</span>
           </button>
         </div>

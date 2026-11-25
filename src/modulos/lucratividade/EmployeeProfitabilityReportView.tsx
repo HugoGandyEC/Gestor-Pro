@@ -137,12 +137,12 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
               className="max-h-12 max-w-[130px] object-contain rounded shrink-0 border border-slate-200 p-0.5 bg-white" 
             />
           )}
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Relatório Mensal de Lucratividade por Funcionário
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight sm:whitespace-nowrap">
+                Lucratividade
               </h1>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
                 Auditoria de Custos Reais
               </span>
             </div>
@@ -152,7 +152,7 @@ export const EmployeeProfitabilityReportView: React.FC = () => {
           </div>
         </div>
 
-        <div className="no-print flex items-center gap-2.5">
+        <div className="no-print flex items-center gap-2.5 flex-wrap shrink-0">
           <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-xs">
             <Calendar className="w-4 h-4 text-slate-400" />
             <select

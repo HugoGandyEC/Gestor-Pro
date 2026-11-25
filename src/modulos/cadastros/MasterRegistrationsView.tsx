@@ -308,20 +308,20 @@ export const MasterRegistrationsView: React.FC = () => {
     <div className="space-y-6">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 text-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30">
+            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 whitespace-nowrap">
               Central Unificada de Cadastros
             </span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Cadastro Geral do Sistema</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:whitespace-nowrap">Central Cadastros</h1>
           <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
             Gerencie clientes, fornecedores, produtos, serviços e cadastros essenciais do ERP em um só lugar.
           </p>
         </div>
 
         {/* Quick Action Button */}
-        <div>
+        <div className="shrink-0">
           {activeSubTab === 'clients' && (
             <button
               onClick={() => {

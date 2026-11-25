@@ -964,18 +964,18 @@ export const PdvView: React.FC<PdvViewProps> = ({ externalSaleTrigger }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#d8d8d8]">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#d8d8d8]">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-bold text-[#363739] tracking-tight">
-              PDV · Frente de Caixa & Baixa de Recebimentos
+            <h1 className="text-xl font-bold text-[#363739] tracking-tight sm:whitespace-nowrap">
+              Frente de Caixa
             </h1>
             {activeCashSession ? (
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono whitespace-nowrap">
                 CAIXA ABERTO · {activeCashSession.code}
               </span>
             ) : (
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-mono">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-mono whitespace-nowrap">
                 CAIXA FECHADO
               </span>
             )}
@@ -985,7 +985,7 @@ export const PdvView: React.FC<PdvViewProps> = ({ externalSaleTrigger }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             type="button"
             onClick={() => handleOpenQuickClientModal()}

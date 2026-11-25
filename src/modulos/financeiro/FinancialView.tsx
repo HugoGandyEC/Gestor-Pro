@@ -398,12 +398,12 @@ export const FinancialView: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Módulo Financeiro & DRE Gerencial de Precisão
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight sm:whitespace-nowrap">
+              Financeiro & DRE
             </h1>
-            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
               Competência {getMonthLabelBR(selectedMonthYear)}
             </span>
           </div>
@@ -413,7 +413,7 @@ export const FinancialView: React.FC = () => {
         </div>
 
         {/* Sub-tabs */}
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg flex-wrap shrink-0">
           <button
             onClick={() => setActiveSubTab('dre')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${

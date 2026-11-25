@@ -549,15 +549,15 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="w-8 h-8 rounded-lg bg-[#f6eff1] text-[#53383e] flex items-center justify-center font-bold">
+            <div className="w-8 h-8 rounded-lg bg-[#f6eff1] text-[#53383e] flex items-center justify-center font-bold shrink-0">
               <BookOpen className="w-4 h-4" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Manual do Sistema & Documentação de Versões
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight sm:whitespace-nowrap">
+                  Ajuda & Manual
                 </h1>
-                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[#53383e] text-white">
+                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[#53383e] text-white whitespace-nowrap">
                   {SYSTEM_VERSION}
                 </span>
               </div>
@@ -568,7 +568,7 @@ export const SystemManualView: React.FC<SystemManualViewProps> = ({ onNavigate }
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           {viewMode === 'changelog' && (
             <button
               type="button"

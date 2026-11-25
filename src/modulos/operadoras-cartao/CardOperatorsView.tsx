@@ -522,8 +522,8 @@ export const CardOperatorsView: React.FC = () => {
               PagBank Integrado
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-            Operadoras de Cartão & Baixa Automática PagBank
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white sm:whitespace-nowrap">
+            Operadoras de Cartão
           </h1>
           <p className="text-xs sm:text-sm text-[#d8d8d8] mt-1 max-w-2xl line-clamp-2 leading-relaxed">
             Configure taxas de cartão, acompanhe repasses D+1 e concilie recebimentos com baixa automática.

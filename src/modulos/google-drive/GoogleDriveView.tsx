@@ -430,9 +430,9 @@ Documento gerado e salvo automaticamente no Google Drive pelo FIRE GESTÃO.
               {user ? 'Google Drive Conectado' : 'Aguardando Conexão'}
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <HardDrive className="w-6 h-6 text-blue-400" />
-            Armazenamento em Nuvem & Google Drive
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2 sm:whitespace-nowrap">
+            <HardDrive className="w-6 h-6 text-blue-400 shrink-0" />
+            Google Drive
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
             Organize e armazene arquivos, ordens de serviço, comprovantes e backups no Google Drive corporativo.

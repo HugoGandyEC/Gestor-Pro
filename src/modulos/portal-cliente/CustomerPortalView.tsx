@@ -410,15 +410,15 @@ export const CustomerPortalView: React.FC = () => {
     <div className="space-y-6">
       {/* Portal Header */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30 whitespace-nowrap">
               Área Restrita do Cliente
             </span>
             <span className="text-xs text-slate-300">Autoatendimento, Garantias & Compras</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white mt-2">
-            Portal do Cliente FIRE GESTÃO
+          <h1 className="text-2xl font-bold tracking-tight text-white mt-2 sm:whitespace-nowrap">
+            Portal do Cliente
           </h1>
           <p className="text-xs text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
             Acompanhe suas Ordens de Serviço, consulte termos de garantia, acione suporte e visualize seu histórico de compras.

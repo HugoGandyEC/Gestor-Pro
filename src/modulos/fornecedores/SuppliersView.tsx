@@ -257,14 +257,14 @@ export const SuppliersView: React.FC = () => {
     <div className="space-y-6">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#d8d8d8]">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-[#f6eff1] text-[#53383e] rounded-xl border border-[#d8d8d8]">
+            <div className="p-2 bg-[#f6eff1] text-[#53383e] rounded-xl border border-[#d8d8d8] shrink-0">
               <Building className="w-5 h-5" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-[#363739] tracking-tight">
-                Cadastro de Fornecedores
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-[#363739] tracking-tight sm:whitespace-nowrap">
+                Fornecedores
               </h1>
               <p className="text-xs text-[#707174] mt-0.5 max-w-2xl line-clamp-2 leading-relaxed">
                 Cadastre e gerencie fornecedores e fabricantes com consulta automática de CNPJ, CEP e contatos.
@@ -273,7 +273,7 @@ export const SuppliersView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             onClick={handleExportCsv}
             className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#363739] bg-white border border-[#d8d8d8] rounded-lg hover:bg-[#f4f5f6] transition-colors shadow-2xs"

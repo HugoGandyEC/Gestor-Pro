@@ -554,13 +554,13 @@ export const GoogleCalendarView: React.FC = () => {
       <div className="bg-white rounded-xl shadow-xs border border-gray-200">
         <div className="bg-gradient-to-r from-[#53383e] to-[#76321A] p-5 sm:p-6 text-white rounded-t-xl">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium tracking-wide uppercase mb-2">
                 <CalendarIcon className="w-3.5 h-3.5" />
                 Google Agenda & Operação
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                Google Agenda & Agendamentos
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight sm:whitespace-nowrap">
+                Google Agenda
               </h1>
               <p className="text-white/80 text-xs sm:text-sm mt-1 max-w-2xl line-clamp-2 leading-relaxed">
                 Organize visitas técnicas, serviços em campo e compromissos da equipe integrados ao Google Agenda.

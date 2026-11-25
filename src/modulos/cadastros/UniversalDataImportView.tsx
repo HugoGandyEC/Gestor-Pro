@@ -1407,15 +1407,15 @@ export const UniversalDataImportView: React.FC = () => {
     <div className="space-y-6">
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-[#53383e] to-slate-900 text-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-white/20 text-white border border-white/30 flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5 text-amber-300" />
+            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-white/20 text-white border border-white/30 flex items-center gap-1.5 whitespace-nowrap">
+              <Database className="w-3.5 h-3.5 text-amber-300 shrink-0" />
               Central de Importação Multi-Formato & Backup
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-            Importador Universal de Dados & Migração
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight sm:whitespace-nowrap">
+            Importação Universal
           </h1>
           <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
             Importe cadastros e backups em <strong>CSV, XLSX, TXT, PDF, XML ou SQL</strong> com mapeamento inteligente de campos.
@@ -1423,7 +1423,7 @@ export const UniversalDataImportView: React.FC = () => {
         </div>
 
         {/* Model Downloads Quick Dropdown */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 bg-white/10 p-2.5 rounded-xl border border-white/15">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 bg-white/10 p-2.5 rounded-xl border border-white/15 shrink-0">
           <button
             type="button"
             onClick={() => {

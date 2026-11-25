@@ -653,13 +653,13 @@ export const SystemSettingsView: React.FC = () => {
     <div className="space-y-6">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 whitespace-nowrap">
               Painel de Controle
             </span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Configurações Gerais do Sistema</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:whitespace-nowrap">Configurações</h1>
           <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">
             Gerencie parâmetros operacionais, dados fiscais, taxas e regras de segurança do sistema.
           </p>

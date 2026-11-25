@@ -1677,13 +1677,13 @@ export const AnalyticsChartsView: React.FC = () => {
     <div className="space-y-5">
       {/* Cabeçalho Principal */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="p-2.5 bg-[#f6eff1] text-[#53383e] rounded-xl border border-slate-200 shrink-0">
             <BarChart3 className="w-5 h-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              Gráficos & Indicadores Gerenciais (BI)
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight sm:whitespace-nowrap">
+              Indicadores & BI
             </h1>
             <p className="text-xs text-slate-500 mt-0.5 max-w-2xl line-clamp-2 leading-relaxed">
               Analise gráficos financeiros e operacionais com filtros por período, cliente, produto e serviço.
@@ -1691,7 +1691,7 @@ export const AnalyticsChartsView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs shrink-0">
           <span className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-semibold text-slate-700 tabular-nums">
             Período ativo: <strong className="text-slate-950">{resolvedPeriod.label}</strong>
           </span>

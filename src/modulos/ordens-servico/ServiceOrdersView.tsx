@@ -1868,12 +1868,12 @@ Após o pagamento, envie o comprovante por aqui. Obrigado!`;
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#d8d8d8]">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-[#363739] tracking-tight">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-bold text-[#363739] tracking-tight sm:whitespace-nowrap">
               Ordens de Serviço
             </h1>
-            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8]">
+            <span className="hidden md:inline-block text-xs font-semibold px-2 py-0.5 rounded bg-[#f6eff1] text-[#53383e] border border-[#d8d8d8] whitespace-nowrap">
               Checklist com Fotos · Assinatura Digital Touch
             </span>
           </div>

@@ -131,8 +131,8 @@ Salvo automaticamente via Google Drive pelo FIRE GESTÃO.
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div className="flex items-center gap-3.5">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
           {companySettings.logoUrl && (
             <img 
               src={companySettings.logoUrl} 
@@ -140,12 +140,12 @@ Salvo automaticamente via Google Drive pelo FIRE GESTÃO.
               className="max-h-12 max-w-[130px] object-contain rounded shrink-0 border border-slate-200 p-0.5 bg-white" 
             />
           )}
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Relatório de Fechamento Mensal para o Contador
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight sm:whitespace-nowrap">
+                Fechamento Fiscal
               </h1>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
                 Espelho Fiscal & Contábil
               </span>
             </div>
@@ -155,7 +155,7 @@ Salvo automaticamente via Google Drive pelo FIRE GESTÃO.
           </div>
         </div>
 
-        <div className="no-print flex flex-wrap items-center gap-2.5">
+        <div className="no-print flex flex-wrap items-center gap-2.5 shrink-0">
           <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-xs">
             <Calendar className="w-4 h-4 text-slate-400" />
             <select

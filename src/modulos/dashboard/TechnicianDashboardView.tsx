@@ -207,8 +207,8 @@ export const TechnicianDashboardView: React.FC<TechnicianDashboardViewProps> = (
             <span className="text-xs text-slate-300">Escala de Campo & Remuneração</span>
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight text-white mt-2 flex items-center gap-2.5">
-            <span>Minha Escala de Serviços & Diárias</span>
+          <h1 className="text-2xl font-bold tracking-tight text-white mt-2 flex items-center gap-2.5 sm:whitespace-nowrap">
+            <span>Minha Escala</span>
           </h1>
 
           <p className="text-xs text-slate-300 mt-1 max-w-2xl line-clamp-2 leading-relaxed">

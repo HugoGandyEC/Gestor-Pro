@@ -404,8 +404,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             </span>
           </div>
 
-          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white md:mt-2">
-            Controle Executivo de Operações & Vendas
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white md:mt-2 sm:whitespace-nowrap">
+            Visão Geral
           </h1>
           <p className="text-xs text-[#d8d8d8] mt-1 max-w-2xl line-clamp-2 leading-relaxed">
             Acompanhe indicadores de Ordens de Serviço, alertas de prazo, faturamento e ranking dos produtos mais vendidos.
